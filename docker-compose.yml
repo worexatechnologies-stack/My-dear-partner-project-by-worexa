@@ -1,0 +1,308 @@
+x-backend-environment: &backend-environment
+  DJANGO_ENV: ${DJANGO_ENV:-production}
+  DJANGO_SETTINGS_MODULE: config.settings.${DJANGO_ENV:-production}
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in the deployment environment}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS must be set in the deployment environment}
+  ENABLE_ADMIN_PORTAL: ${ENABLE_ADMIN_PORTAL:-True}
+  ENABLE_TWO_FACTOR: ${ENABLE_TWO_FACTOR:-False}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-True}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-True}
+  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-True}
+  DB_ENGINE: django.db.backends.postgresql
+  DB_NAME: ${DB_NAME:-matiromony}
+  DB_USER: ${DB_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in the deployment environment}
+  # Application traffic is pooled by default.  A controlled incident-response
+  # bypass remains available through APP_DB_HOST/APP_DB_PORT.
+  DB_HOST: ${APP_DB_HOST:-pgbouncer}
+  DB_PORT: ${APP_DB_PORT:-5432}
+  # Transaction pooling cannot safely keep Django server-side cursors open.
+  DB_DISABLE_SERVER_SIDE_CURSORS: ${DB_DISABLE_SERVER_SIDE_CURSORS:-True}
+  REDIS_URL: redis://redis:6379/0
+  CACHE_URL: redis://redis:6379/1
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  PAYMENT_MODE: ${PAYMENT_MODE:-manual_approval}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+  RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-info.mydearpartnersupport@gmail.com}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-hdameepfswdeqhie}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+  EMAIL_USE_SSL: ${EMAIL_USE_SSL:-False}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-info.mydearpartnersupport@gmail.com}
+  TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+  TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+  FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+  USE_S3: ${USE_S3:-False}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
+x-backend-service: &backend-service
+  build:
+    context: ./backend
+  image: my-dear-partner-backend:${IMAGE_TAG:-latest}
+  env_file:
+    - ${BACKEND_ENV_FILE:-./backend/.env}
+  environment: *backend-environment
+  init: true
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-matiromony}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in the deployment environment}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # The bootstrap validates runtime-only configuration and writes PgBouncer's
+  # temporary userlist inside the container.  Do not expose this service
+  # outside the Compose network.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/etc/pgbouncer/matiromony-entrypoint.sh"]
+    command: ["/usr/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+    volumes:
+      - ./backend/pgbouncer/entrypoint.sh:/etc/pgbouncer/matiromony-entrypoint.sh:ro
+    environment:
+      DB_HOST: ${PGBOUNCER_DATABASE_HOST:-postgres}
+      DB_PORT: ${PGBOUNCER_DATABASE_PORT:-5432}
+      DB_NAME: ${DB_NAME:-matiromony}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in the deployment environment}
+      # The generated, non-persistent userlist holds the password only while
+      # the container runs; SCRAM protects app-to-pooler authentication.
+      AUTH_TYPE: scram-sha-256
+      # Do not grant the application database user the PgBouncer admin console.
+      # An operator can explicitly supply a separately provisioned admin user.
+      ADMIN_USERS: ${PGBOUNCER_ADMIN_USERS:-pgbouncer_admin_disabled}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-400}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-40}
+      MIN_POOL_SIZE: ${PGBOUNCER_MIN_POOL_SIZE:-5}
+      RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-10}
+      RESERVE_POOL_TIMEOUT: ${PGBOUNCER_RESERVE_POOL_TIMEOUT:-5}
+      MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-80}
+      SERVER_IDLE_TIMEOUT: ${PGBOUNCER_SERVER_IDLE_TIMEOUT:-600}
+      SERVER_LIFETIME: ${PGBOUNCER_SERVER_LIFETIME:-3600}
+      QUERY_WAIT_TIMEOUT: ${PGBOUNCER_QUERY_WAIT_TIMEOUT:-120}
+      CLIENT_IDLE_TIMEOUT: ${PGBOUNCER_CLIENT_IDLE_TIMEOUT:-600}
+      SERVER_RESET_QUERY: DISCARD ALL
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          PGPASSWORD="$${DB_PASSWORD}" psql --no-password --quiet
+          --host=127.0.0.1 --port=5432 --username="$${DB_USER}" --dbname="$${DB_NAME}"
+          --command='SELECT 1' > /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    # Expose Redis on localhost so a backend running OUTSIDE Docker (e.g. a local
+    # `python manage.py runserver`) can use the Redis channel layer for real-time
+    # WebSockets instead of falling back to the single-process in-memory layer.
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  migrate:
+    <<: *backend-service
+    # Schema changes deliberately use the primary database directly: this
+    # avoids transaction-pooling edge cases during DDL while all runtime
+    # application traffic continues through PgBouncer.
+    environment:
+      <<: *backend-environment
+      DB_HOST: ${MIGRATE_DB_HOST:-postgres}
+      DB_PORT: ${MIGRATE_DB_PORT:-5432}
+      RUN_DJANGO_MIGRATIONS: "1"
+      RUN_DJANGO_COLLECTSTATIC: "1"
+      # Use "stage" for the legacy BYTEA backfill/purge deployment, then
+      # explicitly switch to "final" only after the guarded cutover succeeds.
+      PROFILE_PHOTO_CUTOVER_PHASE: ${PROFILE_PHOTO_CUTOVER_PHASE:-final}
+    command: ["true"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+      - private_media_data:/app/private_media
+    restart: "no"
+
+  backend:
+    <<: *backend-service
+    command: ["daphne", "config.asgi:application", "--bind", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+      - private_media_data:/app/private_media
+    # `docker compose watch` -> auto-rebuild + restart backend whenever backend source changes
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+        - action: rebuild
+          path: ./deploy.sh
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import http.client, sys;
+          connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=3);
+          connection.request('GET', '/api/v1/health/');
+          sys.exit(0 if connection.getresponse().status < 400 else 1)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  celery-worker:
+    <<: *backend-service
+    command: ["celery", "-A", "config", "worker", "--loglevel=info"]
+    restart: unless-stopped
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - media_data:/app/media
+      - private_media_data:/app/private_media
+
+  celery-beat:
+    <<: *backend-service
+    command:
+      - celery
+      - -A
+      - config
+      - beat
+      - --loglevel=info
+      - --scheduler
+      - django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  nextjs:
+    build:
+      context: ./frontend
+      args:
+        INTERNAL_API_BASE_URL: http://backend:8000/api/v1
+        AUTH_COOKIE_SECURE: "true"
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-My Dear Partner}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL must be set}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL must be set}
+        NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:?NEXT_PUBLIC_WS_BASE_URL must be set}
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:?NEXT_PUBLIC_MEDIA_BASE_URL must be set}
+        NEXT_PUBLIC_ENABLE_ADMIN_PORTAL: ${ENABLE_ADMIN_PORTAL:-true}
+    image: my-dear-partner-nextjs:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    # `docker compose watch` -> auto-rebuild + restart frontend whenever frontend source changes
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      INTERNAL_API_BASE_URL: http://backend:8000/api/v1
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-My Dear Partner}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL must be set}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL must be set}
+      NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:?NEXT_PUBLIC_WS_BASE_URL must be set}
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:?NEXT_PUBLIC_MEDIA_BASE_URL must be set}
+      NEXT_PUBLIC_ENABLE_ADMIN_PORTAL: ${ENABLE_ADMIN_PORTAL:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/').then(response =>
+          process.exit(response.status < 400 ? 0 : 1)).catch(() => process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      nextjs:
+        condition: service_healthy
+    volumes:
+      - ./backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_data:/app/staticfiles:ro
+      - media_data:/app/media:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  db_data:
+  redis_data:
+  static_data:
+  media_data:
+  private_media_data:

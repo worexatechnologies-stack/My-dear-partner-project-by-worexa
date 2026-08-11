@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+.env.*
+media/member_photos/
+private_media/
+venv/
+node_modules/
+*.log
+*.pot
+.Python
+.git
+.gitignore

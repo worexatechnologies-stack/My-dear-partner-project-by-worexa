@@ -1,0 +1,5 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'Help Centre', description: 'Get help with your My Dear Partner account, membership, safety, or support tickets.', alternates: { canonical: '/help' } };
+export default function HelpPage() { return <main className="public-content-page"><div className="content-shell"><p>Help centre</p><h1>How can we help?</h1><p>Choose the fastest path to an answer. Signed-in members can create and track a private support ticket.</p><div className="content-grid"><div className="content-card"><h2>Common questions</h2><p>Read answers about verification, privacy, membership, and matching.</p><Link href="/faq">Browse FAQs</Link></div><div className="content-card"><h2>Member support</h2><p>Create a support ticket and follow every reply.</p><Link href="/tickets">Open support tickets</Link></div><div className="content-card"><h2>Contact us</h2><p>Send a general enquiry to our support team.</p><Link href="/contact">Contact My Dear Partner</Link></div></div></div></main>; }

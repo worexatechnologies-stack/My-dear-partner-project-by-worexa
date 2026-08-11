@@ -1,0 +1,3183 @@
+openapi: 3.0.3
+info:
+  title: My Dear Partner API
+  version: 1.0.0
+  description: API endpoints documentation for the My Dear Partner platform.
+paths:
+  /api/v1/admin-auth/change-password/:
+    post:
+      operationId: v1_admin_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin-auth/login/:
+    post:
+      operationId: v1_admin_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin-auth/logout/:
+    post:
+      operationId: v1_admin_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin-auth/me/:
+    get:
+      operationId: v1_admin_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin-auth/token/refresh/:
+    post:
+      operationId: v1_admin_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/accounts/:
+    get:
+      operationId: v1_admin_accounts_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_accounts_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/accounts/{account_id}/:
+    get:
+      operationId: v1_admin_accounts_retrieve_2
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_accounts_partial_update
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_admin_accounts_destroy
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/activity/:
+    get:
+      operationId: v1_admin_activity_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/assign-ticket/:
+    post:
+      operationId: v1_admin_assign_ticket_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/assign-work/:
+    post:
+      operationId: v1_admin_assign_work_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/assignees/:
+    get:
+      operationId: v1_admin_assignees_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/backups/:
+    get:
+      operationId: v1_admin_backups_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_backups_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/blogs/:
+    get:
+      operationId: v1_admin_blogs_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+    post:
+      operationId: v1_admin_blogs_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+  /api/v1/admin/blogs/{item_id}/:
+    get:
+      operationId: v1_admin_blogs_retrieve_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+    post:
+      operationId: v1_admin_blogs_create_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogPost'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+    patch:
+      operationId: v1_admin_blogs_partial_update
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogPost'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+    delete:
+      operationId: v1_admin_blogs_destroy
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/complaints/:
+    get:
+      operationId: v1_admin_complaints_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/complaints/{complaint_id}/:
+    get:
+      operationId: v1_admin_complaints_retrieve_2
+      parameters:
+      - in: path
+        name: complaint_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_complaints_partial_update
+      parameters:
+      - in: path
+        name: complaint_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/customer-support/:
+    get:
+      operationId: v1_admin_customer_support_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_customer_support_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/customer-support/{id}/:
+    get:
+      operationId: v1_admin_customer_support_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_customer_support_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/customer-support/{id}/{action}/:
+    post:
+      operationId: v1_admin_customer_support_create_2
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/customer-support/{id}/activity/:
+    get:
+      operationId: v1_admin_customer_support_activity_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/dashboard/:
+    get:
+      operationId: v1_admin_dashboard_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/duplicate-flags/:
+    get:
+      operationId: v1_admin_duplicate_flags_retrieve
+      description: |-
+        GET  /api/admin/duplicate-flags/         — list all duplicate flags
+        PATCH /api/admin/duplicate-flags/<pk>/   — update review_status + note
+
+        Accessible by: Super Admin, Admin, Staff
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_duplicate_flags_partial_update
+      description: |-
+        GET  /api/admin/duplicate-flags/         — list all duplicate flags
+        PATCH /api/admin/duplicate-flags/<pk>/   — update review_status + note
+
+        Accessible by: Super Admin, Admin, Staff
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/duplicate-flags/{id}/:
+    get:
+      operationId: v1_admin_duplicate_flags_retrieve_2
+      description: |-
+        GET  /api/admin/duplicate-flags/         — list all duplicate flags
+        PATCH /api/admin/duplicate-flags/<pk>/   — update review_status + note
+
+        Accessible by: Super Admin, Admin, Staff
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_duplicate_flags_partial_update_2
+      description: |-
+        GET  /api/admin/duplicate-flags/         — list all duplicate flags
+        PATCH /api/admin/duplicate-flags/<pk>/   — update review_status + note
+
+        Accessible by: Super Admin, Admin, Staff
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/enquiries/:
+    get:
+      operationId: v1_admin_enquiries_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/enquiries/{enquiry_id}/:
+    get:
+      operationId: v1_admin_enquiries_retrieve_2
+      parameters:
+      - in: path
+        name: enquiry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_enquiries_partial_update
+      parameters:
+      - in: path
+        name: enquiry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/faqs/:
+    get:
+      operationId: v1_admin_faqs_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    post:
+      operationId: v1_admin_faqs_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+  /api/v1/admin/faqs/{item_id}/:
+    get:
+      operationId: v1_admin_faqs_retrieve_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    post:
+      operationId: v1_admin_faqs_create_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    patch:
+      operationId: v1_admin_faqs_partial_update
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    delete:
+      operationId: v1_admin_faqs_destroy
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/membership-plans/:
+    get:
+      operationId: v1_admin_membership_plans_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    post:
+      operationId: v1_admin_membership_plans_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+  /api/v1/admin/membership-plans/{plan_id}/:
+    get:
+      operationId: v1_admin_membership_plans_retrieve_2
+      parameters:
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    post:
+      operationId: v1_admin_membership_plans_create_2
+      parameters:
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MembershipPlan'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    patch:
+      operationId: v1_admin_membership_plans_partial_update
+      parameters:
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMembershipPlan'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+    delete:
+      operationId: v1_admin_membership_plans_destroy
+      parameters:
+      - in: path
+        name: plan_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/memberships/:
+    get:
+      operationId: v1_admin_memberships_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/notifications/:
+    get:
+      operationId: v1_admin_notifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_notifications_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/reported-profiles/:
+    get:
+      operationId: v1_admin_reported_profiles_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/reported-profiles/{report_id}/:
+    get:
+      operationId: v1_admin_reported_profiles_retrieve_2
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_reported_profiles_partial_update
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/roles/:
+    get:
+      operationId: v1_admin_roles_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_admin_roles_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/roles/{role_id}/:
+    get:
+      operationId: v1_admin_roles_retrieve_2
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_admin_roles_update_2
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/settings/:
+    get:
+      operationId: v1_admin_settings_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_settings_partial_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/staff/:
+    get:
+      operationId: v1_admin_staff_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_staff_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/staff/{id}/:
+    get:
+      operationId: v1_admin_staff_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_staff_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/staff/{id}/{action}/:
+    post:
+      operationId: v1_admin_staff_create_2
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/staff/{id}/activity/:
+    get:
+      operationId: v1_admin_staff_activity_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/success-stories/:
+    get:
+      operationId: v1_admin_success_stories_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+    post:
+      operationId: v1_admin_success_stories_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+  /api/v1/admin/success-stories/{item_id}/:
+    get:
+      operationId: v1_admin_success_stories_retrieve_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+    post:
+      operationId: v1_admin_success_stories_create_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SuccessStory'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+    patch:
+      operationId: v1_admin_success_stories_partial_update
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSuccessStory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSuccessStory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSuccessStory'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+    delete:
+      operationId: v1_admin_success_stories_destroy
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/support/dashboard/:
+    get:
+      operationId: v1_admin_support_dashboard_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/support/reports/:
+    get:
+      operationId: v1_admin_support_reports_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/support/tickets/:
+    get:
+      operationId: v1_admin_support_tickets_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/support/tickets/{ticket_id}/:
+    get:
+      operationId: v1_admin_support_tickets_retrieve_2
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_support_tickets_create
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_support_tickets_partial_update
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/testimonials/:
+    get:
+      operationId: v1_admin_testimonials_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+    post:
+      operationId: v1_admin_testimonials_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+  /api/v1/admin/testimonials/{item_id}/:
+    get:
+      operationId: v1_admin_testimonials_retrieve_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+    post:
+      operationId: v1_admin_testimonials_create_2
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Testimonial'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+    patch:
+      operationId: v1_admin_testimonials_partial_update
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTestimonial'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTestimonial'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTestimonial'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+    delete:
+      operationId: v1_admin_testimonials_destroy
+      parameters:
+      - in: path
+        name: item_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/tickets/:
+    get:
+      operationId: v1_admin_tickets_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/tickets/{ticket_id}/:
+    get:
+      operationId: v1_admin_tickets_retrieve_2
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_tickets_create
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_admin_tickets_partial_update
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/transactions/:
+    get:
+      operationId: v1_admin_transactions_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/transactions/{payment_id}/refund/:
+    post:
+      operationId: v1_admin_transactions_refund_create
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/:
+    get:
+      operationId: v1_admin_users_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/:
+    patch:
+      operationId: v1_admin_users_partial_update
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/verifications/:
+    get:
+      operationId: v1_admin_verifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/verifications/{verification_id}/:
+    get:
+      operationId: v1_admin_verifications_retrieve_2
+      parameters:
+      - in: path
+        name: verification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_admin_verifications_create
+      parameters:
+      - in: path
+        name: verification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/change-password/:
+    post:
+      operationId: v1_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/forgot-password/:
+    post:
+      operationId: v1_auth_forgot_password_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: v1_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/:
+    get:
+      operationId: v1_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_auth_me_partial_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/documents/:
+    get:
+      operationId: v1_auth_me_documents_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_auth_me_documents_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/submit/:
+    post:
+      operationId: v1_auth_me_submit_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/otp/request/:
+    post:
+      operationId: v1_auth_otp_request_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/otp/verify/:
+    post:
+      operationId: v1_auth_otp_verify_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/register/:
+    post:
+      operationId: v1_auth_register_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/reset-password/:
+    post:
+      operationId: v1_auth_reset_password_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: v1_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/blogposts/:
+    get:
+      operationId: v1_blogposts_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogPost'
+          description: ''
+  /api/v1/complaints/:
+    get:
+      operationId: v1_complaints_list
+      description: Enables regular members to submit a new complaint or list their
+        past complaints
+      summary: List or raise complaints
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemberComplaint'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberComplaint'
+          description: ''
+    post:
+      operationId: v1_complaints_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/contact-enquiries/:
+    post:
+      operationId: v1_contact_enquiries_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/conversations/:
+    get:
+      operationId: v1_conversations_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/conversations/{user_id}/messages/:
+    get:
+      operationId: v1_conversations_messages_retrieve
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_conversations_messages_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support-auth/change-password/:
+    post:
+      operationId: v1_customer_support_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support-auth/login/:
+    post:
+      operationId: v1_customer_support_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support-auth/logout/:
+    post:
+      operationId: v1_customer_support_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support-auth/me/:
+    get:
+      operationId: v1_customer_support_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support-auth/token/refresh/:
+    post:
+      operationId: v1_customer_support_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support/dashboard/:
+    get:
+      operationId: v1_customer_support_dashboard_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support/notifications/:
+    get:
+      operationId: v1_customer_support_notifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support/tickets/:
+    get:
+      operationId: v1_customer_support_tickets_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_customer_support_tickets_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/customer-support/tickets/{ticket_id}/:
+    get:
+      operationId: v1_customer_support_tickets_retrieve_2
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_customer_support_tickets_create_2
+      parameters:
+      - in: path
+        name: ticket_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/faqs/:
+    get:
+      operationId: v1_faqs_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+  /api/v1/health/:
+    get:
+      operationId: v1_health_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/health/database/:
+    get:
+      operationId: v1_health_database_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/interests/:
+    get:
+      operationId: v1_interests_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_interests_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/interests/{id}/:
+    patch:
+      operationId: v1_interests_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/matchmaking/compatibility/:
+    post:
+      operationId: v1_matchmaking_compatibility_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/change-password/:
+    post:
+      operationId: v1_member_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/forgot-password/:
+    post:
+      operationId: v1_member_auth_forgot_password_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/login/:
+    post:
+      operationId: v1_member_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/logout/:
+    post:
+      operationId: v1_member_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/me/:
+    get:
+      operationId: v1_member_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_member_auth_me_partial_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/me/documents/:
+    get:
+      operationId: v1_member_auth_me_documents_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_member_auth_me_documents_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/me/submit/:
+    post:
+      operationId: v1_member_auth_me_submit_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/otp/request/:
+    post:
+      operationId: v1_member_auth_otp_request_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/otp/verify/:
+    post:
+      operationId: v1_member_auth_otp_verify_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/register/:
+    post:
+      operationId: v1_member_auth_register_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/reset-password/:
+    post:
+      operationId: v1_member_auth_reset_password_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/member-auth/token/refresh/:
+    post:
+      operationId: v1_member_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/membership-plans/:
+    get:
+      operationId: v1_membership_plans_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+          description: ''
+  /api/v1/notifications/:
+    get:
+      operationId: v1_notifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/{id}/read/:
+    post:
+      operationId: v1_notifications_read_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_notifications_read_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/mark-all-read/:
+    post:
+      operationId: v1_notifications_mark_all_read_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_notifications_mark_all_read_partial_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/unread-count/:
+    get:
+      operationId: v1_notifications_unread_count_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/payments/create-order/:
+    post:
+      operationId: v1_payments_create_order_create
+      description: Creates a payment record and returns signature for sandbox verification
+      summary: Create a new payment order
+      tags:
+      - v1
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/history/:
+    get:
+      operationId: v1_payments_history_list
+      description: Lists all past payments for the logged-in member
+      summary: Payment history
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/verify/:
+    post:
+      operationId: v1_payments_verify_create
+      description: Verifies the payment gateway signature and activates membership
+      summary: Verify a payment signature
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/webhook/:
+    post:
+      operationId: v1_payments_webhook_create
+      description: Processes webhook notifications from the payment gateway
+      summary: Payment provider webhook
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: Webhook processed successfully
+  /api/v1/profile-reports/:
+    post:
+      operationId: v1_profile_reports_create
+      description: Enables regular members to file a safety report against a malicious
+        member profile
+      summary: Report a profile
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberProfileReport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberProfileReport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberProfileReport'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberProfileReport'
+          description: ''
+  /api/v1/profiles/:
+    get:
+      operationId: v1_profiles_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/profiles/{id}/:
+    get:
+      operationId: v1_profiles_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff-auth/change-password/:
+    post:
+      operationId: v1_staff_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff-auth/login/:
+    post:
+      operationId: v1_staff_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff-auth/logout/:
+    post:
+      operationId: v1_staff_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff-auth/me/:
+    get:
+      operationId: v1_staff_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff-auth/token/refresh/:
+    post:
+      operationId: v1_staff_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/dashboard/:
+    get:
+      operationId: v1_staff_dashboard_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/my-work/:
+    get:
+      operationId: v1_staff_my_work_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/notifications/:
+    get:
+      operationId: v1_staff_notifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/verifications/:
+    get:
+      operationId: v1_staff_verifications_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/verifications/{verification_id}/:
+    get:
+      operationId: v1_staff_verifications_retrieve_2
+      parameters:
+      - in: path
+        name: verification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_staff_verifications_create
+      parameters:
+      - in: path
+        name: verification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/staff/work-action/:
+    post:
+      operationId: v1_staff_work_action_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/success-stories/:
+    get:
+      operationId: v1_success_stories_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStory'
+          description: ''
+  /api/v1/super-admin-auth/change-password/:
+    post:
+      operationId: v1_super_admin_auth_change_password_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin-auth/login/:
+    post:
+      operationId: v1_super_admin_auth_login_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin-auth/logout/:
+    post:
+      operationId: v1_super_admin_auth_logout_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin-auth/me/:
+    get:
+      operationId: v1_super_admin_auth_me_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin-auth/token/refresh/:
+    post:
+      operationId: v1_super_admin_auth_token_refresh_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/accounts/:
+    get:
+      operationId: v1_super_admin_accounts_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_super_admin_accounts_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/accounts/{account_type}/{account_id}/:
+    get:
+      operationId: v1_super_admin_accounts_retrieve_2
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_super_admin_accounts_partial_update
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_super_admin_accounts_destroy
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/super-admin/accounts/{account_type}/{account_id}/{action}/:
+    post:
+      operationId: v1_super_admin_accounts_create_2
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/accounts/{account_type}/{account_id}/activity/:
+    get:
+      operationId: v1_super_admin_accounts_activity_retrieve
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: account_type
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/activity/:
+    get:
+      operationId: v1_super_admin_activity_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/admins/:
+    get:
+      operationId: v1_super_admin_admins_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_super_admin_admins_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/admins/{account_id}/:
+    get:
+      operationId: v1_super_admin_admins_retrieve_2
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_super_admin_admins_partial_update
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_super_admin_admins_destroy
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/super-admin/dashboard/:
+    get:
+      operationId: v1_super_admin_dashboard_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/departments/:
+    get:
+      operationId: v1_super_admin_departments_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_super_admin_departments_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/departments/{id}/:
+    get:
+      operationId: v1_super_admin_departments_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_super_admin_departments_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_super_admin_departments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/super-admin/designations/:
+    get:
+      operationId: v1_super_admin_designations_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_super_admin_designations_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/designations/{id}/:
+    get:
+      operationId: v1_super_admin_designations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_super_admin_designations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_super_admin_designations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+  /api/v1/super-admin/roles/:
+    get:
+      operationId: v1_super_admin_roles_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_super_admin_roles_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/super-admin/roles/{role_id}/:
+    get:
+      operationId: v1_super_admin_roles_retrieve_2
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_super_admin_roles_update_2
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/support/attachments/{attachment_id}/download/:
+    get:
+      operationId: v1_support_attachments_download_retrieve
+      parameters:
+      - in: path
+        name: attachment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/support/categories/:
+    get:
+      operationId: v1_support_categories_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportCategory'
+          description: ''
+  /api/v1/support/tickets/:
+    get:
+      operationId: v1_support_tickets_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_support_tickets_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/support/tickets/{id}/:
+    get:
+      operationId: v1_support_tickets_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_support_tickets_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/testimonials/:
+    get:
+      operationId: v1_testimonials_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+          description: ''
+components:
+  schemas:
+    BlogPost:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        excerpt:
+          type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        date:
+          type: string
+          maxLength: 30
+        author:
+          type: string
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 50
+      required:
+      - author
+      - category
+      - date
+      - excerpt
+      - id
+      - title
+    FAQ:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        question:
+          type: string
+          maxLength: 255
+        answer:
+          type: string
+      required:
+      - answer
+      - id
+      - question
+    MemberComplaint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        subject:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/MemberComplaintStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - description
+      - id
+      - status
+      - subject
+      - updated_at
+    MemberComplaintStatusEnum:
+      enum:
+      - OPEN
+      - UNDER_REVIEW
+      - ESCALATED
+      - RESOLVED
+      - CLOSED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `UNDER_REVIEW` - Under review
+        * `ESCALATED` - Escalated
+        * `RESOLVED` - Resolved
+        * `CLOSED` - Closed
+    MemberProfileReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        reported_member:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 120
+        details:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/MemberProfileReportStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - reason
+      - reported_member
+      - status
+      - updated_at
+    MemberProfileReportStatusEnum:
+      enum:
+      - OPEN
+      - UNDER_REVIEW
+      - ACTIONED
+      - DISMISSED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `UNDER_REVIEW` - Under review
+        * `ACTIONED` - Actioned
+        * `DISMISSED` - Dismissed
+    MembershipPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        slug:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        duration:
+          type: string
+          maxLength: 50
+        features: {}
+        highlighted:
+          type: boolean
+        badge:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          maxLength: 200
+      required:
+      - duration
+      - id
+      - name
+      - price
+      - slug
+    PatchedBlogPost:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        excerpt:
+          type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        date:
+          type: string
+          maxLength: 30
+        author:
+          type: string
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 50
+    PatchedFAQ:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        question:
+          type: string
+          maxLength: 255
+        answer:
+          type: string
+    PatchedMembershipPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        slug:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        duration:
+          type: string
+          maxLength: 50
+        features: {}
+        highlighted:
+          type: boolean
+        badge:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          maxLength: 200
+    PatchedSuccessStory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        couple_names:
+          type: string
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        story:
+          type: string
+        date:
+          type: string
+          maxLength: 30
+        location:
+          type: string
+          maxLength: 100
+        rating:
+          type: integer
+          maximum: 32767
+          minimum: 0
+    PatchedTestimonial:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        text:
+          type: string
+        rating:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        plan:
+          type: string
+          maxLength: 50
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        plan_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        plan_name:
+          type: string
+          readOnly: true
+        client_reference:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        status:
+          $ref: '#/components/schemas/PaymentStatusEnum'
+        gateway:
+          type: string
+          maxLength: 50
+        gateway_reference:
+          type: string
+          nullable: true
+          maxLength: 120
+        refund_status:
+          $ref: '#/components/schemas/RefundStatusEnum'
+        refunded_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - client_reference
+      - created_at
+      - id
+      - plan_id
+      - plan_name
+      - updated_at
+    PaymentStatusEnum:
+      enum:
+      - PENDING
+      - SUCCESS
+      - FAILED
+      - REFUNDED
+      - PARTIALLY_REFUNDED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `SUCCESS` - Successful
+        * `FAILED` - Failed
+        * `REFUNDED` - Refunded
+        * `PARTIALLY_REFUNDED` - Partially refunded
+    RefundStatusEnum:
+      enum:
+      - NONE
+      - REQUESTED
+      - PROCESSING
+      - COMPLETED
+      - FAILED
+      type: string
+      description: |-
+        * `NONE` - None
+        * `REQUESTED` - Requested
+        * `PROCESSING` - Processing
+        * `COMPLETED` - Completed
+        * `FAILED` - Failed
+    SuccessStory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        couple_names:
+          type: string
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        story:
+          type: string
+        date:
+          type: string
+          maxLength: 30
+        location:
+          type: string
+          maxLength: 100
+        rating:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - couple_names
+      - date
+      - id
+      - location
+      - story
+    SupportCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          maxLength: 50
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+      required:
+      - code
+      - id
+      - name
+    Testimonial:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        text:
+          type: string
+        rating:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        plan:
+          type: string
+          maxLength: 50
+      required:
+      - id
+      - name
+      - plan
+      - text

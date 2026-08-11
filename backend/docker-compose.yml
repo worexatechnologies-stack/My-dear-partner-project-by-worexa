@@ -1,0 +1,141 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-matiromony}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # PgBouncer keeps PostgreSQL connection counts bounded while Django workers
+  # can serve short binary-image reads concurrently.  The runtime bootstrap
+  # creates its credential file only inside the ephemeral container.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    entrypoint: ["/bin/sh", "/etc/pgbouncer/matiromony-entrypoint.sh"]
+    command: ["/usr/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+    volumes:
+      - ./pgbouncer/entrypoint.sh:/etc/pgbouncer/matiromony-entrypoint.sh:ro
+    environment:
+      DB_HOST: ${PGBOUNCER_DATABASE_HOST:-db}
+      DB_PORT: ${PGBOUNCER_DATABASE_PORT:-5432}
+      DB_NAME: ${DB_NAME:-matiromony}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      AUTH_TYPE: scram-sha-256
+      ADMIN_USERS: ${PGBOUNCER_ADMIN_USERS:-pgbouncer_admin_disabled}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-200}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-20}
+      MIN_POOL_SIZE: ${PGBOUNCER_MIN_POOL_SIZE:-2}
+      RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-5}
+      RESERVE_POOL_TIMEOUT: ${PGBOUNCER_RESERVE_POOL_TIMEOUT:-5}
+      MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-40}
+      SERVER_IDLE_TIMEOUT: ${PGBOUNCER_SERVER_IDLE_TIMEOUT:-600}
+      SERVER_LIFETIME: ${PGBOUNCER_SERVER_LIFETIME:-3600}
+      QUERY_WAIT_TIMEOUT: ${PGBOUNCER_QUERY_WAIT_TIMEOUT:-120}
+      CLIENT_IDLE_TIMEOUT: ${PGBOUNCER_CLIENT_IDLE_TIMEOUT:-600}
+      SERVER_RESET_QUERY: DISCARD ALL
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          PGPASSWORD="$${DB_PASSWORD}" psql --no-password --quiet
+          --host=127.0.0.1 --port=5432 --username="$${DB_USER}" --dbname="$${DB_NAME}"
+          --command='SELECT 1' > /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: ["daphne", "config.asgi:application", "--bind", "0.0.0.0", "--port", "8000"]
+    environment: &django_environment
+      DJANGO_ENV: ${DJANGO_ENV:-local}
+      DJANGO_SETTINGS_MODULE: config.settings.${DJANGO_ENV:-local}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: ${DB_NAME:-matiromony}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # Set APP_DB_HOST/APP_DB_PORT to bypass PgBouncer temporarily during a
+      # controlled maintenance incident.
+      DB_HOST: ${APP_DB_HOST:-pgbouncer}
+      DB_PORT: ${APP_DB_PORT:-5432}
+      DB_DISABLE_SERVER_SIDE_CURSORS: ${DB_DISABLE_SERVER_SIDE_CURSORS:-True}
+      REDIS_URL: redis://redis:6379/0
+      CACHE_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build: .
+    command: ["true"]
+    environment:
+      <<: *django_environment
+      DB_HOST: ${MIGRATE_DB_HOST:-db}
+      DB_PORT: ${MIGRATE_DB_PORT:-5432}
+      RUN_DJANGO_MIGRATIONS: "1"
+      RUN_DJANGO_COLLECTSTATIC: "1"
+      PROFILE_PHOTO_CUTOVER_PHASE: ${PROFILE_PHOTO_CUTOVER_PHASE:-final}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  celery_worker:
+    build: .
+    command: ["celery", "-A", "config", "worker", "--loglevel=info"]
+    environment: *django_environment
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  celery_beat:
+    build: .
+    command: ["celery", "-A", "config", "beat", "--loglevel=info"]
+    environment: *django_environment
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db_data:

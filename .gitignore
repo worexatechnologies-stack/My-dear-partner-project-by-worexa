@@ -1,0 +1,72 @@
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Python cache & test files
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+pytest_temp/
+
+# Node cache & dependencies
+node_modules/
+dist/
+build/
+.vite/
+.next/
+test-results/
+*.tsbuildinfo
+next-env.d.ts
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Ruff cache (Python linter)
+.ruff_cache/
+
+# Media & private storage
+media/
+backend/media/
+media/private/
+private_media/
+logs/
+*.log
+
+# Backups & temporary files
+backups/
+backend-legacy-reference/
+/.git.zip
+/backend.zip
+/frontend.zip
+*.sql
+*.sql.gz
+*.dump
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test & debug files
+*.html
+*.py.bak
+test_*.html
+page_source.html
+read_trace.py
+
+# Documentation build files (if using Sphinx/MkDocs)
+docs/_build/
+docs/.doctrees/
+site/

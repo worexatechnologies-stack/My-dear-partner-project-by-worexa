@@ -1,0 +1,926 @@
+@import "tailwindcss";
+@import "../legacy/index.css";
+
+@theme {
+  /* Dark neutrals — clean charcoal/slate */
+  --color-plum-900: #0f172a;
+  --color-plum-800: #1e293b;
+  --color-plum-700: #334155;
+  --color-plum-600: #475569;
+
+  /* Primary accent — Rose/Pink */
+  --color-rose-600: #e11d48;
+  --color-rose-500: #f43f5e;
+  --color-rose-400: #fb7185;
+  --color-rose-300: #fda4af;
+
+  /* Secondary accent — amber warmth */
+  --color-gold-600: #d97706;
+  --color-gold-500: #f59e0b;
+  --color-gold-400: #fbbf24;
+  --color-gold-300: #fcd34d;
+  --color-gold-100: #fef3c7;
+
+  /* Backgrounds — clean cool neutrals */
+  --color-cream-900: #1e293b;
+  --color-cream-200: #e2e8f0;
+  --color-cream-100: #f1f5f9;
+  --color-cream-50: #f8fafc;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-soft-muted: #94a3b8;
+
+  /* Borders */
+  --color-line: rgba(15, 23, 42, 0.08);
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-app-bg: #f1f5f9;
+
+  /* Feedback */
+  --color-error: #ef4444;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+
+  /* Shadows — clean minimalist */
+  --shadow-brand-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-brand-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-brand-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+  --shadow-rose: 0 4px 12px rgba(59, 130, 246, 0.2);
+  --shadow-gold: 0 4px 12px rgba(245, 158, 11, 0.2);
+
+  --font-display: "Manrope", system-ui, sans-serif;
+}
+
+@import "../legacy/components/Footer.css";
+@import "../legacy/components/home/HeroSection.css";
+@import "../legacy/pages/HomePage.css";
+@import "../legacy/pages/AuthPages.css";
+@import "../legacy/pages/EditProfilePage.css";
+@import "../legacy/pages/MembershipPage.css";
+@import "../legacy/pages/SupportPage.css";
+@import "../legacy/pages/AboutPage.css";
+@import "../legacy/pages/ContactPage.css";
+@import "../legacy/pages/AdminPage.css";
+
+@source "../legacy/**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
+
+:root {
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-heading: "Manrope", system-ui, sans-serif;
+  --night: #0f172a;
+  --forest: #1e293b;
+  --coral: #e11d48;
+  --sand: #f1f5f9;
+  --paper: #ffffff;
+  --slate: #64748b;
+  --brand-ink: #20111a;
+  --brand-wine: #8e3d58;
+  --brand-rose: #e11d48;
+  --brand-gold: #d9b36c;
+  --brand-canvas: #fcfbfa;
+  --brand-card: #ffffff;
+  --brand-border: rgba(43, 16, 29, 0.09);
+  --brand-shadow: 0 10px 28px rgba(43, 16, 29, 0.08);
+}
+
+html { min-width: 0; overflow-x: clip; background: var(--brand-canvas); scroll-behavior: smooth; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: clip;
+  color: var(--brand-ink);
+  background: var(--brand-canvas);
+  font-family: var(--font-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, h5, h6, .font-display, .lc-logo-text { font-family: var(--font-heading) !important; }
+
+::selection { background: rgba(225, 29, 72, 0.18); color: var(--brand-ink); }
+button, input, textarea, select { font: inherit; }
+button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+img { max-width: 100%; }
+
+/* These controls prevent the common browser save/copy/drag routes for member
+   photos. They are a deterrent, not a claim that a web page can prevent an
+   operating system or another camera from taking a screenshot. */
+.member-photo-protected {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.member-photo-protected img,
+img[data-protected-photo="true"] {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  pointer-events: none;
+  user-select: none;
+}
+.member-photo-watermark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3%;
+  z-index: 20;
+  display: block;
+  transform: none;
+  pointer-events: none;
+  color: rgba(255, 255, 255, .7);
+  font-size: clamp(.55rem, 1.4vw, .8rem);
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@media print {
+  .member-photo-protected,
+  img[data-protected-photo="true"] { display: none !important; }
+}
+
+/* Prevent long labels, rich text, and media from forcing horizontal scrolling
+   on compact phones while preserving the desktop layouts. */
+main, section, article, aside, header, footer, nav, div { min-width: 0; }
+input, textarea, select, button { max-width: 100%; }
+
+:focus-visible {
+  outline: 2px solid var(--color-rose-500);
+  outline-offset: 2px;
+}
+
+.route-skeleton {
+  min-height: 100vh;
+  background: var(--color-surface-alt);
+}
+
+.lc-navbar {
+  z-index: 9999 !important;
+}
+
+/* Shared professional primitives. Existing route-specific styles may compose
+   with these classes while retaining their domain-specific layouts. */
+.brand-page {
+  min-height: 100vh;
+  padding: 7rem clamp(1rem, 4vw, 4rem) 4rem;
+}
+
+.brand-container { width: min(100%, 76rem); margin-inline: auto; }
+.brand-surface {
+  border: 1px solid var(--brand-border);
+  border-radius: 1.5rem;
+  background: var(--brand-card);
+  box-shadow: var(--brand-shadow);
+}
+.brand-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  color: var(--brand-wine);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.brand-button-primary, .brand-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  min-height: 2.85rem;
+  padding: .7rem 1.1rem;
+  border-radius: .85rem;
+  font-weight: 750;
+  transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.brand-button-primary { background: var(--brand-wine); color: white; box-shadow: 0 10px 22px rgba(142, 61, 88, .24); }
+.brand-button-primary:hover { background: #702d45; transform: translateY(-1px); box-shadow: 0 14px 28px rgba(142, 61, 88, .30); }
+.brand-button-secondary { border: 1px solid var(--brand-border); background: rgba(255,255,255,.82); color: var(--brand-ink); }
+.brand-button-secondary:hover { border-color: rgba(142,61,88,.28); background: #fff; transform: translateY(-1px); }
+
+/* Shared motion stays subtle and supports reduced-motion preferences. */
+@keyframes mdp-page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mdp-soft-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(182, 74, 104, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(182, 74, 104, .08); }
+}
+@keyframes ui-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-dialog-in { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes ui-drawer-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ui-toast-in { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.ui-modal-backdrop, .ui-drawer-backdrop { animation: ui-backdrop-in .2s ease-out both; }
+.ui-modal-panel { animation: ui-dialog-in .28s cubic-bezier(.2,.8,.25,1) both; transform-origin: center bottom; }
+.ui-drawer-panel { animation: ui-drawer-in .28s cubic-bezier(.2,.8,.25,1) both; }
+.ui-toast-enter { animation: ui-toast-in .3s cubic-bezier(.2,.8,.25,1) both; }
+.site-page-enter { animation: mdp-page-enter .38s cubic-bezier(.2,.75,.25,1) both; }
+.member-page-content {
+  height: 100%;
+  min-height: 0;
+  background: #fbf7f2;
+}
+.member-page-content > * {
+  /* Legacy member pages reserved 80–130px for the retired fixed navbar.
+     The portal topbar already occupies that space, so every route begins at
+     a predictable, compact distance from it. */
+  padding-top: 1rem !important;
+  /* Legacy page roots often set min-h-screen / min-h-[100svh], which made them
+     taller than the visible shell region and produced the permanent page
+     scrollbar. Filling the scroll region instead lets short pages fit without
+     scrolling; they only overflow (and then scroll internally) when content is
+     genuinely longer than the viewport. */
+  min-height: 100% !important;
+  background-color: #fbf7f2 !important;
+}
+
+/* The signed-in portal continues the landing page's editorial system: warm
+   paper surfaces, restrained rose accents, fine borders, and calm spacing. */
+.member-portal {
+  --portal-ink: #2c2928;
+  --portal-muted: #776a6f;
+  --portal-accent: #8e3d58;
+  --portal-accent-soft: #f8e9ee;
+  --portal-canvas: #fbf7f2;
+  --portal-surface: #fffefd;
+  --portal-border: #eaded8;
+  color: var(--portal-ink);
+}
+.member-portal .member-page-content {
+  scrollbar-color: #d9c9c3 transparent;
+  scrollbar-width: thin;
+}
+.member-portal .member-page-content :where(input, select, textarea) {
+  border-color: var(--portal-border);
+}
+.member-portal .member-page-content :where(input, select, textarea):focus {
+  border-color: #bd6970;
+}
+
+/* Full-screen overlay (modal) scroll lock: while an overlay is open the shell's
+   inner scroll region is locked so the background cannot move behind it. The
+   overlay itself may still scroll internally. */
+body.mdp-modal-lock .member-page-content { overflow: hidden !important; }
+.motion-card { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.motion-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(43,16,29,.10); }
+.motion-status { animation: mdp-soft-pulse 2.4s ease-in-out infinite; }
+a, button, input, select, textarea { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .18s; transition-timing-function: ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+
+@media (max-width: 640px) {
+  .member-page-content > * { padding-top: 1rem !important; }
+  .brand-page { padding-top: 6rem; }
+  .brand-surface { border-radius: 1.2rem; }
+  .brand-button-primary, .brand-button-secondary { width: 100%; }
+  /* Keep fixed controls usable above iOS browser chrome and make all compact
+     portal pages resilient to long names, translated labels, and media. */
+  .member-page-content { overflow-x: clip; }
+  [class*="fixed"][class*="bottom-0"] { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  input, select, textarea { font-size: 16px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MDP REDESIGN — Production UI Design System
+   My Dear Partner matrimonial platform — member-facing UI
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Shared Buttons ─── */
+.mdp-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .65rem 1.25rem;
+  background: #f43f5e;
+  color: #fff;
+  font-size: .875rem;
+  font-weight: 700;
+  border-radius: .85rem;
+  border: none;
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mdp-btn-primary:hover { background: #e11d48; transform: translateY(-1px); }
+.mdp-btn-primary:active { transform: translateY(0); }
+.mdp-btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.mdp-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .65rem 1.25rem;
+  background: #fff;
+  color: #1e293b;
+  font-size: .875rem;
+  font-weight: 700;
+  border-radius: .85rem;
+  border: 1.5px solid rgba(15,23,42,.12);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mdp-btn-secondary:hover { border-color: #f43f5e; color: #f43f5e; transform: translateY(-1px); background: #fff8fa; }
+
+/* ─── Home Page ─── */
+.mdp-home-page {
+  min-height: 100%;
+  background: #fafafa;
+  padding: 1.5rem 1rem 6rem;
+}
+@media (min-width: 640px) { .mdp-home-page { padding: 2rem 1.5rem 4rem; } }
+@media (min-width: 1024px) { .mdp-home-page { padding: 2rem 2.5rem 4rem; } }
+
+.mdp-home-inner {
+  max-width: 72rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Welcome section — MATRIMONIAL themed */
+.mdp-welcome-matrimony {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fff5f7 0%, #fff9f0 50%, #fdf2ff 100%);
+  border: 1px solid rgba(244,63,94,0.12);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+@media (min-width: 640px) {
+  .mdp-welcome-matrimony {
+    padding: 2rem;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+  }
+}
+
+/* Decorative mandala-inspired pattern */
+.mdp-welcome-pattern {
+  position: absolute;
+  top: -2rem;
+  right: -2rem;
+  width: 10rem;
+  height: 10rem;
+  border-radius: 50%;
+  border: 2rem solid rgba(244,63,94,0.05);
+  pointer-events: none;
+}
+.mdp-welcome-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 1.5rem;
+  border-radius: 50%;
+  border: 1rem solid rgba(244,63,94,0.05);
+}
+.mdp-welcome-pattern::after {
+  content: '';
+  position: absolute;
+  inset: 3rem;
+  border-radius: 50%;
+  border: .75rem solid rgba(244,63,94,0.06);
+}
+
+.mdp-welcome-content {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: .875rem;
+}
+
+.mdp-welcome-icon-ring {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fee2e2, #fce7f3);
+  border: 2px solid rgba(244,63,94,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  shrink: 0;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(244,63,94,0.07);
+}
+
+
+/* Matrimonial trust card */
+.mdp-matrimony-trust-card {
+  background: linear-gradient(135deg, #fff5f7 0%, #fffdf5 100%);
+  border: 1px solid rgba(244,63,94,0.12);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+}
+
+.mdp-welcome-text { flex: 1; }
+
+.mdp-greeting {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.3;
+  font-family: var(--font-heading);
+}
+@media (min-width: 640px) { .mdp-greeting { font-size: 1.6rem; } }
+.mdp-greeting-sub {
+  font-size: .9rem;
+  color: #64748b;
+  margin-top: .25rem;
+  font-weight: 500;
+}
+.mdp-welcome-actions {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+.mdp-completion-strip {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+  padding-top: .75rem;
+  border-top: 1px solid rgba(15,23,42,.07);
+}
+.mdp-completion-bar-wrap {
+  flex: 0 0 auto;
+  width: 7rem;
+  height: .5rem;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.mdp-completion-bar {
+  height: 100%;
+  background: #f43f5e;
+  border-radius: 99px;
+  transition: width .7s ease;
+}
+.mdp-completion-label {
+  font-size: .75rem;
+  color: #64748b;
+}
+
+/* Section */
+.mdp-section { display: flex; flex-direction: column; gap: .75rem; }
+.mdp-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.mdp-section-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1e293b;
+  font-family: var(--font-heading);
+}
+.mdp-section-sub {
+  font-size: .8rem;
+  color: #94a3b8;
+  margin-top: .15rem;
+}
+.mdp-see-all {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #f43f5e;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mdp-see-all:hover { text-decoration: underline; }
+
+/* Matches grid */
+.mdp-matches-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .875rem;
+}
+@media (min-width: 640px) { .mdp-matches-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .mdp-matches-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* Quick actions */
+.mdp-quick-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+}
+@media (min-width: 640px) { .mdp-quick-actions-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.mdp-quick-action-card {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: 1.25rem;
+  text-decoration: none;
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+.mdp-quick-action-card:hover { box-shadow: 0 4px 16px rgba(15,23,42,.08); border-color: rgba(244,63,94,.2); }
+.mdp-quick-action-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: .85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mdp-quick-action-label {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+.mdp-quick-action-sub {
+  font-size: .68rem;
+  color: #94a3b8;
+  margin-top: .1rem;
+}
+
+/* Two column layout */
+.mdp-two-col {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 1024px) { .mdp-two-col { grid-template-columns: 1fr 340px; } }
+
+/* Sidebar cards */
+.mdp-completion-card,
+.mdp-premium-card,
+.mdp-safety-card {
+  background: #fff;
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+}
+.mdp-premium-card { border-color: rgba(251,191,36,.3); background: #fffdf5; }
+.mdp-safety-card { border-color: rgba(34,197,94,.2); background: #f8fef9; }
+.mdp-card-title {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: .35rem;
+  font-family: var(--font-heading);
+}
+.mdp-card-sub {
+  font-size: .78rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: .75rem;
+}
+
+/* Visitors locked */
+.mdp-locked-visitors {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 1rem;
+}
+
+/* Empty state */
+.mdp-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  background: #fff;
+  border: 1.5px dashed rgba(15,23,42,.1);
+  border-radius: 1.5rem;
+}
+.mdp-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: .75rem;
+}
+.mdp-empty-title { font-size: .95rem; font-weight: 700; color: #1e293b; }
+.mdp-empty-sub { font-size: .8rem; color: #94a3b8; margin-top: .25rem; }
+
+/* Loading skeleton */
+.mdp-home-skeleton { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 2rem; }
+@media (min-width: 640px) { .mdp-home-skeleton { grid-template-columns: repeat(4, 1fr); } }
+.mdp-skeleton-card {
+  background: #f1f5f9;
+  border-radius: 1.25rem;
+  animation: mdp-pulse 1.5s ease-in-out infinite;
+}
+@keyframes mdp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+/* ─── Search Page ─── */
+.mdp-search-page {
+  min-height: 100%;
+  background: #fafafa;
+  padding: 1.5rem 1rem 6rem;
+}
+@media (min-width: 640px) { .mdp-search-page { padding: 2rem 1.5rem 4rem; } }
+@media (min-width: 1024px) { .mdp-search-page { padding: 2rem 2.5rem 4rem; } }
+
+.mdp-search-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.mdp-page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  font-family: var(--font-heading);
+}
+@media (min-width: 640px) { .mdp-page-title { font-size: 1.875rem; } }
+.mdp-page-sub {
+  font-size: .875rem;
+  color: #64748b;
+  margin-top: .25rem;
+}
+.mdp-count-badge {
+  font-size: .75rem;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid rgba(15,23,42,.1);
+  border-radius: 99px;
+  padding: .35rem .85rem;
+  white-space: nowrap;
+}
+
+.mdp-search-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 1024px) { .mdp-search-layout { grid-template-columns: 260px 1fr; } }
+
+/* Filter panel */
+.mdp-filter-panel {
+  background: #fff;
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+}
+.mdp-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: .875rem;
+  border-bottom: 1px solid rgba(15,23,42,.07);
+}
+.mdp-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #f43f5e;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.mdp-filter-label {
+  display: block;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: .4rem;
+}
+.mdp-filter-input {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid rgba(15,23,42,.1);
+  border-radius: .75rem;
+  font-size: .83rem;
+  font-weight: 500;
+  color: #1e293b;
+  padding: .6rem .85rem;
+  transition: border-color .18s ease, background .18s ease;
+  outline: none;
+  font-family: inherit;
+}
+.mdp-filter-input:focus { border-color: #f43f5e; background: #fff; }
+
+/* Search grid */
+.mdp-search-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .875rem;
+}
+@media (min-width: 640px) { .mdp-search-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.mdp-empty-state-full {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: #fff;
+  border: 1.5px dashed rgba(15,23,42,.1);
+  border-radius: 1.5rem;
+}
+
+/* ─── Redesigned Sidebar ─── */
+.mdp-sidebar-nav-group-label {
+  font-size: .65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #aa8f98;
+  padding: .5rem .75rem .25rem;
+}
+.mdp-nav-divider {
+  height: 1px;
+  margin: .75rem .5rem;
+  background: #eaded8;
+}
+
+/* ─── Mobile Bottom Navigation ─── */
+.mdp-mobile-bottom-nav {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: #fffefd;
+  border-top: 1px solid #eaded8;
+  gap: .15rem;
+  padding: .35rem .3rem;
+  padding-bottom: max(.35rem, env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 30px rgba(64,36,47,.07);
+}
+@media (min-width: 1024px) { .mdp-mobile-bottom-nav { display: none; } }
+
+.mdp-mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  min-height: 3.15rem;
+  padding: .3rem .2rem;
+  border-radius: .85rem;
+  font-size: .625rem;
+  font-weight: 700;
+  color: #9c898f;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color .18s ease, background-color .18s ease, transform .18s ease;
+}
+.mdp-mobile-nav-active {
+  color: #8e3d58 !important;
+  background: #f7e7ec;
+}
+.mdp-mobile-nav-item:hover:not(.mdp-mobile-nav-active) { color: #6f5f65; }
+
+.dashboard-match-photo .member-photo-watermark {
+  bottom: 2rem;
+}
+
+/* ─── Messages page layout helpers ─── */
+.mdp-messages-page {
+  display: flex;
+  height: 100%;
+  background: #fafafa;
+}
+.mdp-messages-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(15,23,42,.08);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+@media (max-width: 767px) {
+  .mdp-messages-sidebar { width: 100%; }
+  .mdp-messages-sidebar.mdp-hidden-mobile { display: none; }
+}
+.mdp-messages-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+@media (max-width: 767px) {
+  .mdp-messages-chat.mdp-hidden-mobile { display: none; }
+}
+.mdp-messages-profile-panel {
+  width: 280px;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(15,23,42,.08);
+  background: #fff;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+@media (max-width: 1279px) { .mdp-messages-profile-panel { display: none; } }
+
+/* Safety notice in chat */
+.mdp-chat-safety {
+  text-align: center;
+  padding: .5rem 1rem;
+  font-size: .7rem;
+  color: #94a3b8;
+  background: #fffbeb;
+  border-top: 1px solid rgba(15,23,42,.06);
+}
+
+/* ─── WhatsApp UI/UX Custom Styling ─── */
+.wa-wallpaper-pattern {
+  background-color: #efeae2;
+  background-image: radial-gradient(#00a884 0.4px, transparent 0.4px), radial-gradient(#00a884 0.4px, #efeae2 0.4px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+  background-opacity: 0.05;
+  position: relative;
+}
+
+.wa-wallpaper-pattern-dark {
+  background-color: #0b141a;
+  background-image: radial-gradient(#00a884 0.4px, transparent 0.4px), radial-gradient(#00a884 0.4px, #0b141a 0.4px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+.wa-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.wa-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wa-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+.wa-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.wa-bubble-out-tail {
+  position: relative;
+}
+.wa-bubble-out-tail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid #d9fdd3;
+  border-right: 10px solid transparent;
+}
+
+.wa-bubble-in-tail {
+  position: relative;
+}
+.wa-bubble-in-tail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -8px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid #ffffff;
+  border-left: 10px solid transparent;
+}
