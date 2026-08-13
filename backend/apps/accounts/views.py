@@ -691,10 +691,9 @@ class AdministrativeLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        requires_two_factor = bool(
-            self.account_type == AccountType.SUPER_ADMIN
-            and (account.two_factor_enabled or getattr(settings, 'SUPER_ADMIN_2FA_REQUIRED', False))
-        )
+        # Super Admin authentication is password-only.
+        # Do not initiate email/SMS OTP or two-factor challenges here.
+        requires_two_factor = False
         if requires_two_factor:
             otp = serializer.validated_data.get('otp', '').strip()
             if not otp:

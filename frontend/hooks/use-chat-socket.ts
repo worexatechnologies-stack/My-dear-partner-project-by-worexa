@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { publicEnv } from '@/config/env';
+import { publicEnv } from '@/config/public-env';
 import { clearClientAuthState, getFreshAccessToken } from '@/legacy/services/apiClient';
 
 type SocketState = 'idle' | 'connecting' | 'open' | 'closed' | 'error';

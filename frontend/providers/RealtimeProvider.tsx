@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 
-import { publicEnv } from '@/config/env';
+import { publicEnv } from '@/config/public-env';
 import { getFreshAccessToken } from '@/legacy/services/apiClient';
 
 type RealtimeStatus =
