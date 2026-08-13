@@ -42,6 +42,7 @@ from apps.accounts.models import (
 from apps.accounts.serializers import MemberSerializer, administrative_account_payload
 from apps.accounts.services import permanently_delete_member
 from apps.accounts.verification_service import AccountVerificationService
+from apps.accounts.throttling import get_client_ip
 
 from .api_utils import audit, bad_request, create_notification, create_ticket_attachment, notify, paginated_response
 from .models import (
@@ -921,12 +922,7 @@ class AdminUserPermissionsView(ScopedAPIView):
         return ApiResponse(message='User permissions updated successfully.')
 
     def get_client_ip(self, request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+        return get_client_ip(request)
 
 class _PermissionAuditLogSerializer(serializers.ModelSerializer):
     actor_name = serializers.SerializerMethodField()
@@ -1200,6 +1196,7 @@ class AdminUserActionView(ScopedAPIView):
         'verify': 'members.manage',
         'unverify': 'members.manage',
         'reject_profile': 'members.manage',
+        'changes_requested': 'members.manage',
         'approve_photo': 'members.manage',
         'reject_photo': 'members.manage',
         'verify_document': 'members.manage',
@@ -1271,19 +1268,29 @@ class AdminUserActionView(ScopedAPIView):
             # Delegate to the verification service so the approval is applied
             # consistently (profile_status, reviewed_at, and the linked
             # ProfileVerificationRequest are all updated in one place).
-            AccountVerificationService.approve_profile(member, request.user, reason)
+            # Super Admins may force-approve (bypass the photo/document/bio
+            # requirements); regular admins must complete them first. The
+            # outcome is checked so a failed approval is not reported as a
+            # success that leaves the "Approve Profile" button on screen.
+            force = str(request.user.account_type) == AccountType.SUPER_ADMIN
+            ok, message = AccountVerificationService.approve_profile(member, request.user, reason, force=force)
+            if not ok:
+                return bad_request(message)
         elif action == 'verify':
-            # An administrator's explicit verification must satisfy both
-            # contact checks enforced by membership checkout.
-            member.is_email_verified = True
+            # Mobile is the only member contact verification requirement.
             member.is_mobile_verified = True
         elif action == 'unverify':
-            member.is_email_verified = False
             member.is_mobile_verified = False
         elif action == 'reject_profile':
             if not reason:
                 return bad_request('A rejection reason is required.')
             AccountVerificationService.reject_profile(member, request.user, reason)
+        elif action == 'changes_requested':
+            if not reason:
+                return bad_request('A reason is required to request changes.')
+            member.profile_status = Member.VerificationStatus.CHANGES_REQUESTED
+            member.profile_reviewed_at = timezone.now()
+            member.profile_rejection_reason = reason
         elif action == 'approve_photo':
             member.photo_status = Member.VerificationStatus.APPROVED
             from apps.profiles.models import ProfilePhoto
@@ -1426,7 +1433,7 @@ class AdminGrantMembershipView(ScopedAPIView):
 
         allowed_fields = {
             'first_name', 'last_name', 'gender', 'date_of_birth',
-            'is_active', 'is_premium', 'is_email_verified', 'is_mobile_verified',
+            'is_active', 'is_premium', 'is_mobile_verified',
         }
         profile_fields = {
             'marital_status', 'height', 'weight', 'blood_group', 'complexion',
@@ -1901,8 +1908,6 @@ def _review_verification(request, verification, action):
             )
         elif verification.verification_type == ProfileVerificationRequest.VerificationType.PHONE:
             member.is_mobile_verified = True
-        elif verification.verification_type == ProfileVerificationRequest.VerificationType.EMAIL:
-            member.is_email_verified = True
         member.save()
         
         # Trigger pending membership activation check
@@ -3087,6 +3092,20 @@ class _SettingSerializer(serializers.ModelSerializer):
         model = PlatformSetting
         fields = ('key', 'value', 'description', 'is_public', 'updated_at')
         read_only_fields = ('updated_at',)
+
+class PublicSettingsView(APIView):
+    """Anonymous read of public platform settings (branding, membership, feature flags)."""
+
+    permission_classes = (permissions.AllowAny,)
+    authentication_classes = ()
+    throttle_classes = ()
+
+    def get(self, _request):
+        data = {
+            item.key: item.value
+            for item in PlatformSetting.objects.filter(is_public=True)
+        }
+        return ApiResponse(data=data)
 
 class AdminSettingsView(ScopedAPIView):
     allowed_account_types = (AccountType.SUPER_ADMIN,)

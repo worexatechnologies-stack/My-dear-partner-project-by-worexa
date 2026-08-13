@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   Heart, MapPin, BadgeCheck, Search,
   Eye, Star, ShieldCheck, Crown, ChevronRight, ArrowRight,
-  Bookmark, Bell, Sparkles, Compass, UserRound, TrendingUp, CheckCircle2,
+  Bookmark, Bell, Compass, UserRound, TrendingUp, CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import {
@@ -351,7 +351,7 @@ export default function HomePage() {
           <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center">
             <div className="flex-1">
               <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/70 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-rose-600 shadow-sm backdrop-blur-sm">
-                <Sparkles className="h-3.5 w-3.5" /> My Partner Dashboard
+                <Heart className="h-3.5 w-3.5" /> My Partner Dashboard
               </span>
               <h1 className="mt-4 font-display text-3xl font-extrabold leading-tight tracking-tight text-plum-800 sm:text-4xl">
                 {getGreeting()}, <span className="bg-gradient-to-r from-rose-600 to-gold-500 bg-clip-text text-transparent">{firstName}</span> 🌸

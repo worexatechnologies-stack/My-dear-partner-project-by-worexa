@@ -131,7 +131,6 @@ class SupportCategoryListView(PublicListView):
 
 class ContactEnquiryCreateView(APIView):
     permission_classes = (permissions.AllowAny,)
-    throttle_scope = 'contact-enquiry'
 
     def post(self, request):
         serializer = ContactEnquirySerializer(data=request.data)
@@ -504,6 +503,15 @@ class MessageHistoryView(APIView):
             Q(sender=request.user, receiver=partner) | Q(sender=partner, receiver=request.user)
         )
         queryset.filter(sender=partner, receiver=request.user, is_read=False).update(is_read=True)
+        # Reading the chat also clears its aggregated CHAT_MESSAGE bell alerts.
+        from apps.core.models import Notification
+        from django.utils import timezone
+        Notification.objects.filter(
+            member_recipient=request.user,
+            notification_type='CHAT_MESSAGE',
+            link_url=f'/messages?user={partner.pk}',
+            is_read=False,
+        ).update(is_read=True, read_at=timezone.now())
         return ApiResponse(data=ChatMessageSerializer(queryset, many=True).data)
 
     def post(self, request, user_id):

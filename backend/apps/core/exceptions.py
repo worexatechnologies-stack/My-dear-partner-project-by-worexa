@@ -125,10 +125,8 @@ def get_user_message(code, exc=None):
             return KNOWN_INTEGRITY_PATTERNS[constraint][1]
     if isinstance(exc, Throttled):
         wait = getattr(exc, 'wait', None)
-        if callable(wait):
-            seconds = wait()
-            if seconds:
-                return f'Too many attempts. Please try again in {int(seconds)} seconds.'
+        if wait:
+            return f'Too many attempts. Please try again in {int(wait)} seconds.'
     msg = USER_MESSAGES.get(code)
     if msg:
         return msg
@@ -182,14 +180,43 @@ def _format_errors(data, exc):
     return {'detail': [str(data)]}
 
 
+def _throttle_wait(exc):
+    wait = getattr(exc, 'wait', None)
+    return int(wait) if wait else None
+
+
+def _throttle_message(exc, context):
+    """Return a throttle-specific message, or None to fall back to the default."""
+    view = context.get('view')
+    if view is not None:
+        for throttle_cls in getattr(view, 'throttle_classes', []) or []:
+            if getattr(throttle_cls, 'scope', None) == 'otp-cooldown':
+                return 'Please wait 2 minutes before requesting another OTP.'
+            if getattr(throttle_cls, 'scope', None) == 'password-reset-attempt':
+                return 'Too many password reset attempts. Please wait before trying again.'
+    wait = _throttle_wait(exc)
+    if wait:
+        return f'Too many attempts. Please try again in {wait} seconds.'
+    return None
+
+
+def _set_retry_after(response, exc):
+    wait = _throttle_wait(exc)
+    if wait:
+        response['Retry-After'] = str(wait)
+
+
 def custom_exception_handler(exc, context):
     request_id = _get_request_id(context) or 'unknown'
     response = exception_handler(exc, context)
 
     if response is not None:
         errors = _format_errors(response.data, exc)
-        message = get_user_message(get_error_code(exc), exc)
         code = get_error_code(exc)
+        message = get_user_message(code, exc)
+        if isinstance(exc, Throttled):
+            message = _throttle_message(exc, context) or message
+            _set_retry_after(response, exc)
         response.data = {
             'success': False,
             'message': message,

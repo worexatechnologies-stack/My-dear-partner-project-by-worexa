@@ -65,6 +65,9 @@ pip install -q -r requirements/production.txt
 echo "--- Running database migrations..."
 python manage.py migrate --settings=config.settings.production
 
+echo "--- Synchronizing the configured Super Admin..."
+python manage.py sync_super_admin_from_env --settings=config.settings.production
+
 echo "--- Collecting static files..."
 python manage.py collectstatic --noinput --settings=config.settings.production
 

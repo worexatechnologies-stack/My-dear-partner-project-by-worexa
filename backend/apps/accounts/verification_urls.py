@@ -8,8 +8,6 @@ from django.urls import path
 from .verification_views import (
     # Member endpoints
     MemberVerificationStatusView,
-    MemberEmailOtpSendView,
-    MemberEmailOtpVerifyView,
     MemberMobileOtpSendView,
     MemberMobileOtpVerifyView,
     MemberProfileSubmitView,
@@ -30,8 +28,6 @@ from .verification_views import (
 urlpatterns = [
     # Member verification endpoints
     path('status/', MemberVerificationStatusView.as_view(), name='member_status'),
-    path('email/send-otp/', MemberEmailOtpSendView.as_view(), name='member_email_send_otp'),
-    path('email/verify-otp/', MemberEmailOtpVerifyView.as_view(), name='member_email_verify_otp'),
     path('mobile/send-otp/', MemberMobileOtpSendView.as_view(), name='member_mobile_send_otp'),
     path('mobile/verify-otp/', MemberMobileOtpVerifyView.as_view(), name='member_mobile_verify_otp'),
     path('profile/', MemberProfileSubmitView.as_view(), name='member_profile_submit'),

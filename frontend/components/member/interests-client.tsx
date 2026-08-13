@@ -282,15 +282,15 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
                       </Link>
 
                       <div className="min-w-0 flex-1">
-                        <Link href={`/profile/${profileId}`} className="font-extrabold text-slate-900 text-base truncate block hover:text-rose-600 transition-colors font-display">
+                        <Link href={`/profile/${profileId}`} className="font-black text-base truncate block bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent hover:opacity-80 transition-opacity font-display">
                           {name}
                         </Link>
-                        <p className="text-xs text-slate-500 font-medium truncate flex items-center gap-1 mt-0.5">
+                        <p className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1.5 mt-1">
                           <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           {occupation}
                         </p>
-                        <p className="text-xs text-slate-500 font-medium truncate flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <p className="text-xs font-semibold truncate flex items-center gap-1.5 mt-1 text-[#8d143c]">
+                          <MapPin className="w-3.5 h-3.5 text-[#e11d48] shrink-0" />
                           {location}
                         </p>
                       </div>

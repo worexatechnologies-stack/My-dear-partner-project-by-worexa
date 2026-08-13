@@ -59,15 +59,12 @@ interface LoginResponse {
   access?: string;
   user?: UserType;
   requires_two_factor?: boolean;
-  developer_otp?: string;
 }
 
 export class TwoFactorRequiredError extends Error {
-  developerOtp?: string;
-  constructor(developerOtp?: string) {
+  constructor() {
     super('Two-factor verification is required.');
     this.name = 'TwoFactorRequiredError';
-    this.developerOtp = developerOtp;
   }
 }
 
@@ -78,7 +75,7 @@ interface AuthContextType {
   loading: boolean;
   login: (identifier: string, password: string, accountType?: AccountType, otp?: string) => Promise<UserType>;
   registerMember: (input: MemberRegistrationInput) => Promise<UserType>;
-  requestOtp: (identifier: string, purpose?: string) => Promise<{ expires_in: number; developer_otp?: string }>;
+  requestOtp: (identifier: string, purpose?: string) => Promise<{ expires_in: number }>;
   loginWithOtp: (identifier: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
@@ -273,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchApi<LoginResponse>(`/${authNamespace(type)}/login/`, {
         method: 'POST', body: JSON.stringify(body), skipAuthRefresh: true,
       });
-      if (data.requires_two_factor) throw new TwoFactorRequiredError(data.developer_otp);
+      if (data.requires_two_factor) throw new TwoFactorRequiredError();
       return await commitSession(type, version);
     } catch (error) {
       if (mountedRef.current) clearSessionLocal();
@@ -304,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const requestOtp = (identifier: string, purpose = 'PHONE_VERIFY') =>
-    fetchApi<{ expires_in: number; developer_otp?: string }>('/member-auth/otp/request/', {
+    fetchApi<{ expires_in: number }>('/member-auth/otp/request/', {
       method: 'POST', body: JSON.stringify({ identifier, purpose }), skipAuthRefresh: true,
     });
 

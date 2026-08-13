@@ -33,6 +33,7 @@ const linkGroups = [
   {
     title: 'Help & Legal',
     links: [
+      { name: 'Frequently Asked Questions', path: '/faq' },
       { name: 'Contact Support', path: '/contact' },
       { name: 'Privacy Policy', path: '/privacy' },
       { name: 'Terms of Service', path: '/terms' },
@@ -112,9 +113,31 @@ export default function Footer() {
                 MyDear<span className="text-pink-400">Partner</span>
               </span>
             </Link>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
-              Bringing modern technology and timeless traditions together to help you find your perfect life partner in a safe, verified environment.
+            <p className="text-gray-300 text-sm leading-relaxed max-w-xs">
+              Behind every successful marriage is a meaningful connection. At MyDearPartner, we help transform introductions into lasting relationships by creating a trusted environment where genuine people, shared values, and lifelong aspirations come together naturally.
             </p>
+            <p className="text-[#e8bd7e] text-xs font-semibold">
+              Where Meaningful Connections Become Lifelong Commitments.
+            </p>
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=Worexa+Technologies+3rd+Phase+Banashankari+3rd+Stage+Banashankari+Bengaluru+Karnataka+560085"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group mt-4 flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-sm max-w-xs transition-all hover:border-amber-400/40 hover:bg-white/10"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400 transition-transform group-hover:scale-110">
+                <MapPin className="h-4 w-4" />
+              </div>
+              <div className="text-xs">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">Workspace</p>
+                <p className="mt-0.5 font-bold text-white text-xs transition-colors group-hover:text-amber-400">
+                  Worexa Technologies
+                </p>
+                <p className="mt-0.5 leading-tight text-gray-400">
+                  3rd Phase, Banashankari 3rd Stage, Banashankari, Bengaluru, Karnataka 560085
+                </p>
+              </div>
+            </a>
             <div className="flex items-center gap-3 pt-2">
               {socials.map((social) => (
                 <a 
@@ -166,7 +189,17 @@ export default function Footer() {
             </div>
             <div className="text-xs text-gray-400 flex items-center gap-2 mt-1">
               <img src="/images/main-logo.png" alt="My Dear Partner" className="w-5 h-5 object-contain" />
-              <span>Built and developed by <strong className="text-gray-200">Worexa Technologies</strong></span>
+              <span>
+                Designed by{' '}
+                <a
+                  href="https://worexatechnologies.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-amber-400 hover:text-white hover:underline transition-colors"
+                >
+                  Worexa Technologies
+                </a>
+              </span>
             </div>
           </div>
         </div>

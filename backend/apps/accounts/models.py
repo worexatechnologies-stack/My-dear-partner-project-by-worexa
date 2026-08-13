@@ -22,9 +22,6 @@ class RoleCode(models.TextChoices):
 SUPER_ADMIN = RoleCode.SUPER_ADMIN
 ADMIN = RoleCode.ADMIN
 
-
-
-
 class AdminRole(models.Model):
     code = models.CharField(max_length=30, choices=RoleCode.choices, unique=True)
     name = models.CharField(max_length=100)
@@ -365,7 +362,7 @@ class Member(BaseAccount):
 
     @property
     def is_verified(self):
-        return self.is_email_verified or self.is_mobile_verified
+        return self.is_mobile_verified
 
     @property
     def is_account_locked(self):
@@ -376,8 +373,8 @@ class Member(BaseAccount):
         """Check if all verification requirements are met"""
         # 1. Profile approved
         profile_ok = self.profile_status == self.VerificationStatus.APPROVED
-        # 2. Contact (email and mobile) verified
-        contact_ok = self.is_email_verified and self.is_mobile_verified
+        # 2. Mobile contact verified
+        contact_ok = self.is_mobile_verified
         # 3. Primary photo approved
         from apps.profiles.models import ProfilePhoto
         primary_photo_ok = ProfilePhoto.objects.filter(

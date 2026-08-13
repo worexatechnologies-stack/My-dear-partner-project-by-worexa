@@ -9,30 +9,29 @@ except ImportError:  # Allows diagnostics before dependencies are installed.
     environ = None
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = BASE_DIR.parent
 
 # 1. Detect environment and load matching env file
 DJANGO_ENV = os.environ.get('DJANGO_ENV', 'local').lower()
 if DJANGO_ENV not in ('local', 'staging', 'production'):
     DJANGO_ENV = 'local'
 
-# Prioritize unified single .env file, fallback to environment-specific file
-env_path = BASE_DIR / '.env'
-if not env_path.exists():
-    env_path = BASE_DIR / f'.env.{DJANGO_ENV}'
+# Prefer the environment-specific root file when one exists. The generic root
+# file remains the local default, and component-local files are legacy fallbacks.
+env_candidates = (
+    PROJECT_DIR / f'.env.{DJANGO_ENV}',
+    PROJECT_DIR / '.env',
+    BASE_DIR / f'.env.{DJANGO_ENV}',
+    BASE_DIR / '.env',
+)
 
-if env_path.exists():
-    if environ is not None:
-        environ.Env.read_env(str(env_path), overwrite=False)
-    else:
-        load_dotenv(env_path)
-else:
-    # Fallback to standard .env if needed
-    fallback_path = BASE_DIR / '.env'
-    if fallback_path.exists():
+for env_path in env_candidates:
+    if env_path.exists():
         if environ is not None:
-            environ.Env.read_env(str(fallback_path), overwrite=False)
+            environ.Env.read_env(str(env_path), overwrite=False)
         else:
-            load_dotenv(fallback_path)
+            load_dotenv(env_path)
+        break
 
 # Helper functions for types
 def get_bool(key, default=False):
@@ -85,8 +84,9 @@ if PAYMENT_MODE == 'razorpay' or RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET:
         errors.append("RAZORPAY_KEY_ID: Required when payment mode is razorpay.")
     if not RAZORPAY_KEY_SECRET:
         errors.append("RAZORPAY_KEY_SECRET: Required when payment mode is razorpay.")
-    if not RAZORPAY_WEBHOOK_SECRET:
-        errors.append("RAZORPAY_WEBHOOK_SECRET: Required when payment mode is razorpay.")
+    # Checkout verification uses the API secret directly and can run before a
+    # webhook is configured. Webhooks stay disabled until their separate
+    # dashboard-generated signing secret is supplied.
     if RAZORPAY_MODE not in ('test', 'live'):
         errors.append("RAZORPAY_MODE: Must be 'test' or 'live'.")
 
@@ -215,13 +215,9 @@ config = {
         'CONTACT_ENQUIRY_RECIPIENT', 'info.mydearpartnersupport@gmail.com'
     ),
     
-    # SMS / OTP
-    'SMS_PROVIDER': optional_env('SMS_PROVIDER', 'renflair'),
+    # Mobile OTP uses Renflair only.
     'OTP_PROVIDER': optional_env('OTP_PROVIDER', 'renflair'),
     'RENFLAIR_API_KEY': optional_env('RENFLAIR_API_KEY', ''),
-    'TWILIO_ACCOUNT_SID': optional_env('TWILIO_ACCOUNT_SID', ''),
-    'TWILIO_AUTH_TOKEN': optional_env('TWILIO_AUTH_TOKEN', ''),
-    'TWILIO_PHONE_NUMBER': optional_env('TWILIO_PHONE_NUMBER', ''),
     'FIREBASE_CREDENTIALS_PATH': optional_env('FIREBASE_CREDENTIALS_PATH', ''),
     
     # Payments
@@ -252,22 +248,32 @@ config = {
     'CSRF_TRUSTED_ORIGINS': get_list('CSRF_TRUSTED_ORIGINS', default=['http://localhost:3000', 'http://localhost:8000']),
     'SECURE_HSTS_SECONDS': get_int('SECURE_HSTS_SECONDS', 31536000 if DJANGO_ENV in ('staging', 'production') else 0),
     'SECURE_PROXY_SSL_HEADER': optional_env('SECURE_PROXY_SSL_HEADER', ''),
+    # Explicitly enabled only by the root local Docker launcher. Public
+    # production deployments must retain HTTPS redirects and secure cookies.
+    'ALLOW_INSECURE_LOCAL_HTTP': get_bool('ALLOW_INSECURE_LOCAL_HTTP', default=False),
     
     # Logging & Monitoring
     'LOG_LEVEL': optional_env('LOG_LEVEL', 'INFO'),
     'SENTRY_DSN': optional_env('SENTRY_DSN', ''),
     
-    # Rate Limiting
-    'LOGIN_RATE_LIMIT': optional_env('LOGIN_RATE_LIMIT', '5/minute'),
-    'OTP_RATE_LIMIT': optional_env('OTP_RATE_LIMIT', '3/minute'),
-    'API_RATE_LIMIT': optional_env('API_RATE_LIMIT', '1000/day'),
-    'ANON_RATE_LIMIT': optional_env('ANON_RATE_LIMIT', '100/day'),
+    # Authentication-specific protection. There is no general API quota.
     'MAX_FAILED_LOGIN_ATTEMPTS': get_int('MAX_FAILED_LOGIN_ATTEMPTS', 3),
-    'LOGIN_LOCKOUT_MINUTES': get_int('LOGIN_LOCKOUT_MINUTES', 15),
+    'LOGIN_LOCKOUT_MINUTES': get_int('LOGIN_LOCKOUT_MINUTES', 2),
+    # Fixed cooldown (seconds) between OTP/verification requests per account or
+    # submitted email/mobile identifier.
+    'OTP_COOLDOWN_SECONDS': get_int('OTP_COOLDOWN_SECONDS', 120),
+    'RESET_PASSWORD_MAX_ATTEMPTS': get_int('RESET_PASSWORD_MAX_ATTEMPTS', 5),
+    'RESET_PASSWORD_WINDOW_SECONDS': get_int('RESET_PASSWORD_WINDOW_SECONDS', 120),
+    # Repository deployments are Internet -> Nginx -> Django. Set NUM_PROXIES
+    # to 2 only when a second verified proxy (for example Cloudflare) is added.
+    'NUM_PROXIES': get_int('NUM_PROXIES', 1),
+    'TRUSTED_PROXY_IPS': get_list(
+        'TRUSTED_PROXY_IPS',
+        default=['127.0.0.1', '172.16.0.0/12'],
+    ),
     
     # Feature Flags
     'ENABLE_SIGNUP': get_bool('ENABLE_SIGNUP', default=True),
-    'ENABLE_EMAIL_VERIFICATION': get_bool('ENABLE_EMAIL_VERIFICATION', default=True),
     'ENABLE_MOBILE_VERIFICATION': get_bool('ENABLE_MOBILE_VERIFICATION', default=False),
     'ENABLE_TWO_FACTOR': get_bool('ENABLE_TWO_FACTOR', default=False),
     'ENABLE_DEVELOPMENT_SEED': get_bool('ENABLE_DEVELOPMENT_SEED', default=(DJANGO_ENV == 'local')),
@@ -276,7 +282,7 @@ config = {
     'ENABLE_API_DOCS': get_bool('ENABLE_API_DOCS', default=(DJANGO_ENV == 'local')),
 
     # Super Admin Configuration
-    'SUPERADMIN_EMAIL': optional_env('SUPERADMIN_EMAIL', 'admin@mydearpartner.com'),
+    'SUPERADMIN_EMAIL': optional_env('SUPERADMIN_EMAIL', ''),
     'SUPERADMIN_PASSWORD': os.environ.get('SUPERADMIN_PASSWORD', ''),
     'SUPERADMIN_MOBILE': optional_env('SUPERADMIN_MOBILE', '9876543200'),
     'SUPERADMIN_FIRST_NAME': optional_env('SUPERADMIN_FIRST_NAME', 'Super'),
@@ -289,33 +295,40 @@ config = {
 if DJANGO_ENV in ('staging', 'production'):
     if config['DEBUG']:
         errors.append('DEBUG: Must be False in staging/production.')
-    for key in ('SECURE_SSL_REDIRECT', 'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE'):
-        if not config[key]:
-            errors.append(f'{key}: Must be True in staging/production.')
-    if config['SECURE_HSTS_SECONDS'] < 15_552_000:
-        errors.append('SECURE_HSTS_SECONDS: Must be at least 180 days in staging/production.')
-    if not config['SECURE_PROXY_SSL_HEADER']:
-        errors.append('SECURE_PROXY_SSL_HEADER: Required behind the TLS-terminating proxy.')
+    if not config['ALLOW_INSECURE_LOCAL_HTTP']:
+        for key in ('SECURE_SSL_REDIRECT', 'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE'):
+            if not config[key]:
+                errors.append(f'{key}: Must be True in staging/production.')
+        if config['SECURE_HSTS_SECONDS'] < 15_552_000:
+            errors.append('SECURE_HSTS_SECONDS: Must be at least 180 days in staging/production.')
+        if not config['SECURE_PROXY_SSL_HEADER']:
+            errors.append('SECURE_PROXY_SSL_HEADER: Required behind the TLS-terminating proxy.')
     if config['ENABLE_DEVELOPMENT_SEED'] or config['ENABLE_DEBUG_TOOLBAR']:
         errors.append('Development seed and debug toolbar features must be disabled.')
     if config['ENABLE_SWAGGER'] or config['ENABLE_API_DOCS']:
         errors.append('Interactive API documentation must be disabled in staging/production.')
-    if config['OTP_PROVIDER'].lower() in ('mock', 'dummy', 'console', 'dev'):
-        errors.append('OTP_PROVIDER: A real provider is required in staging/production.')
     if config['EMAIL_BACKEND'] == 'django.core.mail.backends.console.EmailBackend':
         errors.append('EMAIL_BACKEND: Console email is not allowed in staging/production.')
     if config['EMAIL_BACKEND'].endswith('smtp.EmailBackend') and (
         not config['EMAIL_HOST_USER'] or not config['EMAIL_HOST_PASSWORD']
     ):
         errors.append('EMAIL_HOST_USER and EMAIL_HOST_PASSWORD are required for SMTP email.')
-    if config['OTP_PROVIDER'].lower() in ('renflair', 'renflair_sms') and not config['RENFLAIR_API_KEY']:
-        errors.append('RENFLAIR_API_KEY: Required when using the Renflair OTP provider.')
     if config['USE_S3'] and (
         not config['AWS_ACCESS_KEY_ID']
         or not config['AWS_SECRET_ACCESS_KEY']
         or not config['AWS_STORAGE_BUCKET_NAME']
     ):
         errors.append('AWS credentials and bucket are required when USE_S3 is enabled.')
+    if not config['SUPERADMIN_EMAIL'] or not config['SUPERADMIN_PASSWORD']:
+        errors.append('SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD are required in staging/production.')
+
+# Renflair is the only mobile OTP transport in every environment. This keeps
+# local Docker and production behavior identical and fails closed when the
+# real provider credential is absent.
+if config['OTP_PROVIDER'].lower() != 'renflair':
+    errors.append('OTP_PROVIDER: Only renflair is supported.')
+if not config['RENFLAIR_API_KEY']:
+    errors.append('RENFLAIR_API_KEY: Required for mobile OTP delivery.')
 
 # If errors occurred, raise a startup crash block explaining which keys failed
 if errors:

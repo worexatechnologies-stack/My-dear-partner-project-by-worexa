@@ -77,7 +77,7 @@ async function loginThroughBff(
   let data = responseData(await responseJson(response));
 
   if (data.requires_two_factor === true && typeof data.access !== 'string') {
-    const otp = credentials.otp ?? (typeof data.developer_otp === 'string' ? data.developer_otp : undefined);
+    const otp = credentials.otp;
     if (!otp) {
       throw new Error(
         `${credentials.accountType} requires two-factor authentication; set PROFILE_PHOTO_E2E_ADMIN_OTP.`,

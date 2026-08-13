@@ -18,7 +18,10 @@ COPY . .
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
 USER appuser
 
-RUN python manage.py collectstatic --noinput
+# Static collection imports Django settings, but the real provider credential
+# is injected only when the container starts. Keep the build independent of
+# deployment secrets while runtime validation remains fail-closed.
+RUN RENFLAIR_API_KEY=build-static-placeholder python manage.py collectstatic --noinput
 
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]
 CMD ["daphne", "config.asgi:application", "--bind", "0.0.0.0", "--port", "8000"]

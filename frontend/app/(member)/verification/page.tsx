@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   AlertCircle, ArrowRight, Camera, Check, Clock, FileText,
-  Loader2, LockKeyhole, Mail, ShieldCheck, UserRound,
+  Loader2, LockKeyhole, ShieldCheck, Smartphone, UserRound,
 } from 'lucide-react';
 import { useGetVerificationStatusQuery } from '@/legacy/services/verificationStatusApi';
 
@@ -39,34 +39,21 @@ export default function VerificationCenterPage() {
   const steps = useMemo<Step[]>(() => {
     if (!data) return [];
     const verified = Boolean(data.is_verified) || data.account_status === 'VERIFIED';
-    const details = data as typeof data & {
-      email_verified?: boolean;
-      mobile_verified?: boolean;
-      contact?: { email_verified?: boolean; mobile_verified?: boolean; status: StepStatus; reason?: string | null };
-    };
-    const emailVerified = Boolean(details.email_verified ?? details.contact?.email_verified);
-    const mobileVerified = Boolean(details.mobile_verified ?? details.contact?.mobile_verified);
-    const contactDone = emailVerified && mobileVerified;
+    const mobileVerified = Boolean(data.contact?.mobile_verified);
     const resolved = (value: StepStatus): StepStatus => verified ? 'approved' : value;
 
     return [
       {
         id: 'contact',
-        title: 'Verify your contact details',
-        description: contactDone
-          ? 'Your email and mobile number are confirmed.'
-          : emailVerified
-            ? 'Your email is verified. Verify your mobile number to complete this step.'
-            : mobileVerified
-              ? 'Your mobile number is verified. Verify your email to complete this step.'
-              : 'Confirm both your registered email and mobile number.',
-        // Keep a partially completed contact step actionable so the member
-        // can verify the remaining contact method.
-        status: resolved(contactDone ? 'approved' : 'incomplete'),
+        title: 'Verify your mobile number',
+        description: mobileVerified
+          ? 'Your registered mobile number is confirmed.'
+          : 'Confirm your registered mobile number with an OTP.',
+        status: resolved(mobileVerified ? 'approved' : 'incomplete'),
         href: '/settings/profile#profile-section-verification',
-        action: emailVerified ? 'Verify mobile' : 'Verify contact',
+        action: 'Verify mobile',
         reason: data.contact.reason,
-        icon: Mail,
+        icon: Smartphone,
       },
       { id: 'profile', title: 'Complete your profile', description: 'Add the personal details that help create meaningful matches.', status: resolved(data.profile.status as StepStatus), href: '/settings/profile', action: 'Complete profile', reason: data.profile.reason, icon: UserRound },
       { id: 'photo', title: 'Add a profile photo', description: 'Upload a clear, recent photo to make your profile recognisable.', status: resolved(data.primary_photo.status as StepStatus), href: '/settings/profile#profile-section-photos', action: 'Add photo', reason: data.primary_photo.reason, icon: Camera },

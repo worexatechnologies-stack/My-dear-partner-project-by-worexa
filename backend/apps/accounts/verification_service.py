@@ -26,7 +26,6 @@ class VerificationSummary(NamedTuple):
     is_verified: bool
     completed_steps: int
     total_steps: int
-    email_verified: bool
     mobile_verified: bool
     profile_information_status: str
     profile_photo_status: str
@@ -134,14 +133,11 @@ class AccountVerificationService:
         photo_status = AccountVerificationService.get_photo_status(member)
         document_status = AccountVerificationService.get_document_status(member)
 
-        # Email and mobile verification (OTP - no admin approval needed)
-        email_verified = member.is_email_verified
+        # Mobile verification is the only contact verification requirement.
         mobile_verified = member.is_mobile_verified
 
         # Count completed steps
         completed_steps = 0
-        if email_verified:
-            completed_steps += 1
         if mobile_verified:
             completed_steps += 1
         if profile_status.status == AccountVerificationService.STATUS_APPROVED:
@@ -151,7 +147,7 @@ class AccountVerificationService:
         if document_status.status == AccountVerificationService.STATUS_APPROVED:
             completed_steps += 1
         
-        total_steps = 5
+        total_steps = 4
         # Determine overall status
         is_verified = AccountVerificationService.is_account_verified(member)
         
@@ -174,7 +170,7 @@ class AccountVerificationService:
             profile_status.status == AccountVerificationService.STATUS_PENDING_REVIEW,
             photo_status.status == AccountVerificationService.STATUS_PENDING_REVIEW,
             document_status.status == AccountVerificationService.STATUS_PENDING_REVIEW,
-        ]) and email_verified and mobile_verified
+        ]) and mobile_verified
         
         # Determine overall status
         if is_verified:
@@ -189,7 +185,7 @@ class AccountVerificationService:
             overall_status = AccountVerificationService.OVERALL_INCOMPLETE
         # Determine next action
         next_action = AccountVerificationService._get_next_action(
-            email_verified, mobile_verified, profile_status, photo_status, document_status, overall_status
+            mobile_verified, profile_status, photo_status, document_status, overall_status
         )
 
         # Check for pending membership
@@ -206,7 +202,6 @@ class AccountVerificationService:
             is_verified=is_verified,
             completed_steps=completed_steps,
             total_steps=total_steps,
-            email_verified=email_verified,
             mobile_verified=mobile_verified,
             profile_information_status=profile_status.status,
             profile_photo_status=photo_status.status,
@@ -218,13 +213,10 @@ class AccountVerificationService:
             membership_pending=membership_pending
         )
     @staticmethod
-    def _get_next_action(email_verified, mobile_verified, profile_status, photo_status, document_status, overall_status):
+    def _get_next_action(mobile_verified, profile_status, photo_status, document_status, overall_status):
         """Determine the next action message for the user"""
         if overall_status == AccountVerificationService.OVERALL_VERIFIED:
             return 'Your account is fully verified! You can access all features.'
-        
-        if not email_verified:
-            return 'Verify your email address to continue.'
         
         if not mobile_verified:
             return 'Verify your mobile number to continue.'
@@ -258,12 +250,12 @@ class AccountVerificationService:
     @staticmethod
     def is_account_verified(member: Member) -> bool:
         """Check the lightweight "verified" requirement: both identity
-        contacts confirmed. This drives `is_verified`, `overall_status`, and
+        the mobile contact is confirmed. This drives `is_verified`, `overall_status`, and
         membership-unlock gating. The stricter all-steps state is
         `are_verification_checks_passed` / `is_fully_verified`."""
         if member.account_status != Member.AccountStatus.ACTIVE or member.deleted_at is not None:
             return False
-        return bool(member.is_email_verified and member.is_mobile_verified)
+        return bool(member.is_mobile_verified)
     @staticmethod
     @transaction.atomic
     def submit_profile_for_review(member: Member) -> bool:

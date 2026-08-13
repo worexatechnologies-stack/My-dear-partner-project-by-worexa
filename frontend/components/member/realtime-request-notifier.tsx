@@ -25,12 +25,35 @@ interface RequestItem {
   status: string;
 }
 
+const MAX_REQUEST_POPUPS = 5;
+
 export function RealtimeRequestNotifier() {
   const { subscribe } = useRealtime();
-  const [activeRequest, setActiveRequest] = useState<RequestItem | null>(null);
+  const [requestQueue, setRequestQueue] = useState<RequestItem[]>([]);
+  const requestQueueRef = useRef<RequestItem[]>([]);
   const processedIdsRef = useRef<Set<string>>(new Set());
+  const shownPopupCountRef = useRef(0);
   const [busy, setBusy] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+  const [morePendingCount, setMorePendingCount] = useState(0);
+  const activeRequest = requestQueue[0] || null;
+
+  const enqueueRequests = useCallback((requests: RequestItem[]) => {
+    if (!requests.length) return;
+    setRequestQueue((current) => {
+      const next = [...current, ...requests];
+      requestQueueRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const dismissActiveRequest = useCallback(() => {
+    setRequestQueue((current) => {
+      const next = current.slice(1);
+      requestQueueRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Synthesize notification sound using Web Audio API
   const playChimeSound = useCallback(() => {
@@ -90,20 +113,25 @@ export function RealtimeRequestNotifier() {
       const incoming = await getInterests('incoming');
       const pending = incoming.filter((item: any) => item.status === 'PENDING');
       
-      if (pending.length > 0) {
-        // Find first request not yet dismissed in current session
-        const nextRequest = pending.find((item: any) => !processedIdsRef.current.has(item.id));
-        if (nextRequest) {
-          processedIdsRef.current.add(nextRequest.id);
-          setActiveRequest(nextRequest);
-          playChimeSound();
-          triggerBrowserPush(nextRequest.sender?.full_name || 'A member');
-        }
+      const remainingPopupSlots = Math.max(0, MAX_REQUEST_POPUPS - shownPopupCountRef.current);
+      const nextRequests = pending
+        .filter((item: any) => !processedIdsRef.current.has(item.id))
+        .slice(0, remainingPopupSlots);
+
+      if (nextRequests.length) {
+        nextRequests.forEach((request: RequestItem) => processedIdsRef.current.add(request.id));
+        shownPopupCountRef.current += nextRequests.length;
+        enqueueRequests(nextRequests);
+        playChimeSound();
+        triggerBrowserPush(nextRequests[0].sender?.full_name || 'A member');
       }
+
+      const queuedAfterUpdate = requestQueueRef.current.length + nextRequests.length;
+      setMorePendingCount(Math.max(0, pending.length - queuedAfterUpdate));
     } catch {
       /* Silently ignore if unauthenticated or locked */
     }
-  }, [playChimeSound, triggerBrowserPush]);
+  }, [enqueueRequests, playChimeSound, triggerBrowserPush]);
 
   // WebSocket realtime listener
   useEffect(() => {
@@ -139,8 +167,9 @@ export function RealtimeRequestNotifier() {
           text: `You accepted ${senderName}'s request! Redirecting to chat...`,
           type: 'success',
         });
+        const senderId = activeRequest.sender.id;
         setTimeout(() => {
-          window.location.href = `/messages?user=${activeRequest.sender.id}`;
+          window.location.href = `/messages?user=${senderId}`;
         }, 1200);
       } else {
         setToastMsg({
@@ -148,7 +177,7 @@ export function RealtimeRequestNotifier() {
           type: 'info',
         });
       }
-      setActiveRequest(null);
+      dismissActiveRequest();
     } catch {
       setToastMsg({
         text: 'Action could not be saved. Please try again.',
@@ -157,6 +186,10 @@ export function RealtimeRequestNotifier() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const dismissPopup = () => {
+    if (!busy) dismissActiveRequest();
   };
 
   return (
@@ -193,7 +226,7 @@ export function RealtimeRequestNotifier() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm pointer-events-auto"
-              onClick={() => setActiveRequest(null)}
+              onClick={dismissPopup}
             />
 
             <motion.div
@@ -208,7 +241,7 @@ export function RealtimeRequestNotifier() {
 
               {/* Close Button */}
               <button
-                onClick={() => setActiveRequest(null)}
+                onClick={dismissPopup}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full transition-colors"
                 aria-label="Close"
               >
@@ -270,7 +303,7 @@ export function RealtimeRequestNotifier() {
                 <span>Mistake recovery available</span>
                 <Link
                   href="/interests/declined"
-                  onClick={() => setActiveRequest(null)}
+                  onClick={dismissPopup}
                   className="text-rose-600 font-bold hover:underline"
                 >
                   View Declined Requests →
@@ -280,6 +313,33 @@ export function RealtimeRequestNotifier() {
           </div>
         )}
       </AnimatePresence>
+
+      {morePendingCount > 0 && !activeRequest && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-5 right-5 z-[80] w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-rose-100 bg-white p-4 shadow-xl"
+        >
+          <div className="flex items-start gap-3">
+            <Bell className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-slate-900">More requests pending</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                {morePendingCount} more connection {morePendingCount === 1 ? 'request is' : 'requests are'} waiting.
+              </p>
+              <Link
+                href="/interests/received"
+                className="mt-3 inline-flex items-center gap-1 text-xs font-extrabold text-rose-600 hover:text-rose-700"
+              >
+                View all requests <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+            <button type="button" onClick={() => setMorePendingCount(0)} aria-label="Dismiss pending requests notice" className="text-slate-400 hover:text-slate-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </motion.div>
+      )}
     </>
   );
 }

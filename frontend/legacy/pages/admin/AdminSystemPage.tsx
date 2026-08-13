@@ -306,10 +306,6 @@ export default function AdminSystemPage({ mode }: { mode: 'settings' | 'backups'
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={Boolean(val.require_email_verification)} onChange={e => updateFormField('REGISTRATION', 'require_email_verification', e.target.checked)} />
-                <span>Require Email Validation to active profiles</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={Boolean(val.require_mobile_verification)} onChange={e => updateFormField('REGISTRATION', 'require_mobile_verification', e.target.checked)} />
                 <span>Require Mobile SMS OTP verification during onboarding</span>
               </label>
@@ -559,7 +555,7 @@ export default function AdminSystemPage({ mode }: { mode: 'settings' | 'backups'
               <input type="checkbox" checked={Boolean(val.enable_2fa)} onChange={e => updateFormField('SECURITY', 'enable_2fa', e.target.checked)} style={{ width: '18px', height: '18px' }} />
               <div>
                 <strong style={{ fontSize: '0.9rem' }}>Enforce 2-Factor Authentication (2FA)</strong>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-muted)' }}>Require dynamic developer OTP authentication on login for admins.</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-muted)' }}>Require a real verification code on login for admins.</p>
               </div>
             </label>
           </div>

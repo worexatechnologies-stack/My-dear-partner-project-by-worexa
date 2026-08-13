@@ -13,6 +13,7 @@ import { useAuth } from '@/legacy/contexts/AuthContext';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { useRealtime } from '@/providers/RealtimeProvider';
 import ProfileImage from '@/components/profile/ProfileImage';
+import SiteLogo from '@/components/branding/site-logo';
 import MobileBottomNav from './mobile-bottom-nav';
 
 /* ─── Nav definitions ─── */
@@ -134,7 +135,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
       <div className={`flex h-16 shrink-0 items-center border-b border-[#eaded8] ${collapsed && !isMobile ? 'justify-center px-3' : 'justify-between px-4'}`}>
         {(!collapsed || isMobile) && (
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0" aria-label="My Dear Partner">
-            <img src="/images/main-logo.png" alt="My Dear Partner" className="w-8 h-8 object-contain shrink-0" />
+            <SiteLogo alt="My Dear Partner" className="w-8 h-8 object-contain shrink-0" />
             <span className="truncate font-display text-sm font-extrabold tracking-tight text-[#2c2928]">
               My Dear <em className="not-italic text-[#b64a68]">Partner</em>
             </span>
@@ -142,7 +143,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         )}
         {collapsed && !isMobile && (
           <Link href="/dashboard" aria-label="Home">
-            <img src="/images/main-logo.png" alt="My Dear Partner" className="w-8 h-8 object-contain" />
+            <SiteLogo alt="My Dear Partner" className="w-8 h-8 object-contain" />
           </Link>
         )}
 
@@ -341,7 +342,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#b64a68] px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                  {unreadCount >= 4 ? '4+' : unreadCount}
                 </span>
               )}
             </Link>

@@ -20,11 +20,6 @@ app.conf.beat_schedule = {
         'task': 'apps.matching.tasks.recalculate_compatibility_scores',
         'schedule': crontab(hour=0, minute=15),
     },
-    'retry-stored-file-deletions': {
-        'task': 'apps.common.tasks.retry_stored_file_deletions',
-        'schedule': 300.0,
-        'kwargs': {'limit': 100},
-    },
     'expire-memberships': {
         'task': 'apps.memberships.tasks.expire_memberships',
         'schedule': crontab(hour=0, minute=5),

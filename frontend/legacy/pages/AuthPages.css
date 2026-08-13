@@ -571,38 +571,6 @@
   width: 14px;
 }
 
-/* Developer OTP box */
-.neo-dev-otp {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 22px;
-  padding: 14px 16px;
-  border: 1.5px solid rgba(193, 142, 54, .35);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #fffae8, #f8e6ba);
-  color: #704a1e;
-}
-
-.neo-dev-otp svg {
-  width: 17px;
-}
-
-.neo-dev-otp span {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.neo-dev-otp strong {
-  font-family: 'Manrope';
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: .18em;
-}
-
 /* Security note */
 .neo-security-note {
   display: flex;

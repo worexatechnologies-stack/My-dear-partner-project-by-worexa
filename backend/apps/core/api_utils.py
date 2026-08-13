@@ -83,9 +83,9 @@ ACTIVITY_MODELS = {
 
 
 def client_ip(request):
-    if not request or not hasattr(request, 'META'):
-        return None
-    return request.META.get('REMOTE_ADDR') or None
+    from apps.accounts.throttling import get_client_ip
+
+    return get_client_ip(request)
 
 
 def audit(
@@ -155,6 +155,58 @@ def create_notification(recipient, *, type, title, body, link_url='', related_ob
     # receive an event for a row that later rolls back.
     transaction.on_commit(lambda: broadcast_notification(notification))
     return notification
+
+
+def notify_chat_message(recipient, sender, text, message):
+    """Persist ONE CHAT_MESSAGE notification per conversation instead of one
+    per message so the notification bell does not flood (e.g. 10 messages from
+    the same member no longer create 10 bell alerts).
+
+    A new row is created only when there is no unread CHAT_MESSAGE alert for
+    the same sender; otherwise the existing alert is refreshed and re-bumped so
+    it stays at the top of the recipient's notification list.
+    """
+    from django.utils import timezone
+
+    from apps.core.models import Notification
+
+    link_url = f'/messages?user={sender.pk}'
+    title = f'New message from {sender.get_full_name() or "Member"}'
+    body = str(text or '')[:100]
+
+    existing = (
+        Notification.objects.filter(
+            member_recipient=recipient,
+            notification_type='CHAT_MESSAGE',
+            link_url=link_url,
+            is_read=False,
+        )
+        .order_by('-created_at')
+        .first()
+    )
+
+    if existing is not None:
+        existing.title = title
+        existing.message = body
+        existing.related_object_type = message._meta.label_lower
+        existing.related_object_id = str(message.pk)
+        existing.created_at = timezone.now()
+        existing.save(update_fields=(
+            'title', 'message', 'related_object_type', 'related_object_id', 'created_at',
+        ))
+        notification = existing
+        transaction.on_commit(lambda n=notification: broadcast_notification(n))
+        return notification
+
+    return create_notification(
+        recipient,
+        type='CHAT_MESSAGE',
+        title=title,
+        body=body,
+        link_url=link_url,
+        related_object=message,
+        priority='HIGH',
+    )
 
 
 def broadcast_notification(notification):

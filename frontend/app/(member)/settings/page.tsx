@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Bell, ChevronRight, CreditCard, Shield, UserRound } from 'lucide-react';
 
 const options = [
-  { href: '/settings/profile', title: 'Profile details', text: 'Update your personal details, photos, preferences, and verification.', icon: UserRound, tone: 'bg-rose-50 text-rose-700' },
+  { href: '/profile/edit', title: 'Profile details', text: 'Update your personal details, photos, preferences, and verification.', icon: UserRound, tone: 'bg-rose-50 text-rose-700' },
   { href: '/settings/security', title: 'Security & access', text: 'Change your password and manage signed-in devices.', icon: Shield, tone: 'bg-amber-50 text-amber-700' },
   { href: '/settings/notifications', title: 'Notifications', text: 'Review important account, match, and support updates.', icon: Bell, tone: 'bg-sky-50 text-sky-700' },
   { href: '/settings/membership', title: 'Membership', text: 'Review your plan and available member benefits.', icon: CreditCard, tone: 'bg-emerald-50 text-emerald-700' },

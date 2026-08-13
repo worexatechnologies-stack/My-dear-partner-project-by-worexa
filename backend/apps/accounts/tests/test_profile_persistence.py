@@ -16,10 +16,12 @@ Run with:
     DJANGO_SETTINGS_MODULE=config.settings.test \
         ./.venv/bin/python manage.py test apps.accounts.tests.test_profile_persistence
 """
+from datetime import date
+
 import pytest
 from rest_framework.test import APIClient
 
-from apps.accounts.models import MemberPreference
+from apps.accounts.models import MemberPreference, MemberProfile
 from apps.accounts.security import issue_account_tokens
 
 pytestmark = pytest.mark.django_db
@@ -65,6 +67,35 @@ def test_save_height_min_max_persists_and_round_trips(member, super_admin):
     assert detail.status_code == 200, detail.content
     assert detail.data['data']['member']['pref_height_min'] == '160 cm'
     assert detail.data['data']['member']['pref_height_max'] == '180 cm'
+
+
+def test_member_me_returns_age_and_saved_profile_details(member):
+    member.date_of_birth = date(1998, 5, 15)
+    member.save(update_fields=('date_of_birth', 'updated_at'))
+    MemberProfile.objects.create(
+        member=member,
+        blood_group='B+',
+        complexion='Fair',
+        education_detail='Computer Science',
+        employed_in='Private company',
+        company='Example Technologies',
+        family_status='Upper middle class',
+        num_brothers=1,
+        num_sisters=2,
+    )
+
+    response = auth_client(member).get('/api/v1/member-auth/me/')
+
+    assert response.status_code == 200
+    data = response.data['data']
+    assert data['age'] == member.profile.age
+    assert data['blood_group'] == 'B+'
+    assert data['education_detail'] == 'Computer Science'
+    assert data['employed_in'] == 'Private company'
+    assert data['company'] == 'Example Technologies'
+    assert data['family_status'] == 'Upper middle class'
+    assert data['num_brothers'] == 1
+    assert data['num_sisters'] == 2
 
 
 def test_partial_section_update_does_not_erase_other_sections(member):

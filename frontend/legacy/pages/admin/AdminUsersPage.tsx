@@ -107,8 +107,9 @@ export default function AdminUsersPage() {
       setToast({ message: 'Action completed.', tone: 'success' });
       setPendingAction(null);
       load();
-    } catch {
-      setToast({ message: 'Action failed.', tone: 'error' });
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Action failed.';
+      setToast({ message, tone: 'error' });
     } finally {
       setBusy(false);
     }

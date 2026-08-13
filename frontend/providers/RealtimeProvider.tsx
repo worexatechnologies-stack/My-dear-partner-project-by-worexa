@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 
-import { publicEnv } from '@/config/public-env';
+import { getClientWebSocketBaseUrl } from '@/config/env';
 import { getFreshAccessToken } from '@/legacy/services/apiClient';
 
 type RealtimeStatus =
@@ -57,7 +57,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const handlersRef = useRef<Map<string, Set<(event: RealtimeEvent) => void>>>(new Map());
   const isAuthenticatedRef = useRef(true);
   const connectInstanceRef = useRef(0);
-  const audioContextRef = useRef<AudioContext | null>(null);
 
   const [status, setStatus] = useState<RealtimeStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<RealtimeEvent | null>(null);
@@ -112,8 +111,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     setStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
 
-    const baseUrl = publicEnv.wsBaseUrl.replace(/\/$/, '');
-    const wsBase = baseUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
+    const wsBase = getClientWebSocketBaseUrl();
 
     const socket = new WebSocket(`${wsBase}/ws/notifications/?token=${encodeURIComponent(token)}`);
     socketRef.current = socket;
@@ -182,20 +180,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url);
             notification.close();
           };
-        }
-
-        if (realtimeEvent.type === 'notification.created' && realtimeEvent.notification_type === 'CHAT_MESSAGE') {
-          const audio = audioContextRef.current;
-          if (audio?.state === 'running') {
-            const oscillator = audio.createOscillator();
-            const gain = audio.createGain();
-            oscillator.frequency.value = 880;
-            gain.gain.setValueAtTime(0.05, audio.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.16);
-            oscillator.connect(gain).connect(audio.destination);
-            oscillator.start();
-            oscillator.stop(audio.currentTime + 0.16);
-          }
         }
 
         const handlers = handlersRef.current;
@@ -267,22 +251,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [connect, clearReconnectTimer]);
-
-  useEffect(() => {
-    const unlockAudio = () => {
-      if (!audioContextRef.current && 'AudioContext' in window) {
-        audioContextRef.current = new AudioContext();
-      }
-      void audioContextRef.current?.resume();
-    };
-    window.addEventListener('pointerdown', unlockAudio, { once: true });
-    window.addEventListener('keydown', unlockAudio, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-      void audioContextRef.current?.close();
-    };
-  }, []);
 
   return (
     <RealtimeContext.Provider value={{ status, lastEvent, subscribe }}>

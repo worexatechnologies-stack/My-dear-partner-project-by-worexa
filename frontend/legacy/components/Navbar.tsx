@@ -228,7 +228,7 @@ export default function Navbar() {
                           <Link to="/interests/declined" className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 hover:text-ink transition-colors group">
                             <ShieldCheck className="w-4 h-4 text-gray-400 group-hover:text-amber-500 transition-colors" /> Declined Requests (Undo)
                           </Link>
-                          <Link to="/settings/profile" className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 hover:text-ink transition-colors group">
+                          <Link to="/settings" className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 hover:text-ink transition-colors group">
                             <Settings className="w-4 h-4 text-gray-400 group-hover:text-rose-500 transition-colors" /> Settings
                           </Link>
                           <Link to="/membership" className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 hover:text-ink transition-colors group">

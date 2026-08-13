@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Eye, Lock, Crown, ShieldCheck, MapPin, Heart, ArrowRight,
-  Sparkles, RefreshCw, User
+  RefreshCw, User
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import { fetchApi } from '@/legacy/services/apiClient';

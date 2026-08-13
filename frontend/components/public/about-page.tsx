@@ -1,65 +1,361 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, HeartHandshake, LockKeyhole, ShieldCheck, UsersRound } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Heart,
+  HeartHandshake,
+  LockKeyhole,
+  ShieldCheck,
+  UsersRound,
+  Target,
+  Eye,
+} from 'lucide-react';
 
-const principles = [
-  { icon: ShieldCheck, title: 'Verified with care', text: 'Thoughtful checks help every introduction begin with more confidence.' },
-  { icon: LockKeyhole, title: 'Private by default', text: 'You decide when and with whom to share personal details and photos.' },
-  { icon: HeartHandshake, title: 'Built for intention', text: 'A calm space for people who are serious about a meaningful future.' },
+const differentiators = [
+  {
+    icon: ShieldCheck,
+    title: 'Authenticity Above Everything',
+    text: 'Every profile represents a genuine person looking for a meaningful relationship.',
+  },
+  {
+    icon: LockKeyhole,
+    title: 'Trust at Every Step',
+    text: 'From profile verification to privacy controls, every feature is designed to help you connect with confidence.',
+  },
+  {
+    icon: HeartHandshake,
+    title: 'Relationships Before Algorithms',
+    text: 'Technology helps us recommend compatible matches, but people, values, and genuine intentions remain at the heart of every connection.',
+  },
+  {
+    icon: UsersRound,
+    title: 'Designed for Individuals & Families',
+    text: 'Marriage brings two lives together—and often two families as well. That’s why MyDearPartner creates an experience that respects both personal choice and family involvement.',
+  },
 ];
 
-const steps = [
-  ['01', 'Share your story', 'Build a profile that reflects your values, life, and hopes.'],
-  ['02', 'Discover thoughtfully', 'Explore compatible profiles at your own pace.'],
-  ['03', 'Connect with confidence', 'Take the next step when an introduction feels right.'],
+const valuesList = [
+  {
+    title: 'Trust',
+    text: 'Every meaningful relationship begins with honesty.',
+  },
+  {
+    title: 'Respect',
+    text: 'Every person, tradition, culture, and life story deserves respect.',
+  },
+  {
+    title: 'Privacy',
+    text: 'Your personal information belongs to you & protecting it is our responsibility.',
+  },
+  {
+    title: 'Commitment',
+    text: 'We’re committed to helping people build relationships that stand the test of time.',
+  },
 ];
 
 export default function AboutPage() {
   return (
-    <main className="overflow-hidden bg-[#fffefd] pt-20 text-[#2c2928]">
-      <section className="relative isolate overflow-hidden bg-[#f4eee8] px-5 py-20 sm:px-8 lg:py-28">
-        <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_10%_20%,rgba(185,207,174,.48),transparent_28rem),radial-gradient(circle_at_88%_8%,rgba(255,255,255,.82),transparent_26rem)]" />
-        <div className="absolute left-1/2 top-4 -z-10 h-96 w-96 -translate-x-1/2 rounded-full bg-rose-200/30 blur-3xl" />
-        <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[1.05fr_.95fr] lg:gap-20">
+    <main className="overflow-hidden text-[#2c2928]">
+      {/* Hero Section */}
+      <section className="relative isolate overflow-hidden bg-gradient-to-br from-[#eaf2e7] via-[#f7f2ed] to-[#fdebe6] px-5 pt-24 pb-16 sm:px-8 lg:pt-28 lg:pb-24">
+        {/* Soft Background Ambient Light Glows */}
+        <div className="absolute top-0 left-10 -z-20 h-72 w-72 rounded-full bg-emerald-200/35 blur-[80px]" />
+        <div className="absolute right-10 top-1/4 -z-20 h-96 w-96 rounded-full bg-rose-200/40 blur-[100px]" />
+        <div className="absolute left-1/3 bottom-10 -z-20 h-80 w-80 rounded-full bg-amber-100/50 blur-[90px]" />
+
+        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
+          {/* Left Hero Text Column */}
           <div className="max-w-2xl">
-            <p className="inline-flex items-center gap-2 rounded-full border border-[#8e3d58]/15 bg-white/70 px-3.5 py-2 text-xs font-extrabold uppercase tracking-[.14em] text-[#8e3d58] shadow-sm"><Image src="/images/main-logo.png" alt="" width={16} height={16} className="h-4 w-4 object-contain" /> About My Dear Partner</p>
-            <h1 className="mt-6 font-display text-5xl font-light leading-[.92] tracking-[-.065em] text-[#2c2928] sm:text-6xl lg:text-7xl">A better beginning for <em className="font-serif font-normal text-[#bd6970]">forever.</em></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-slate-600">My Dear Partner brings together modern care and timeless values to make meaningful introductions feel more personal, secure, and hopeful.</p>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Link href="/register" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#8e3d58] px-6 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(142,61,88,.25)] transition hover:-translate-y-0.5 hover:bg-[#702d45]">Create your profile <ArrowRight className="h-4 w-4" /></Link>
-              <a href="#our-principles" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#3b1425]/12 bg-white/75 px-6 text-sm font-extrabold text-[#633447] transition hover:bg-white">What we believe</a>
+            <h1 className="font-display text-4xl font-light leading-[1.08] tracking-[-.055em] text-[#2c2928] sm:text-5xl lg:text-6xl">
+              Every Forever Begins with a{' '}
+              <em className="font-serif font-normal italic text-[#bd6970]">
+                Meaningful Connection.
+              </em>
+            </h1>
+
+            <div className="mt-6 space-y-4 leading-relaxed text-slate-700">
+              <p className="font-medium italic text-[#9e4e5e] text-lg sm:text-xl">
+                Some journeys in life are chosen. Others are shared.
+              </p>
+              <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+                Finding the person who will stand beside you through every season of life is one of the most meaningful decisions you’ll ever make. At MyDearPartner, we believe that every relationship deserves a beginning built on trust, understanding, and genuine intentions.
+              </p>
             </div>
-            <div className="mt-10 flex flex-wrap gap-x-5 gap-y-3 text-sm font-bold text-slate-600"><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> Privacy-first</span><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> Purposeful matching</span><span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> Family respectful</span></div>
+
+            {/* CTA Buttons */}
+            <div className="mt-8 flex flex-col gap-3.5 sm:flex-row sm:items-center">
+              <Link
+                href="/register"
+                className="group inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full bg-[#8e3d58] px-8 text-sm font-extrabold text-white shadow-xl shadow-[#8e3d58]/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#742d45] hover:shadow-[#8e3d58]/35"
+              >
+                Create your profile{' '}
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+              <a
+                href="#our-story"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 px-8 text-sm font-extrabold text-[#4a2632] shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white hover:shadow-md"
+              >
+                Read Our Story
+              </a>
+            </div>
+
+            {/* Key Pillars */}
+            <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 border-t border-slate-200/60 pt-6 text-xs sm:text-sm font-bold text-slate-700">
+              <span className="inline-flex items-center gap-2">
+                <CheckCircle2 className="h-4.5 w-4.5 text-[#b64a68]" /> Authenticity first
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <CheckCircle2 className="h-4.5 w-4.5 text-[#b64a68]" /> Privacy &amp; Trust
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <CheckCircle2 className="h-4.5 w-4.5 text-[#b64a68]" /> Designed for Families
+              </span>
+            </div>
           </div>
+
+          {/* Right Floating Card Stack Showcase */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-            <div className="absolute -inset-5 rounded-[3rem] bg-gradient-to-br from-rose-200/60 to-amber-100/70 blur-2xl" />
-            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/80 bg-white p-3 shadow-[0_24px_70px_rgba(62,22,39,.16)]">
-              <Image src="/images/about-couple-hero.webp" alt="A couple sharing a moment together" width={1122} height={1402} className="aspect-[4/5] w-full rounded-[1.9rem] object-cover" priority />
-              <div className="absolute inset-x-3 bottom-3 rounded-b-[1.9rem] bg-gradient-to-t from-[#20111a]/85 via-[#20111a]/20 to-transparent px-6 pb-6 pt-20 text-white"><p className="text-xs font-bold uppercase tracking-[.16em] text-rose-200">Made for real lives</p><p className="mt-2 font-display text-2xl font-extrabold leading-tight">Every story deserves a thoughtful start.</p></div>
+            {/* Soft backdrop ambient light */}
+            <div className="absolute -inset-5 rounded-[3.5rem] bg-gradient-to-br from-rose-200/50 via-amber-100/40 to-emerald-100/40 blur-2xl" />
+
+            {/* Main Floating Image Card Frame */}
+            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/90 bg-white p-3.5 shadow-[0_25px_65px_rgba(62,22,39,.13)]">
+              <Image
+                src="/images/about-couple-hero.webp"
+                alt="Couple sharing a meaningful connection"
+                width={1122}
+                height={1402}
+                className="aspect-[4/5] w-full rounded-[2rem] object-cover"
+                priority
+              />
+
+              {/* Gradient Bottom Overlay */}
+              <div className="absolute inset-x-3.5 bottom-3.5 rounded-b-[2rem] bg-gradient-to-t from-[#20111a]/92 via-[#20111a]/40 to-transparent px-6 pb-6 pt-24 text-white">
+                <p className="text-[11px] font-extrabold uppercase tracking-[.2em] text-pink-300">
+                  MYDEARPARTNER
+                </p>
+                <p className="mt-1.5 font-display text-2xl font-bold leading-tight">
+                  Every forever begins with a meaningful connection.
+                </p>
+              </div>
             </div>
-            <div className="absolute -bottom-6 -left-3 rounded-2xl border border-white bg-white px-4 py-3 shadow-xl sm:-left-8"><p className="text-[10px] font-extrabold uppercase tracking-[.14em] text-[#b64a68]">Our promise</p><p className="mt-1 text-sm font-extrabold text-slate-900">Connection with care</p></div>
           </div>
         </div>
       </section>
 
-      <section id="our-principles" className="bg-white px-5 py-20 sm:px-8 lg:py-28">
-        <div className="mx-auto max-w-7xl"><div className="max-w-2xl"><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">The My Dear Partner difference</p><h2 className="mt-4 font-display text-4xl font-black tracking-[-.04em] text-[#20111a] sm:text-5xl">Marriage is personal. Your search should feel that way too.</h2></div>
-          <div className="mt-12 grid gap-5 md:grid-cols-3">{principles.map(({ icon: Icon, title, text }, index) => <article key={title} className="group rounded-[1.75rem] border border-[#3b1425]/8 bg-[#fffaf7] p-7 transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_20px_45px_rgba(62,22,39,.10)]"><div className="flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-[#b64a68]"><Icon className="h-6 w-6" /></span><span className="font-display text-4xl font-black text-[#8e3d58]/10">0{index + 1}</span></div><h3 className="mt-7 text-xl font-extrabold text-[#20111a]">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p></article>)}</div>
+      {/* Our Story Section */}
+      <section id="our-story" className="bg-white px-5 py-20 sm:px-8 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">Our Story</p>
+            <h2 className="mt-4 font-display text-3xl font-black tracking-[-.04em] text-[#20111a] sm:text-4xl lg:text-5xl">
+              Inspired by Real Relationships
+            </h2>
+            <div className="mt-6 space-y-4 text-base sm:text-lg leading-8 text-slate-600">
+              <p>
+                In today’s fast-moving digital world, finding a genuine life partner can often feel overwhelming. Endless profiles, uncertain conversations, and a lack of trust can make an important journey unnecessarily difficult.
+              </p>
+              <div className="rounded-2xl border-l-4 border-[#8e3d58] bg-[#fffaf7] p-4 text-base font-semibold text-[#20111a]">
+                MyDearPartner was born from a simple belief:<br />
+                <span className="text-[#8e3d58]">Finding your life partner should feel personal, respectful, and meaningful, not complicated.</span>
+              </div>
+              <p>
+                That’s why we’ve created a platform where technology supports human connections without replacing the values that matter most.
+              </p>
+            </div>
+
+            <div className="mt-8 space-y-3 text-sm font-bold text-[#20111a]">
+              <div className="flex items-center gap-3 rounded-xl bg-rose-50/60 p-3 text-[#8e3d58]">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-[#b64a68]" />
+                <span>Every profile represents a real person.</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl bg-rose-50/60 p-3 text-[#8e3d58]">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-[#b64a68]" />
+                <span>Every conversation carries the possibility of a new beginning.</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl bg-rose-50/60 p-3 text-[#8e3d58]">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-[#b64a68]" />
+                <span>Every successful match becomes part of a story worth celebrating.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-white/80 bg-white p-3 shadow-[0_18px_45px_rgba(62,22,39,.12)]">
+            <Image src="/images/about-family-story.webp" alt="Families uniting happily" width={1704} height={960} className="aspect-[4/3] w-full rounded-[2rem] object-cover" />
+          </div>
         </div>
       </section>
 
+      {/* Mission & Vision Section */}
       <section className="bg-[#fffaf7] px-5 py-20 sm:px-8 lg:py-28">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white bg-white p-2 shadow-[0_18px_45px_rgba(62,22,39,.12)]">
-            <Image src="/images/about-family-story.webp" alt="Two families meeting warmly in a garden" width={1704} height={960} className="aspect-[16/10] w-full rounded-[1.5rem] object-cover" />
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 lg:grid-cols-2">
+            {/* Our Mission */}
+            <div className="rounded-[2.5rem] border border-[#3b1425]/10 bg-white p-8 sm:p-10 shadow-sm transition hover:shadow-md flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-[#b64a68]">
+                    <Target className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">Our Mission</p>
+                    <h3 className="text-2xl font-black text-[#20111a]">Helping People Find More Than a Match</h3>
+                  </div>
+                </div>
+                <p className="mt-6 text-base sm:text-lg leading-8 text-slate-600">
+                  Our mission is to create a trusted environment where meaningful relationships can flourish naturally. By bringing together authenticity, privacy, and thoughtful matchmaking, we help individuals and families make one of life’s biggest decisions with confidence and peace of mind.
+                </p>
+              </div>
+              <div className="mt-6 rounded-2xl bg-rose-50/80 p-5 text-center font-display text-lg font-bold text-[#8e3d58]">
+                “Because marriage isn’t simply about finding someone. It’s about finding the right someone.”
+              </div>
+            </div>
+
+            {/* Our Vision */}
+            <div className="rounded-[2.5rem] border border-[#3b1425]/10 bg-white p-8 sm:p-10 shadow-sm transition hover:shadow-md flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-[#b64a68]">
+                    <Eye className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">Our Vision</p>
+                    <h3 className="text-2xl font-black text-[#20111a]">Creating a Future Where Every Relationship Begins with Trust</h3>
+                  </div>
+                </div>
+                <p className="mt-6 text-base sm:text-lg leading-8 text-slate-600">
+                  We dream of a world where meaningful relationships are built through honesty, respect, and shared values. Our vision is to become a platform that people don’t just use—but genuinely trust.
+                </p>
+              </div>
+              <ul className="mt-6 space-y-2 text-sm font-bold text-slate-700 bg-rose-50/40 p-4 rounded-2xl">
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> A place where every introduction has purpose.</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> Every conversation has meaning.</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68]" /> Every successful match becomes the beginning of a beautiful new chapter.</li>
+              </ul>
+            </div>
           </div>
-          <div className="max-w-xl"><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">For every kind of beginning</p><h2 className="mt-4 font-display text-4xl font-black tracking-[-.04em] text-[#20111a] sm:text-5xl">Personal choices, with room for family.</h2><p className="mt-5 text-lg leading-8 text-slate-600">Finding a partner is deeply personal, and often beautifully shared. My Dear Partner gives each member control over their journey while making space for the people who matter most.</p><div className="mt-7 grid gap-3 text-sm font-bold text-slate-700"><p className="flex gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#b64a68]" /> Share profiles only when you are ready.</p><p className="flex gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#b64a68]" /> Build connections around real values and mutual respect.</p></div></div>
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-[#20111a] px-5 py-20 text-white sm:px-8 lg:py-28"><div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-rose-500/20 blur-3xl" /><div className="relative mx-auto max-w-7xl"><div className="grid items-start gap-12 lg:grid-cols-[.8fr_1.2fr]"><div><p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[.16em] text-rose-300"><Image src="/images/main-logo.png" alt="" width={16} height={16} className="h-4 w-4 object-contain" /> A simpler journey</p><h2 className="mt-5 font-display text-4xl font-black tracking-[-.04em] sm:text-5xl">Less noise. More room for what matters.</h2><p className="mt-5 max-w-md leading-7 text-slate-300">We designed every step to help you move with clarity—not pressure—from a first profile to a meaningful conversation.</p></div><div className="grid gap-4">{steps.map(([number, title, text]) => <div key={number} className="grid gap-4 rounded-2xl border border-white/10 bg-white/[.06] p-5 sm:grid-cols-[3.5rem_1fr] sm:p-6"><span className="font-display text-3xl font-black text-rose-300">{number}</span><div><h3 className="text-lg font-extrabold">{title}</h3><p className="mt-1.5 leading-6 text-sm text-slate-300">{text}</p></div></div>)}</div></div></div></section>
+      {/* What Makes MyDearPartner Different */}
+      <section className="bg-white px-5 py-20 sm:px-8 lg:py-28">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-2xl">
+            <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">Distinctive Experience</p>
+            <h2 className="mt-4 font-display text-3xl font-black tracking-[-.04em] text-[#20111a] sm:text-4xl lg:text-5xl">
+              What Makes MyDearPartner Different
+            </h2>
+          </div>
 
-      <section className="px-5 py-20 sm:px-8 lg:py-28"><div className="mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#8e3d58] to-[#b64a68] px-7 py-12 text-center text-white shadow-[0_24px_60px_rgba(142,61,88,.22)] sm:px-12"><UsersRound className="mx-auto h-10 w-10 text-rose-100" /><h2 className="mx-auto mt-5 max-w-2xl font-display text-4xl font-black tracking-[-.04em] sm:text-5xl">Your next chapter can start with one honest hello.</h2><p className="mx-auto mt-5 max-w-xl leading-7 text-rose-100">Create a profile free of charge and take your time finding the connection that feels right.</p><Link href="/register" className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-6 text-sm font-extrabold text-[#8e3d58] transition hover:-translate-y-0.5 hover:shadow-xl">Start your journey <ArrowRight className="h-4 w-4" /></Link></div></section>
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            {differentiators.map(({ icon: Icon, title, text }, index) => (
+              <article key={title} className="group rounded-[2rem] border border-[#3b1425]/8 bg-[#fffaf7] p-8 transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_20px_45px_rgba(62,22,39,.10)]">
+                <div className="flex items-center justify-between">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-[#b64a68]">
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span className="font-display text-4xl font-black text-[#8e3d58]/15">0{index + 1}</span>
+                </div>
+                <h3 className="mt-6 text-xl font-extrabold text-[#20111a]">{title}</h3>
+                <p className="mt-3 leading-7 text-slate-600">{text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Our Values Section */}
+      <section className="bg-[#20111a] px-5 py-20 text-white sm:px-8 lg:py-28">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-2xl">
+            <p className="text-xs font-extrabold uppercase tracking-[.16em] text-rose-300">Core Principles</p>
+            <h2 className="mt-4 font-display text-3xl font-black tracking-[-.04em] sm:text-4xl lg:text-5xl">
+              Our Values
+            </h2>
+          </div>
+
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {valuesList.map((val, i) => (
+              <div key={val.title} className="rounded-2xl border border-white/10 bg-white/[.06] p-7 backdrop-blur-sm">
+                <span className="font-display text-3xl font-black text-rose-300">0{i + 1}</span>
+                <h3 className="mt-4 text-xl font-extrabold text-white">{val.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{val.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why Choose MyDearPartner? & A Promise From Us */}
+      <section className="bg-[#fffaf7] px-5 py-20 sm:px-8 lg:py-28">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2">
+          {/* Why Choose */}
+          <div className="rounded-[2.5rem] border border-[#3b1425]/10 bg-white p-8 sm:p-10 shadow-sm flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">For Your Journey</p>
+              <h2 className="mt-3 font-display text-3xl font-black tracking-[-.04em] text-[#20111a]">
+                Why Choose MyDearPartner?
+              </h2>
+              <div className="mt-6 space-y-3 text-base sm:text-lg leading-8 text-slate-700">
+                <p className="font-semibold text-[#8e3d58]">Because you’re not looking for another profile.</p>
+                <ul className="space-y-2 text-slate-600 text-base">
+                  <li className="flex items-center gap-2"><Heart className="h-4 w-4 text-[#b64a68] shrink-0" /> You’re looking for someone who feels like home.</li>
+                  <li className="flex items-center gap-2"><Heart className="h-4 w-4 text-[#b64a68] shrink-0" /> Someone who understands your journey.</li>
+                  <li className="flex items-center gap-2"><Heart className="h-4 w-4 text-[#b64a68] shrink-0" /> Someone who shares your dreams.</li>
+                  <li className="flex items-center gap-2"><Heart className="h-4 w-4 text-[#b64a68] shrink-0" /> Someone with whom I feel forever natural.</li>
+                </ul>
+              </div>
+            </div>
+            <p className="mt-6 font-semibold text-[#20111a] text-lg bg-rose-50/60 p-4 rounded-xl text-center">
+              At MyDearPartner, we’re honoured to be part of that journey.
+            </p>
+          </div>
+
+          {/* A Promise From Us */}
+          <div className="rounded-[2.5rem] border border-[#3b1425]/10 bg-white p-8 sm:p-10 shadow-sm flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#b64a68]">Our Commitment</p>
+              <h2 className="mt-3 font-display text-3xl font-black tracking-[-.04em] text-[#20111a]">
+                A Promise From Us
+              </h2>
+              <div className="mt-6 space-y-3 text-base sm:text-lg leading-8 text-slate-700">
+                <p className="font-semibold text-[#8e3d58]">
+                  We promise to create a space where meaningful relationships can begin with confidence.
+                </p>
+                <ul className="space-y-2 text-slate-600 text-base">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68] shrink-0" /> A place where trust is earned.</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68] shrink-0" /> Where conversations are genuine.</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68] shrink-0" /> Where families feel secure.</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#b64a68] shrink-0" /> And where every introduction carries the possibility of a lifetime together.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Closing Section */}
+      <section className="px-5 py-20 sm:px-8 lg:py-28">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#8e3d58] to-[#b64a68] px-7 py-14 text-center text-white shadow-[0_24px_60px_rgba(142,61,88,.22)] sm:px-12">
+          <h2 className="mx-auto mt-5 max-w-2xl font-display text-3xl font-black tracking-[-.04em] sm:text-4xl lg:text-5xl">
+            Your Story Deserves the Right Beginning.
+          </h2>
+          <div className="mx-auto mt-6 max-w-xl space-y-2 text-base sm:text-lg leading-7 text-rose-100">
+            <p>Every successful marriage begins with a single conversation.</p>
+            <p>Every lasting relationship begins with a shared belief in tomorrow.</p>
+            <p>And every beautiful future begins with one meaningful connection.</p>
+          </div>
+          <p className="mt-6 font-display text-2xl font-bold tracking-tight text-white">
+            Welcome to MyDearPartner.
+          </p>
+          <div className="mt-8">
+            <Link href="/register" className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-7 text-sm font-extrabold text-[#8e3d58] transition hover:-translate-y-0.5 hover:shadow-xl">
+              Start your journey <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

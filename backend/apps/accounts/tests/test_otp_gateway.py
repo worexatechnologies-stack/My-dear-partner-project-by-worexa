@@ -1,12 +1,9 @@
-import pytest
-from django.conf import settings
 from django.test import override_settings
-from apps.accounts.otp_gateway import RealtimeOTPDispatcher, OTPChannel
+
+from apps.accounts.otp_gateway import OTPChannel, RealtimeOTPDispatcher
 
 
-@pytest.mark.django_db
-@override_settings(OTP_PROVIDER='MOCK')
-def test_otp_dispatcher_sms_mock():
+def test_otp_dispatcher_uses_renflair_sms():
     success = RealtimeOTPDispatcher.send_otp(
         channel=OTPChannel.SMS,
         recipient='+919876543210',
@@ -16,25 +13,22 @@ def test_otp_dispatcher_sms_mock():
     assert success is True
 
 
-@pytest.mark.django_db
-@override_settings(OTP_PROVIDER='MOCK')
-def test_otp_dispatcher_whatsapp_mock():
+def test_otp_dispatcher_rejects_removed_channels():
     success = RealtimeOTPDispatcher.send_otp(
-        channel=OTPChannel.WHATSAPP,
+        channel='WHATSAPP',
         recipient='+919876543210',
         code='654321',
         purpose='verification',
     )
-    assert success is True
+    assert success is False
 
 
-@pytest.mark.django_db
-@override_settings(OTP_PROVIDER='MOCK', EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
-def test_otp_dispatcher_email_mock():
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+def test_otp_dispatcher_email_reset_code():
     success = RealtimeOTPDispatcher.send_otp(
         channel=OTPChannel.EMAIL,
         recipient='testuser@example.com',
         code='999888',
-        purpose='verification',
+        purpose='password_reset',
     )
     assert success is True

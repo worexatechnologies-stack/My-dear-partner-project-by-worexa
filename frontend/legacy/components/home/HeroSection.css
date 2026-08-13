@@ -243,6 +243,7 @@
 }
 
 .home-hero__decor--sparkle {
+  display: none !important;
   top: 21%;
   right: 7%;
   width: 24px;
@@ -319,6 +320,7 @@
 }
 
 .home-hero__image-sparkle {
+  display: none !important;
   position: absolute;
   z-index: 3;
   top: 18%;

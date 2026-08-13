@@ -28,8 +28,6 @@ from .views import (
 from .verification_views import (
     MemberDocumentDownloadView,
     MemberDocumentPreviewView,
-    MemberEmailOtpSendView,
-    MemberEmailOtpVerifyView,
     MemberMobileOtpSendView,
     MemberMobileOtpVerifyView,
     MemberFirebaseMobileVerifyView,
@@ -97,8 +95,6 @@ urlpatterns = [
     
     # Verification endpoints - Member
     path('verification/status/', MemberVerificationStatusView.as_view(), name='verification_status'),
-    path('verification/email/send-otp/', MemberEmailOtpSendView.as_view(), name='verification_email_send_otp'),
-    path('verification/email/verify-otp/', MemberEmailOtpVerifyView.as_view(), name='verification_email_verify_otp'),
     path('verification/mobile/send-otp/', MemberMobileOtpSendView.as_view(), name='verification_mobile_send_otp'),
     path('verification/mobile/verify-otp/', MemberMobileOtpVerifyView.as_view(), name='verification_mobile_verify_otp'),
     path('verification/mobile/verify-firebase/', MemberFirebaseMobileVerifyView.as_view(), name='verification_mobile_verify_firebase'),

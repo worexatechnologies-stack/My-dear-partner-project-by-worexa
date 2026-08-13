@@ -30,7 +30,6 @@ import {
   Ruler,
   Scale,
   ShieldCheck,
-  Sparkles,
   UserRound,
   UsersRound,
   X,
@@ -260,9 +259,16 @@ export default function ProfilePage() {
                   <Camera className="h-3.5 w-3.5" /> {photos.length}
                 </button>
               )}
-              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
-                <h1 className="break-words text-3xl font-extrabold leading-tight">{profileUser.full_name || 'Member'}</h1>
-                <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-white/80"><MapPin className="h-4 w-4" /> {location}</p>
+              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
+                <h1 className="break-words text-3xl font-black leading-tight bg-gradient-to-r from-white via-rose-100 to-amber-100 bg-clip-text text-transparent drop-shadow-md">
+                  {profileUser.full_name || 'Member'}
+                </h1>
+                <div className="mt-2.5 flex items-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-md border border-white/20 px-3 py-1 text-xs font-bold text-white/90 shadow-sm">
+                    <MapPin className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                    {location}
+                  </span>
+                </div>
               </div>
             </motion.div>
 
@@ -324,16 +330,42 @@ export default function ProfilePage() {
           </aside>
 
           <main className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <header className="border-b border-slate-200 px-5 py-6 sm:px-7">
+            <header className="border-b border-slate-200/80 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/25 px-5 py-6 sm:px-7">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-                    <span>{profile.age ? `${profile.age} years` : 'Age private'}</span>
-                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-                    <span>{profile.occupation || 'Occupation private'}</span>
+                <div className="min-w-0 space-y-2.5">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/90 border border-slate-200/60 px-2.5 py-0.5 text-slate-700">
+                      <CalendarDays className="h-3 w-3 text-slate-500" />
+                      {profile.age ? `${profile.age} years` : 'Age private'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/90 border border-slate-200/60 px-2.5 py-0.5 text-slate-700">
+                      <GraduationCap className="h-3 w-3 text-slate-500" />
+                      {profile.occupation || 'Occupation private'}
+                    </span>
                   </div>
-                  <h2 className="mt-2 text-2xl font-extrabold text-[#17232d] sm:text-3xl">{profileUser.full_name || 'Member profile'}</h2>
-                  <p className="mt-2 flex items-center gap-2 text-sm text-slate-500"><MapPin className="h-4 w-4 text-[#bd304d]" /> {location}</p>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(169,29,76,0.12)]">
+                      {profileUser.full_name || 'Member profile'}
+                    </h2>
+                    {(profile.is_verified || profileUser.is_verified) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-extrabold text-[#1f5f47] shadow-2xs">
+                        <BadgeCheck className="h-3.5 w-3.5 text-[#267255]" /> Verified
+                      </span>
+                    )}
+                    {profileUser.is_premium && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-300/80 px-2.5 py-1 text-xs font-extrabold text-amber-900 shadow-2xs">
+                        <Crown className="h-3.5 w-3.5 text-amber-600" /> Premium
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-200/70 px-3.5 py-1 text-xs font-extrabold text-[#8d143c] shadow-2xs transition-all hover:bg-rose-100/70">
+                      <MapPin className="h-3.5 w-3.5 text-[#e11d48] shrink-0" />
+                      {location}
+                    </span>
+                  </div>
                 </div>
                 {matchScore !== undefined && matchScore !== null && (
                   <div className="flex shrink-0 items-center gap-3 rounded-lg border border-[#cfe6dc] bg-[#f1f8f5] px-4 py-3">
@@ -382,7 +414,7 @@ export default function ProfilePage() {
 
             <Section id="background" title="Family and background">
               <div className="grid gap-x-8 md:grid-cols-2">
-                <DetailRow label="Religion" value={profile.religion} icon={Sparkles} />
+                <DetailRow label="Religion" value={profile.religion} icon={Heart} />
                 <DetailRow label="Caste" value={profile.caste} icon={UsersRound} />
                 <DetailRow label="Sub-caste" value={profile.sub_caste} icon={UsersRound} />
                 <DetailRow label="Gothra" value={profile.gothra} icon={Home} />

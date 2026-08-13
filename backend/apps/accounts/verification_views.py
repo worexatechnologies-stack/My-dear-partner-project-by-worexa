@@ -9,11 +9,13 @@ from rest_framework import status, permissions, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
+from django.conf import settings
 from django.http import HttpResponse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 from .permissions import IsMember, IsAdmin, IsSuperAdmin
+from .throttling import OTPCooldownThrottle
 
 from .verification_service import AccountVerificationService
 from .verification_events import VerificationEvents
@@ -40,7 +42,6 @@ class MemberVerificationStatusView(APIView):
             'is_verified': verification_summary.is_verified,
             'completed_steps': verification_summary.completed_steps,
             'total_steps': verification_summary.total_steps,
-            'email_verified': verification_summary.email_verified,
             'mobile_verified': verification_summary.mobile_verified,
             'profile_information_status': verification_summary.profile_information_status,
             'profile_photo_status': verification_summary.profile_photo_status,
@@ -71,114 +72,6 @@ class MemberVerificationStatusView(APIView):
         }
         
         return ApiResponse(success=True, data=data, status=status.HTTP_200_OK)
-class MemberEmailOtpSendView(APIView):
-    """
-    POST /api/member/verification/email/send-otp/
-    
-    Send OTP to email for verification.
-    """
-    
-    permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_scope = 'reset-password'
-    
-    def post(self, request):
-        from .views import _issue_challenge
-        from .models import AuthChallenge, AccountType
-        from django.conf import settings
-        
-        member = request.user
-        
-        new_email = request.data.get('email') or request.data.get('identifier')
-        if new_email and isinstance(new_email, str) and new_email.strip():
-            clean_email = new_email.strip().lower()
-            if clean_email != member.email:
-                member.email = clean_email
-                member.is_email_verified = False
-                member.save(update_fields=['email', 'is_email_verified', 'updated_at'])
-        
-        if not member.email:
-            return ApiResponse(
-                success=False,
-                message='Email address is required.',
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        code = _issue_challenge(
-            account_type=AccountType.MEMBER,
-            identifier=member.email,
-            purpose=AuthChallenge.Purpose.PHONE_VERIFY,
-            request=request,
-            lifetime_minutes=5,
-        )
-        
-        data = {'expires_in': 300}
-        if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-            data['developer_otp'] = code
-            
-        return ApiResponse(
-            success=True,
-            data=data, 
-            message='Verification code sent to your email.',
-            status=status.HTTP_200_OK
-        )
-
-
-class MemberEmailOtpVerifyView(APIView):
-    """
-    POST /api/member/verification/email/verify-otp/
-    
-    Verify email OTP. This marks email as verified - NO admin approval needed.
-    """
-    
-    permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_scope = 'reset-password'
-    
-    def post(self, request):
-        from .views import _consume_challenge
-        from .models import AuthChallenge, AccountType
-        
-        member = request.user
-        otp_code = request.data.get('code', '').strip()
-        
-        if not otp_code:
-            return ApiResponse(
-                success=False, 
-                message='Verification code is required.', 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if member.is_email_verified:
-            return ApiResponse(
-                success=False, 
-                message='Email is already verified.', 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Verify OTP
-        if not _consume_challenge(
-            account_type=AccountType.MEMBER,
-            identifier=member.email,
-            purpose=AuthChallenge.Purpose.PHONE_VERIFY,
-            code=otp_code,
-        ):
-            return ApiResponse(
-                success=False, 
-                message='Invalid or expired verification code.', 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Mark email as verified - NO ADMIN APPROVAL NEEDED
-        member.is_email_verified = True
-        member.save(update_fields=['is_email_verified', 'updated_at'])
-        
-        # Publish real-time event
-        VerificationEvents.publish_contact_verified(member, 'email')
-        
-        return ApiResponse(
-            success=True,
-            message='Email verified successfully!',
-            status=status.HTTP_200_OK
-        )
 class MemberMobileOtpSendView(APIView):
     """
     POST /api/member/verification/mobile/send-otp/
@@ -187,13 +80,11 @@ class MemberMobileOtpSendView(APIView):
     """
     
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_scope = 'reset-password'
+    throttle_classes = (OTPCooldownThrottle,)
     
     def post(self, request):
         from .views import _issue_challenge
         from .models import AuthChallenge, AccountType, Member
-        from django.conf import settings
-        
         member = request.user
         
         new_mobile = request.data.get('mobile_number') or request.data.get('identifier')
@@ -229,22 +120,22 @@ class MemberMobileOtpSendView(APIView):
             member.is_mobile_verified = False
             member.save(update_fields=['mobile_number', 'is_mobile_verified', 'updated_at'])
         
-        channel = request.data.get('channel', 'SMS').upper()
-        if channel not in ('SMS', 'WHATSAPP'):
-            channel = 'SMS'
-
-        code = _issue_challenge(
+        _code, delivered = _issue_challenge(
             account_type=AccountType.MEMBER,
             identifier=member.mobile_number,
             purpose=AuthChallenge.Purpose.PHONE_VERIFY,
             request=request,
             lifetime_minutes=5,
-            channel=channel,
+            channel='SMS',
         )
+        if not delivered:
+            return ApiResponse(
+                success=False,
+                message='Unable to send the verification code. Please try again shortly.',
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         
         data = {'expires_in': 300}
-        if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-            data['developer_otp'] = code
             
         return ApiResponse(
             success=True,
@@ -262,7 +153,6 @@ class MemberMobileOtpVerifyView(APIView):
     """
     
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_scope = 'reset-password'
     
     def post(self, request):
         from .views import _consume_challenge

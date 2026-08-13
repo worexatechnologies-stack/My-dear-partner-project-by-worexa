@@ -79,6 +79,10 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
   // Confirm dialogs
   const [confirmAction, setConfirmAction] = useState<{ user: string; action: string; label: string; description: string; dangerous: boolean } | null>(null);
 
+  // Profile approve / reject / request-changes (reason required)
+  const [profileReview, setProfileReview] = useState<{ action: AdminUserAction; label: string } | null>(null);
+  const [profileReviewReason, setProfileReviewReason] = useState('');
+
   // Grant Membership modal state
   const [showGrantModal, setShowGrantModal] = useState(false);
   const [grantablePlans, setGrantablePlans] = useState<GrantableMembershipPlan[]>([]);
@@ -211,7 +215,6 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       hobbies: m.hobbies || '',
       is_active: m.is_active ?? true,
       is_premium: m.is_premium ?? false,
-      is_email_verified: m.is_email_verified ?? false,
       is_mobile_verified: m.is_mobile_verified ?? false,
     });
     setEditing(true);
@@ -264,8 +267,26 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       setToast({ message: 'Action completed.', tone: 'success' });
       setConfirmAction(null);
       load();
-    } catch {
-      setToast({ message: 'Action failed.', tone: 'error' });
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Action failed.';
+      setToast({ message, tone: 'error' });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const performProfileReview = async () => {
+    if (!profileReview || !profileReviewReason.trim()) return;
+    setActionBusy(true);
+    try {
+      await updateAdminUser(memberId, { action: profileReview.action, reason: profileReviewReason.trim() });
+      setToast({ message: `${profileReview.label} recorded.`, tone: 'success' });
+      setProfileReview(null);
+      setProfileReviewReason('');
+      load();
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : 'Action failed.';
+      setToast({ message, tone: 'error' });
     } finally {
       setActionBusy(false);
     }
@@ -372,7 +393,7 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
               <h2 className="mb-4 text-lg font-semibold text-slate-900">Account Information</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <InfoField label="Full Name" value={m.full_name as string} />
-                <InfoField label="Email" value={m.email as string} verified={m.is_email_verified as boolean} />
+                <InfoField label="Email" value={m.email as string} />
                 <InfoField label="Mobile" value={m.mobile_number as string} verified={m.is_mobile_verified as boolean} />
                 <InfoField label="Account Type" value="Member" />
                 <InfoField label="Joined" value={formatAdminDate(m.created_at as string)} />
@@ -453,11 +474,10 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
             {/* Verification overview */}
             <div className="admin-panel">
               <h2 className="mb-4 text-lg font-semibold text-slate-900">Verification Overview</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 <VerificationCard label="Profile" status={m.profile_status as string} />
                 <VerificationCard label="Photo" status={m.photo_status as string} />
                 <VerificationCard label="Document" status={m.document_status as string} />
-                <VerificationCard label="Email" status={(m.is_email_verified as boolean) ? 'approved' : 'not_started'} />
                 <VerificationCard label="Mobile" status={(m.is_mobile_verified as boolean) ? 'approved' : 'not_started'} />
                 <VerificationCard label="Overall" status={(m.is_fully_verified as boolean) ? 'approved' : 'pending_review'} />
               </div>
@@ -556,10 +576,6 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={!!editData.is_premium} onChange={e => setEditData(p => ({ ...p, is_premium: e.target.checked }))} className="rounded border-slate-300" />
                     Premium
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!editData.is_email_verified} onChange={e => setEditData(p => ({ ...p, is_email_verified: e.target.checked }))} className="rounded border-slate-300" />
-                    Email Verified
                   </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" checked={!!editData.is_mobile_verified} onChange={e => setEditData(p => ({ ...p, is_mobile_verified: e.target.checked }))} className="rounded border-slate-300" />
@@ -784,7 +800,8 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
               ) : (
                 <>
                   <QuickActionBtn icon={CheckCircle2} label="Approve Profile" color="emerald" onClick={() => void performAction('approve_profile')} />
-                  <QuickActionBtn icon={XCircle} label="Reject Profile" color="red" onClick={() => setConfirmAction({ user: memberId, action: 'reject_profile', label: 'Reject Profile', description: 'Enter a rejection reason and reject this profile?', dangerous: false })} />
+                  <QuickActionBtn icon={XCircle} label="Reject Profile" color="red" onClick={() => { setProfileReview({ action: 'reject_profile', label: 'Reject Profile' }); setProfileReviewReason(''); }} />
+                  <QuickActionBtn icon={AlertTriangle} label="Request Changes" color="orange" onClick={() => { setProfileReview({ action: 'changes_requested', label: 'Request Changes' }); setProfileReviewReason(''); }} />
                 </>
               )}
               <QuickActionBtn icon={CheckCircle2} label="Verify Contacts" color="rose" onClick={() => setConfirmAction({ user: memberId, action: 'verify', label: 'Verify Contacts', description: 'Mark email and mobile as verified?', dangerous: false })} />
@@ -917,6 +934,39 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
               <button onClick={performPhotoAction} disabled={actionBusy} className={`admin-btn ${photoAction.approve ? 'admin-btn-primary' : 'admin-btn-danger'} flex items-center gap-2`}>
                 {actionBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                 {photoAction.approve ? 'Approve' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile review (reject / request changes) reason modal */}
+      {profileReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setProfileReview(null); setProfileReviewReason(''); }}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-semibold text-slate-900">{profileReview.label}</h3>
+            <p className="mb-3 text-sm text-slate-500">
+              {profileReview.action === 'reject_profile'
+                ? 'Enter a rejection reason. The member will see this feedback.'
+                : 'Explain what changes the member must make before approval.'}
+            </p>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Reason <span className="text-rose-600">*</span></label>
+            <textarea
+              value={profileReviewReason}
+              onChange={e => setProfileReviewReason(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 p-2 text-sm"
+              rows={4}
+              placeholder="Required — describe what needs to change..."
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => { setProfileReview(null); setProfileReviewReason(''); }} className="admin-btn">Cancel</button>
+              <button
+                onClick={() => void performProfileReview()}
+                disabled={!profileReviewReason.trim() || actionBusy}
+                className={`admin-btn ${profileReview.action === 'reject_profile' ? 'admin-btn-danger' : 'admin-btn-primary'} flex items-center gap-2`}
+              >
+                {actionBusy && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                Confirm
               </button>
             </div>
           </div>

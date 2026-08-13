@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'My Dear Partner',
-    title: 'My Dear Partner — Meaningful Matrimony',
+    title: 'My Dear Partner',
     description: 'Meet verified partners through thoughtful, privacy-first matchmaking.',
     images: [{ url: '/images/matrimony-hero-couple.webp', width: 1200, height: 800, alt: 'My Dear Partner' }],
   },

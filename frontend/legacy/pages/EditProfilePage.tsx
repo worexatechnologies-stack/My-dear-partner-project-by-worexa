@@ -50,7 +50,7 @@ type FieldConfig = {
   placeholder?: string;
 };
 type TabId = 'basic' | 'photos' | 'personal' | 'family' | 'career' | 'preferences' | 'verification';
-type VerificationTarget = 'email' | 'mobile';
+type VerificationTarget = 'mobile';
 
 const heightOptions = [
   'Select height',
@@ -267,7 +267,6 @@ export default function EditProfilePage() {
   const [viewDoc, setViewDoc] = useState<{ id: string; type: string } | null>(null);
   const [verifyTarget, setVerifyTarget] = useState<VerificationTarget | null>(null);
   const [otpCode, setOtpCode] = useState('');
-  const [devOtpHint, setDevOtpHint] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const editorTopRef = useRef<HTMLDivElement>(null);
@@ -468,12 +467,10 @@ export default function EditProfilePage() {
     setVerifying(true);
     setNotice(null);
     try {
-      const result = await fetchApi<{ data?: { developer_otp?: string }; developer_otp?: string }>(
+      await fetchApi<{ expires_in: number }>(
         `/member-auth/verification/${target}/send-otp/`,
         { method: 'POST' },
       );
-      const data = result.data || result;
-      if (data.developer_otp) setDevOtpHint(data.developer_otp);
       setVerifyTarget(target);
       setOtpCode('');
       setResendIn(30);
@@ -496,10 +493,9 @@ export default function EditProfilePage() {
       const fresh = await fetchApi<UserType>('/member-auth/me/');
       updateUser(fresh);
       dispatch(baseApi.util.invalidateTags(['VerificationStatus']));
-      setNotice({ text: `${verifyTarget === 'email' ? 'Email' : 'Mobile number'} verified successfully.` });
+      setNotice({ text: 'Mobile number verified successfully.' });
       setVerifyTarget(null);
       setOtpCode('');
-      setDevOtpHint('');
     } catch (error) {
       setNotice({ text: messageFrom(error), error: true });
     } finally {
@@ -643,7 +639,6 @@ export default function EditProfilePage() {
       verified: boolean;
       icon: typeof Mail;
     }> = [
-      { id: 'email', label: 'Email address', value: String(profile.email || ''), verified: Boolean(profile.is_email_verified), icon: Mail },
       { id: 'mobile', label: 'Mobile number', value: String(profile.mobile_number || ''), verified: Boolean(profile.is_mobile_verified), icon: Smartphone },
     ];
     const documentStatus = String(profile.document_status || 'draft');
@@ -652,8 +647,16 @@ export default function EditProfilePage() {
       <div className="ep-verification-stack">
         <section className="ep-subsection">
           <div className="ep-subsection-heading">
-            <div><span className="ep-mini-icon"><BadgeCheck size={18} /></span><div><h3>Contact verification</h3><p>Verify the contact details connected to your account.</p></div></div>
+            <div><span className="ep-mini-icon"><BadgeCheck size={18} /></span><div><h3>Contact verification</h3><p>Verify the mobile number connected to your account.</p></div></div>
           </div>
+          <article className="ep-contact-card">
+            <div className="ep-contact-top">
+              <span className="ep-contact-icon"><Mail size={19} /></span>
+              <span className="ep-verification-badge is-verified"><CheckCircle2 size={13} /> Saved</span>
+            </div>
+            <h4>Email address</h4>
+            <p>{String(profile.email || 'Not provided')}</p>
+          </article>
           <div className="ep-contact-grid">
             {contacts.map(({ id, label, value, verified, icon: Icon }) => (
               <article key={id} className={`ep-contact-card${verified ? ' is-verified' : ''}`}>
@@ -704,7 +707,6 @@ export default function EditProfilePage() {
                     </button>
                   )
                 )}
-                {verifyTarget === id && devOtpHint && <small className="ep-dev-hint">Development OTP: {devOtpHint}</small>}
               </article>
             ))}
           </div>
@@ -878,7 +880,7 @@ export default function EditProfilePage() {
                   <strong>{label}</strong>
                   <small>{shortLabel}</small>
                   {id === 'photos' && <em>{photosList.length}/{maxPhotos}</em>}
-                  {id === 'verification' && (Boolean(profile.is_email_verified) && Boolean(profile.is_mobile_verified)) && <Check size={14} />}
+                  {id === 'verification' && Boolean(profile.is_mobile_verified) && <Check size={14} />}
                 </button>
               ))}
             </nav>

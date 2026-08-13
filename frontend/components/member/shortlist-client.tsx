@@ -160,11 +160,12 @@ export function ShortlistClient() {
 
                     <div className="p-4 flex-1 flex flex-col justify-between">
                       <div>
-                        <h3 className="font-extrabold text-slate-800 truncate mb-1">
-                          {profile.name}, {profile.age}
+                        <h3 className="font-black text-[#8d143c] truncate mb-1">
+                          <span className="bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent">{profile.name}</span>
+                          <span className="text-slate-600 text-xs font-bold ml-1.5">, {profile.age}</span>
                         </h3>
-                        <p className="text-slate-400 text-xs font-semibold flex items-center gap-1 mb-2">
-                          <MapPin className="w-3 h-3 text-rose-400" /> {profile.location}
+                        <p className="text-[#8d143c] text-xs font-semibold flex items-center gap-1 mb-2">
+                          <MapPin className="w-3 h-3 text-[#e11d48] shrink-0" /> {profile.location}
                         </p>
                         <div className="flex flex-wrap gap-1">
                           <span className="text-[10px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded font-semibold border border-slate-100">{profile.religion}</span>

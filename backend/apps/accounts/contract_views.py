@@ -3,7 +3,6 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
 from apps.memberships.serializers import MembershipSubscriptionSerializer
@@ -20,7 +19,6 @@ from .security import issue_account_tokens
 
 class ContractRegisterView(APIView):
     permission_classes = (AllowAny,)
-    throttle_classes = (AnonRateThrottle,)
 
     @transaction.atomic
     def post(self, request):
@@ -36,7 +34,6 @@ class ContractRegisterView(APIView):
 
 class ContractLoginView(APIView):
     permission_classes = (AllowAny,)
-    throttle_classes = (AnonRateThrottle,)
 
     def post(self, request):
         serializer = ContractLoginSerializer(data=request.data)

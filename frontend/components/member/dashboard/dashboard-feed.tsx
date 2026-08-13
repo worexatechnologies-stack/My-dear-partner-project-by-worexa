@@ -207,7 +207,7 @@ export default function DashboardFeed() {
             <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-white bg-white/75 p-3 shadow-sm backdrop-blur">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-500"><UserRound className="h-5 w-5" /></div>
               <div><p className="text-xs font-bold text-slate-800">Your profile</p><p className="mt-0.5 text-[11px] text-slate-500">Keep it complete to improve matches</p></div>
-              <Link to="/settings/profile" className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-rose-700">Update</Link>
+              <Link to="/profile/edit" className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-rose-700">Update</Link>
             </div>
           </div>
         </header>

@@ -16,19 +16,18 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
-  Wifi,
-  WifiOff,
   X,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import { Link, useLocation, useSearchParams } from '@/lib/router-compat';
 import { useAuth } from '../contexts/AuthContext';
-import { getConversations, getMessages, getProfile, sendMessage } from '../services/dataService';
+import { getConversations, getMessages, getProfile, markMessagesRead, sendMessage } from '../services/dataService';
 import { fetchApi } from '../services/apiClient';
 import { useRealtime } from '../../providers/RealtimeProvider';
 import { useChatSocket } from '../../hooks/use-chat-socket';
 import { usePresence } from '../../hooks/use-presence';
 import { deriveFallbackKey, encryptMessage, smartDecryptText } from '../utils/crypto';
+import { clearActiveChatPartnerId, setActiveChatPartnerId } from '@/lib/chat-notification-state';
 
 interface ChatMessage {
   id: string;
@@ -67,6 +66,11 @@ function profileName(conversation: any) {
 
 function profileId(conversation: any) {
   return String(conversation?.id || conversation?.profile?.id || '');
+}
+
+function unreadBadge(count: unknown) {
+  const unread = Math.max(0, Number(count) || 0);
+  return unread >= 4 ? '4+' : String(unread);
 }
 
 export default function MessagesPage() {
@@ -218,7 +222,16 @@ export default function MessagesPage() {
   }, [currentUserId]);
 
   const currentPartnerId = activeConversation ? profileId(activeConversation) : '';
-  const { connected, error: socketError, send: sendSocket } = useChatSocket({
+
+  // Conversation selection happens in local state, so publish it separately
+  // from the URL. This immediately silences chat alerts for the open thread.
+  useEffect(() => {
+    if (!currentPartnerId) return;
+    setActiveChatPartnerId(currentPartnerId);
+    return () => clearActiveChatPartnerId(currentPartnerId);
+  }, [currentPartnerId]);
+
+  const { connected, send: sendSocket } = useChatSocket({
     partnerId: currentPartnerId,
     enabled: Boolean(currentPartnerId && currentUserId && membershipAllowed),
     onMessage: handleSocketMessage,
@@ -266,12 +279,30 @@ export default function MessagesPage() {
   }, [messages, partnerTyping]);
 
   useEffect(() => {
-    if (!connected || !activeConversation) return;
+    if (!activeConversation || !currentPartnerId) return;
     const unreadIds = messages.filter((message) => message.senderId !== 'me' && !message.read).map((message) => message.id);
     if (unreadIds.length === 0) return;
-    sendSocket({ type: 'read_receipt', message_ids: unreadIds });
+
+    // Keep the live receipt for the sender, but persist the read state through
+    // HTTP too. This clears the matching bell notification if the chat socket
+    // reconnects at exactly the wrong moment.
+    const receiptSent = connected && sendSocket({ type: 'read_receipt', message_ids: unreadIds });
     setMessages((current) => current.map((message) => unreadIds.includes(message.id) ? { ...message, read: true } : message));
     setConversations((current) => current.map((conversation) => profileId(conversation) === currentPartnerId ? { ...conversation, unread: 0 } : conversation));
+    window.dispatchEvent(new Event('notifications:read-changed'));
+
+    const persistRead = async () => {
+      // Give the socket consumer a chance to send the sender's read receipt;
+      // the HTTP endpoint is idempotent and provides the reliable fallback.
+      if (receiptSent) await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      try {
+        await markMessagesRead(currentPartnerId);
+        window.dispatchEvent(new Event('notifications:read-changed'));
+      } catch {
+        // A later sync will retry; the live receipt remains a valid read path.
+      }
+    };
+    void persistRead();
   }, [activeConversation, connected, currentPartnerId, messages, sendSocket]);
 
   useEffect(() => {
@@ -367,6 +398,7 @@ export default function MessagesPage() {
   };
 
   const selectConversation = (conversation: any) => {
+    setActiveChatPartnerId(profileId(conversation));
     setActiveConversation(conversation);
     setMobileChatOpen(true);
     setDetailsOpen(false);
@@ -454,7 +486,7 @@ export default function MessagesPage() {
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <p className="truncate text-xs text-slate-500">{conversation.lastMessage || 'Start a conversation'}</p>
-                      {Number(conversation.unread || 0) > 0 && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#267255] px-1 text-[10px] font-extrabold text-white">{conversation.unread}</span>}
+                      {Number(conversation.unread || 0) > 0 && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#267255] px-1 text-[10px] font-extrabold text-white">{unreadBadge(conversation.unread)}</span>}
                     </div>
                   </div>
                 </button>
@@ -483,9 +515,6 @@ export default function MessagesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span title={connected ? 'Realtime connected' : 'Reconnecting'} className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold sm:flex ${connected ? 'bg-[#eef7f3] text-[#267255]' : 'bg-amber-50 text-amber-700'}`}>
-                  {connected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}{connected ? 'Live' : 'Reconnecting'}
-                </span>
                 <button type="button" onClick={() => setDetailsOpen((open) => !open)} title="Profile details" aria-label="Profile details" className={`flex h-9 w-9 items-center justify-center rounded-full ${detailsOpen ? 'bg-[#eef7f3] text-[#267255]' : 'text-slate-500 hover:bg-slate-100'}`}><Info className="h-4 w-4" /></button>
               </div>
             </header>
@@ -496,10 +525,6 @@ export default function MessagesPage() {
                 <button type="button" onClick={() => setError('')} className="font-bold">Dismiss</button>
               </div>
             )}
-            {socketError && !connected && !error && (
-              <div className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-center text-[11px] font-semibold text-amber-700">Realtime connection is unavailable. Messages will still send securely.</div>
-            )}
-
             {restriction ? (
               <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#267255] shadow-sm"><LockKeyhole className="h-6 w-6" /></div>
@@ -613,4 +638,3 @@ export default function MessagesPage() {
     </div>
   );
 }
-

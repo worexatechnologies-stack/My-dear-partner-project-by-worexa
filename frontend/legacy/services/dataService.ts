@@ -149,6 +149,12 @@ export const sendMessage = async (userId: string, text: string): Promise<Message
   });
 };
 
+export const markMessagesRead = async (userId: string): Promise<{ marked_count?: number }> => {
+  return fetchApi<{ marked_count?: number }>(`/conversations/${userId}/mark-read/`, {
+    method: 'POST',
+  });
+};
+
 export const getInterests = async (type: 'incoming' | 'outgoing' = 'incoming'): Promise<any[]> => {
   return fetchApi<any[]>(`/interests/?type=${type}`);
 };

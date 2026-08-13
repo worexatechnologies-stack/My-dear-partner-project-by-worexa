@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.test import override_settings
@@ -48,16 +49,21 @@ def test_member_login_is_public_before_a_session_exists(api_client, member):
     assert response.status_code == 200
 
 
-@override_settings(USE_FIXED_DEV_OTP=True, OTP_PROVIDER='MOCK')
-def test_mobile_otp_login_accepts_indian_country_code_format(api_client, member):
+def test_member_email_remains_normal_account_data(authenticated_client, member):
+    response = authenticated_client(member).get('/api/v1/member-auth/me/')
+
+    assert response.status_code == 200
+    assert response.data['data']['email'] == member.email
+
+
+@patch('apps.accounts.views._challenge_code', return_value='123456')
+def test_mobile_otp_login_accepts_indian_country_code_format(_code_stub, api_client, member):
     requested = api_client.post(
         '/api/v1/member-auth/otp/request/',
         {'identifier': f'+91 {member.mobile_number}', 'purpose': 'PASSWORDLESS_LOGIN'},
         format='json',
     )
     assert requested.status_code == 200
-    assert requested.data['data']['developer_otp'] == '123456'
-
     verified = api_client.post(
         '/api/v1/member-auth/otp/verify/',
         {
@@ -71,8 +77,8 @@ def test_mobile_otp_login_accepts_indian_country_code_format(api_client, member)
     assert verified.data['data']['verified'] is True
 
 
-@override_settings(USE_FIXED_DEV_OTP=True, OTP_PROVIDER='MOCK')
-def test_authenticated_mobile_verification_normalizes_country_code(api_client, member):
+@patch('apps.accounts.views._challenge_code', return_value='123456')
+def test_authenticated_mobile_verification_normalizes_country_code(_code_stub, api_client, member):
     token = issue_account_tokens(member)['access']
     api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
@@ -82,8 +88,6 @@ def test_authenticated_mobile_verification_normalizes_country_code(api_client, m
         format='json',
     )
     assert requested.status_code == 200
-    assert requested.data['data']['developer_otp'] == '123456'
-
     verified = api_client.post(
         '/api/v1/member-auth/verification/mobile/verify-otp/',
         {'code': '123456'},
@@ -95,16 +99,14 @@ def test_authenticated_mobile_verification_normalizes_country_code(api_client, m
     assert member.is_mobile_verified is True
 
 
-@override_settings(USE_FIXED_DEV_OTP=True, OTP_PROVIDER='MOCK')
-def test_mobile_password_reset_accepts_country_code_format(api_client, member):
+@patch('apps.accounts.views._challenge_code', return_value='123456')
+def test_mobile_password_reset_accepts_country_code_format(_code_stub, api_client, member):
     requested = api_client.post(
         '/api/v1/member-auth/forgot-password/',
         {'identifier': f'+91 {member.mobile_number}', 'channel': 'mobile'},
         format='json',
     )
     assert requested.status_code == 200
-    assert requested.data['data']['developer_otp'] == '123456'
-
     reset = api_client.post(
         '/api/v1/member-auth/reset-password/',
         {
@@ -136,6 +138,55 @@ def test_each_administrative_table_has_its_own_login(
     assert activity_model.objects.filter(login_status='SUCCESS').count() == 1
 
 
+@override_settings(SUPER_ADMIN_2FA_REQUIRED=True)
+def test_super_admin_uses_email_and_password_only_without_a_login_lock(api_client, super_admin):
+    super_admin.two_factor_enabled = True
+    super_admin.failed_login_attempts = 3
+    super_admin.locked_until = timezone.now() + timedelta(minutes=2)
+    super_admin.save(update_fields=('two_factor_enabled', 'failed_login_attempts', 'locked_until', 'updated_at'))
+
+    path = '/api/v1/super-admin-auth/login/'
+    for _ in range(4):
+        response = api_client.post(
+            path,
+            {'email': super_admin.email, 'password': 'wrong-password'},
+            format='json',
+        )
+        assert response.status_code == 401
+
+    login = api_client.post(
+        path,
+        {'email': super_admin.email, 'password': PASSWORD},
+        format='json',
+    )
+    assert login.status_code == 200
+    assert 'requires_two_factor' not in login.data['data']
+
+    super_admin.refresh_from_db()
+    assert super_admin.failed_login_attempts == 0
+    assert super_admin.locked_until is None
+    assert SuperAdminLoginActivity.objects.filter(
+        super_admin=super_admin,
+        login_status='SUCCESS',
+        two_factor_status='NOT_REQUIRED',
+    ).exists()
+
+
+def test_normal_admin_retains_login_lock_protection(api_client, admin_account):
+    path = '/api/v1/admin-auth/login/'
+    for _ in range(3):
+        response = api_client.post(
+            path,
+            {'email': admin_account.email, 'password': 'wrong-password'},
+            format='json',
+        )
+
+    assert response.status_code == 423
+    admin_account.refresh_from_db()
+    assert admin_account.failed_login_attempts == 3
+    assert admin_account.locked_until is not None
+
+
 def test_failed_login_attempt_is_recorded_without_sensitive_values(api_client, member):
     response = api_client.post(
         '/api/v1/member-auth/login/',
@@ -149,7 +200,7 @@ def test_failed_login_attempt_is_recorded_without_sensitive_values(api_client, m
     assert 'wrong-password' not in str(event.__dict__)
 
 
-def test_member_is_locked_after_three_failed_logins_for_fifteen_minutes(api_client, member):
+def test_member_is_locked_after_three_failed_logins_for_two_minutes(api_client, member):
     path = '/api/v1/member-auth/login/'
     credentials = {'identifier': member.email, 'password': 'wrong-password'}
 
@@ -162,11 +213,11 @@ def test_member_is_locked_after_three_failed_logins_for_fifteen_minutes(api_clie
     assert second.status_code == 401
     assert second.data['data']['attempts_remaining'] == 1
     assert third.status_code == 423
-    assert third.data['data'] == {'attempts_remaining': 0, 'retry_after_minutes': 15}
+    assert third.data['data'] == {'attempts_remaining': 0, 'retry_after_minutes': 2}
 
     member.refresh_from_db()
     assert member.failed_login_attempts == 3
-    assert timezone.now() + timedelta(minutes=14) < member.locked_until
+    assert timezone.now() + timedelta(minutes=1, seconds=50) < member.locked_until
 
     still_locked = api_client.post(
         path,

@@ -195,7 +195,7 @@ export default function NewMemberProfilePage() {
               {/* Action Buttons */}
               <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                 <Link
-                  href="/settings/profile"
+                  href="/profile/edit"
                   className="px-5 py-2.5 rounded-2xl bg-white hover:bg-rose-50 text-[#a91d4c] font-extrabold text-xs transition-all shadow-lg inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Edit className="w-3.5 h-3.5" /> Edit Profile
@@ -229,7 +229,7 @@ export default function NewMemberProfilePage() {
             {completion < 100 && (
               <div className="flex items-center justify-between text-xs font-semibold text-rose-100 pt-1">
                 <span>Add education details, family background &amp; preferences to get 3x higher responses.</span>
-                <Link href="/settings/profile" className="text-white font-black hover:underline shrink-0 ml-2">Complete Now &rarr;</Link>
+                <Link href="/profile/edit" className="text-white font-black hover:underline shrink-0 ml-2">Complete Now &rarr;</Link>
               </div>
             )}
           </div>
@@ -268,11 +268,7 @@ export default function NewMemberProfilePage() {
               <div className="space-y-3 text-xs font-bold">
                 <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500 flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /> Email Address</span>
-                  {p.is_email_verified ? (
-                    <span className="text-emerald-600 font-extrabold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Verified</span>
-                  ) : (
-                    <Link href="/profile/edit" className="text-amber-700 font-extrabold hover:underline">Verify by OTP</Link>
-                  )}
+                  <span className="text-gray-600 font-semibold">{p.email || 'Not provided'}</span>
                 </div>
                 <div className="flex justify-between items-center py-1 border-t border-rose-50">
                   <span className="text-gray-500 flex items-center gap-2"><Smartphone className="w-4 h-4 text-gray-400" /> Mobile Number</span>
@@ -344,7 +340,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-[#e11d48]" /> About Myself
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
                 {p.about ? (
                   <p className="text-xs font-medium text-gray-700 leading-relaxed whitespace-pre-wrap">
@@ -353,14 +349,16 @@ export default function NewMemberProfilePage() {
                 ) : (
                   <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 text-center space-y-1">
                     <p className="text-xs font-semibold text-gray-500">No introduction added yet.</p>
-                    <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">+ Write About Yourself</Link>
+                    <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">+ Write About Yourself</Link>
                   </div>
                 )}
 
                 {p.hobbies && (
                   <div className="pt-3 border-t border-rose-50">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Hobbies &amp; Interests</span>
-                    <p className="text-xs font-bold text-gray-800">{p.hobbies}</p>
+                    <p className="text-xs font-bold text-gray-800">
+                      {Array.isArray(p.hobbies) ? p.hobbies.join(', ') : p.hobbies}
+                    </p>
                   </div>
                 )}
               </div>
@@ -373,7 +371,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <User className="w-4 h-4 text-[#e11d48]" /> Basic Details
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -398,8 +396,16 @@ export default function NewMemberProfilePage() {
                     <DisplayValue value={p.mother_tongue} />
                   </div>
                   <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Eating Habits</span>
-                    <DisplayValue value={p.diet} />
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Weight</span>
+                    <DisplayValue value={p.weight} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Blood Group</span>
+                    <DisplayValue value={p.blood_group} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Complexion</span>
+                    <DisplayValue value={p.complexion} />
                   </div>
                 </div>
               </div>
@@ -412,7 +418,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <Compass className="w-4 h-4 text-[#e11d48]" /> Religion &amp; Horoscope
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -451,7 +457,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <Briefcase className="w-4 h-4 text-[#e11d48]" /> Education &amp; Career
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -460,8 +466,20 @@ export default function NewMemberProfilePage() {
                     <DisplayValue value={p.highest_education} />
                   </div>
                   <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Education Details</span>
+                    <DisplayValue value={p.education_detail} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Occupation</span>
                     <DisplayValue value={p.occupation} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Employed In</span>
+                    <DisplayValue value={p.employed_in} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Company</span>
+                    <DisplayValue value={p.company} />
                   </div>
                   <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Annual Income</span>
@@ -482,7 +500,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <Users className="w-4 h-4 text-[#e11d48]" /> Family Background
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -502,6 +520,18 @@ export default function NewMemberProfilePage() {
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Family Location</span>
                     <DisplayValue value={p.family_location} />
                   </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Family Status</span>
+                    <DisplayValue value={p.family_status} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Brothers</span>
+                    <DisplayValue value={p.num_brothers} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Sisters</span>
+                    <DisplayValue value={p.num_sisters} />
+                  </div>
                 </div>
               </div>
             )}
@@ -513,7 +543,7 @@ export default function NewMemberProfilePage() {
                   <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
                     <Heart className="w-4 h-4 text-[#e11d48]" /> Partner Preferences
                   </h2>
-                  <Link href="/settings/profile" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
+                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -532,6 +562,26 @@ export default function NewMemberProfilePage() {
                   <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Location</span>
                     <DisplayValue value={p.pref_location} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Caste</span>
+                    <DisplayValue value={p.pref_caste} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Education</span>
+                    <DisplayValue value={p.pref_education} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Occupation</span>
+                    <DisplayValue value={p.pref_occupation} />
+                  </div>
+                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Marital Status</span>
+                    <DisplayValue value={p.pref_marital_status} />
+                  </div>
+                  <div className="col-span-2 p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase block">About Ideal Partner</span>
+                    <DisplayValue value={p.pref_about} />
                   </div>
                 </div>
               </div>

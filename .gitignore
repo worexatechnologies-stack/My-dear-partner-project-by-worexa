@@ -10,6 +10,7 @@ __pycache__/
 .coverage
 htmlcov/
 pytest_temp/
+pytest_out*.txt
 
 # Node cache & dependencies
 node_modules/

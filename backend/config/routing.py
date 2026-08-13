@@ -1,4 +1,3 @@
-from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
@@ -28,11 +27,11 @@ application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
         "websocket": AllowedHostsOriginValidator(
-            JwtAuthMiddleware(
-                AuthMiddlewareStack(
-                    URLRouter(websocket_urlpatterns)
-                )
-            )
+            # JWT middleware must be the layer that sets the final scope user.
+            # Wrapping it outside AuthMiddlewareStack allows the session layer
+            # to replace a valid JWT user with AnonymousUser before consumers
+            # run, which makes production WebSocket connections look broken.
+            JwtAuthMiddleware(URLRouter(websocket_urlpatterns))
         ),
     }
 )

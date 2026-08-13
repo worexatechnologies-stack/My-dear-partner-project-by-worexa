@@ -49,8 +49,6 @@ def missing_verification_checks(member):
         return []
 
     missing = []
-    if not member.is_email_verified:
-        missing.append('email_verification')
     if not member.is_mobile_verified:
         missing.append('mobile_verification')
     return missing
@@ -119,21 +117,29 @@ class RazorpayMembershipService:
 
     @staticmethod
     def create_order(*, member, plan, duration_days=None):
-        """Create or reuse an unpaid PaymentOrder and generate a Razorpay order ID."""
+        """Create a Razorpay order at the current price for the selected duration."""
         missing = missing_verification_checks(member)
         if missing:
             return None, missing
 
-        # Resolve price and duration from selected duration
-        if duration_days:
-            price_map = {30: plan.price, 90: plan.price_3m, 180: plan.price_6m, 365: plan.price_1y}
-            resolved_price = price_map.get(duration_days)
+        # ``price`` is always the price of the plan's own configured
+        # duration.  The *_3m/*_6m/*_1y fields are optional prices for an
+        # *alternative* billing period.  In particular, a 90-day plan can
+        # retain an old ``price_3m`` value after an admin edits its base price;
+        # it must still charge the newly saved ``price`` for its normal 90-day
+        # checkout.
+        requested_duration = duration_days or plan.duration_days
+        if requested_duration == plan.duration_days:
+            resolved_price = plan.price
+            duration_days = plan.duration_days
+        else:
+            price_map = {90: plan.price_3m, 180: plan.price_6m, 365: plan.price_1y}
+            resolved_price = price_map.get(requested_duration)
             if resolved_price is None or resolved_price <= 0:
                 resolved_price = plan.price
                 duration_days = plan.duration_days
-        else:
-            resolved_price = plan.price
-            duration_days = plan.duration_days
+            else:
+                duration_days = requested_duration
 
         # Deduct prorated credit from active plan if upgrading
         from apps.core.services.membership_lifecycle_service import MembershipLifecycleService

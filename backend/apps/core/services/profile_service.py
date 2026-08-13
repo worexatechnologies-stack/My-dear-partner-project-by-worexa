@@ -9,12 +9,12 @@ Handles profile-related business logic:
 """
 
 from django.conf import settings
-from django.db.models import Prefetch, Q
+from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 from django.utils import timezone
 
 from apps.accounts.models import Member
 from apps.core.eligibility import get_eligible_profiles_for
-from apps.core.models import ProfileBlock, ProfileViewLog
+from apps.core.models import MemberMembership, ProfileBlock, ProfileViewLog
 from apps.profiles.models import ProfilePhoto
 from .membership_service import MembershipService
 from .profile_unlock_service import ProfileUnlockService
@@ -117,7 +117,27 @@ class ProfileService:
             if value:
                 queryset = queryset.filter(**{lookup: value})
         
-        return queryset.order_by('-is_premium', '-created_at', 'pk').distinct()
+        # Rank profiles with an approved photo first, then boosted members
+        # (active membership with profile boost enabled), then premium, then
+        # newest first. This surfaces approved-photo profiles ahead of
+        # not-approved ones and makes a purchased "profile boost" plan actually
+        # improve search visibility instead of being an unused entitlement flag.
+        boosted = MemberMembership.objects.filter(
+            member=OuterRef('pk'),
+            is_active=True,
+            status=MemberMembership.MembershipStatus.ACTIVE,
+            plan__can_use_profile_boost=True,
+        ).values('pk')[:1]
+
+        queryset = queryset.annotate(
+            _photo_rank=Case(
+                When(photo_status=Member.VerificationStatus.APPROVED, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+            _boosted=Exists(boosted),
+        )
+        return queryset.order_by('_photo_rank', '-_boosted', '-is_premium', '-created_at', 'pk').distinct()
     
     @staticmethod
     def get_full_profile(viewer, profile_id, source='search'):

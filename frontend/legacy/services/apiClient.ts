@@ -7,10 +7,6 @@ import {
   formatFieldErrors,
 } from '@/lib/error-messages';
 import {
-  isEndpointThrottled,
-  recordAttempt,
-  isOnCooldown,
-  getCooldownRemaining,
   applyRetryAfter,
   resetAllThrottles,
 } from '@/lib/request-throttle';
@@ -266,19 +262,6 @@ function getCsrfToken(): string | null {
 export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase();
 
-  // Check client-side throttle before making request
-  if (method !== 'GET' && isEndpointThrottled(endpoint)) {
-    throw new ApiError(
-      'Too many attempts. Please wait before trying again.',
-      429,
-      null,
-      null,
-      'RATE_LIMITED',
-      null,
-      getCooldownRemaining(endpoint),
-    );
-  }
-
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json');
   if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
@@ -287,11 +270,6 @@ export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}):
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     const csrfToken = getCsrfToken();
     if (csrfToken) headers.set('X-CSRFToken', csrfToken);
-  }
-
-  // Record attempt for non-GET requests
-  if (method !== 'GET') {
-    recordAttempt(endpoint);
   }
 
   let response: Response;

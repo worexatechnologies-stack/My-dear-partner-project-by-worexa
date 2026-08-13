@@ -1,10 +1,11 @@
 import pytest
+from decimal import Decimal
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import override_settings
 
 from apps.accounts.models import Admin, Member, MemberProfile, Staff, SuperAdmin
-from apps.core.models import Notification
+from apps.core.models import MembershipPlan, Notification
 
 
 pytestmark = pytest.mark.django_db
@@ -29,6 +30,19 @@ def test_baseline_contains_no_sample_accounts(db):
     assert not SuperAdmin.objects.exists()
     assert not Admin.objects.exists()
     assert not Staff.objects.exists()
+
+
+def test_seed_membership_plans_keeps_super_admin_pricing():
+    gold = MembershipPlan.objects.get(slug='gold')
+    gold.price = Decimal('1.00')
+    gold.price_3m = Decimal('2999.00')
+    gold.save(update_fields=('price', 'price_3m'))
+
+    call_command('seed_membership_plans')
+
+    gold.refresh_from_db()
+    assert gold.price == Decimal('1.00')
+    assert gold.price_3m == Decimal('2999.00')
 
 
 @override_settings(DEBUG=False, ALLOW_DESTRUCTIVE_DEV_RESET=True)

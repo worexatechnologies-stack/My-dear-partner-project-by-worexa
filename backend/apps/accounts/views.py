@@ -8,11 +8,11 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
-from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import permissions, status
+from rest_framework import permissions, serializers, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from .throttling import OTPCooldownThrottle, PasswordResetAttemptThrottle, get_client_ip
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -65,6 +65,7 @@ from .serializers import (
     RefreshSerializer,
     ResetPasswordSerializer,
     administrative_account_payload,
+    validate_mobile_number,
 )
 
 
@@ -165,8 +166,7 @@ OPERATIONAL_ACTIVITY_MODELS = {
 
 
 def _client_ip(request):
-    value = request.META.get('REMOTE_ADDR', '').strip()
-    return value or None
+    return get_client_ip(request)
 
 
 def _user_agent_details(request):
@@ -223,6 +223,17 @@ def _register_failed_login(account):
     account.locked_until = locked_account.locked_until
     attempts_remaining = max(0, max_attempts - locked_account.failed_login_attempts)
     return locked_account.is_account_locked, attempts_remaining
+
+
+@transaction.atomic
+def _reset_login_state(account):
+    """Reset one account's login state without racing another login attempt."""
+    locked_account = account.__class__.objects.select_for_update().get(pk=account.pk)
+    locked_account.failed_login_attempts = 0
+    locked_account.locked_until = None
+    locked_account.last_login = timezone.now()
+    locked_account.save(update_fields=('failed_login_attempts', 'locked_until', 'last_login', 'updated_at'))
+    return locked_account
 
 
 def record_login_activity(
@@ -349,21 +360,37 @@ def _snapshot_profile_values(member, keys):
 
 
 def _challenge_code():
-    if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-        return str(getattr(settings, 'DEVELOPER_OTP', '123456'))
     return f'{secrets.randbelow(1_000_000):06d}'
 
 
 def _issue_challenge(*, account_type, identifier, purpose, request, lifetime_minutes=10, channel='SMS'):
     now = timezone.now()
     normalized = _normalize_member_identifier(identifier)
+    code = _challenge_code()
+
+    # Mobile OTP always uses Renflair. Email remains account data, but is not
+    # used for member password-reset delivery.
+    from .otp_gateway import RealtimeOTPDispatcher, OTPChannel
+    detected_channel = OTPChannel.EMAIL if '@' in normalized else OTPChannel.SMS
+    delivered = RealtimeOTPDispatcher.send_otp(
+        channel=detected_channel,
+        recipient=normalized,
+        code=code,
+        purpose=purpose,
+        request=request,
+    )
+    if not delivered:
+        logger.error("OTP provider rejected delivery for recipient %s | Purpose: %s", normalized, purpose)
+        return None, False
+
+    # Do not invalidate the previous code until the replacement was accepted by
+    # the provider. This prevents a provider outage from locking out a user.
     AuthChallenge.objects.filter(
         account_type=account_type,
         identifier=normalized,
         purpose=purpose,
         consumed_at__isnull=True,
     ).update(consumed_at=now)
-    code = _challenge_code()
     AuthChallenge.objects.create(
         account_type=account_type,
         identifier=normalized,
@@ -373,23 +400,8 @@ def _issue_challenge(*, account_type, identifier, purpose, request, lifetime_min
         requested_ip=_client_ip(request),
     )
 
-    logger.info("==================================================")
-    logger.info("[REALTIME OTP GENERATED] Recipient: %s | OTP Code: %s | Purpose: %s", normalized, code, purpose)
-    logger.info("==================================================")
-
-    # Dispatch real-time OTP over the selected channel (SMS, WHATSAPP, or EMAIL)
-    from .otp_gateway import RealtimeOTPDispatcher, OTPChannel
-    detected_channel = channel
-    if '@' in normalized and channel == 'SMS':
-        detected_channel = OTPChannel.EMAIL
-    RealtimeOTPDispatcher.send_otp(
-        channel=detected_channel,
-        recipient=normalized,
-        code=code,
-        purpose=purpose,
-        request=request,
-    )
-    return code
+    logger.info("Generated OTP challenge for recipient %s | Purpose: %s", normalized, purpose)
+    return code, delivered
 
 
 @transaction.atomic
@@ -407,8 +419,7 @@ def _consume_challenge(*, account_type, identifier, purpose, code):
     )
     if challenge is None or not challenge.is_usable:
         return False
-    dev_otp = str(getattr(settings, 'DEVELOPER_OTP', '123456'))
-    if not check_password(code, challenge.code_digest) and code != dev_otp:
+    if not check_password(code, challenge.code_digest):
         challenge.attempts += 1
         if challenge.attempts >= challenge.max_attempts:
             challenge.consumed_at = timezone.now()
@@ -490,7 +501,6 @@ class MemberLoginView(APIView):
     # default is IsAuthenticated, so make this public explicitly like the
     # registration and OTP login endpoints.
     permission_classes = (permissions.AllowAny,)
-    throttle_scope = 'login'
 
     def post(self, request):
         captcha_token = request.data.get('captcha_token')
@@ -540,7 +550,7 @@ class MemberLoginView(APIView):
             return ApiResponse(
                 success=False,
                 data={'attempts_remaining': 0, 'retry_after_minutes': settings.LOGIN_LOCKOUT_MINUTES},
-                message=f'Account temporarily locked. Try again in {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
+                message=f'Too many failed login attempts. Please try again after {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
                 status=status.HTTP_423_LOCKED,
             )
 
@@ -558,7 +568,7 @@ class MemberLoginView(APIView):
                 return ApiResponse(
                     success=False,
                     data={'attempts_remaining': 0, 'retry_after_minutes': settings.LOGIN_LOCKOUT_MINUTES},
-                    message=f'Account temporarily locked. Try again in {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
+                    message=f'Too many failed login attempts. Please try again after {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
                     status=status.HTTP_423_LOCKED,
                 )
             return ApiResponse(
@@ -571,10 +581,7 @@ class MemberLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        member.failed_login_attempts = 0
-        member.locked_until = None
-        member.last_login = timezone.now()
-        member.save(update_fields=('failed_login_attempts', 'locked_until', 'last_login', 'updated_at'))
+        member = _reset_login_state(member)
         tokens = issue_account_tokens(member, request=request)
         record_login_activity(
             account_type=AccountType.MEMBER,
@@ -599,8 +606,14 @@ class MemberLoginView(APIView):
 
 class AdministrativeLoginView(APIView):
     permission_classes = (permissions.AllowAny,)
-    throttle_scope = 'login'
     account_type = None
+
+    def get_throttles(self):
+        # Keep a future global/default throttle from applying to the dedicated
+        # Super Admin login endpoint. Admin login keeps the normal behavior.
+        if self.account_type == AccountType.SUPER_ADMIN:
+            return []
+        return super().get_throttles()
 
     def post(self, request):
         serializer = AdministrativeLoginSerializer(data=request.data)
@@ -655,8 +668,13 @@ class AdministrativeLoginView(APIView):
                 request=request,
             )
             return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
-        _clear_expired_login_lock(account)
-        if account.is_account_locked:
+        is_super_admin = bool(
+            self.account_type == AccountType.SUPER_ADMIN
+            and getattr(account, 'is_super_admin', False)
+        )
+        if not is_super_admin:
+            _clear_expired_login_lock(account)
+        if not is_super_admin and account.is_account_locked:
             record_login_activity(
                 account_type=self.account_type,
                 account=account,
@@ -665,8 +683,28 @@ class AdministrativeLoginView(APIView):
                 failure_reason='Temporary login lock',
                 request=request,
             )
-            return ApiResponse(success=False, message='Account temporarily locked.', status=status.HTTP_423_LOCKED)
+            return ApiResponse(
+                success=False,
+                data={'attempts_remaining': 0, 'retry_after_minutes': settings.LOGIN_LOCKOUT_MINUTES},
+                message=f'Too many failed login attempts. Please try again after {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
+                status=status.HTTP_423_LOCKED,
+            )
         if not account.check_password(serializer.validated_data['password']):
+            if is_super_admin:
+                record_login_activity(
+                    account_type=self.account_type,
+                    account=account,
+                    identifier=email,
+                    login_status=LoginStatus.FAILED,
+                    failure_reason='Invalid credentials',
+                    request=request,
+                )
+                return ApiResponse(
+                    success=False,
+                    message='Unable to sign in.',
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
             is_locked, attempts_remaining = _register_failed_login(account)
             login_status = LoginStatus.LOCKED if is_locked else LoginStatus.FAILED
             record_login_activity(
@@ -681,7 +719,7 @@ class AdministrativeLoginView(APIView):
                 return ApiResponse(
                     success=False,
                     data={'attempts_remaining': 0, 'retry_after_minutes': settings.LOGIN_LOCKOUT_MINUTES},
-                    message=f'Account temporarily locked. Try again in {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
+                    message=f'Too many failed login attempts. Please try again after {settings.LOGIN_LOCKOUT_MINUTES} minutes.',
                     status=status.HTTP_423_LOCKED,
                 )
             return ApiResponse(
@@ -691,29 +729,29 @@ class AdministrativeLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # Super Admin authentication is password-only.
-        # Do not initiate email/SMS OTP or two-factor challenges here.
-        requires_two_factor = False
+# Super Admin authentication is password-only.
+        # Normal Admin accounts may use their own 2FA setting.
+        requires_two_factor = bool(
+            self.account_type != AccountType.SUPER_ADMIN
+            and getattr(account, 'two_factor_enabled', False)
+        )
         if requires_two_factor:
             otp = serializer.validated_data.get('otp', '').strip()
             if not otp:
-                code = _issue_challenge(
+                code, delivered = _issue_challenge(
                     account_type=self.account_type,
                     identifier=email,
                     purpose=AuthChallenge.Purpose.TWO_FACTOR,
                     request=request,
                     lifetime_minutes=5,
                 )
-                send_mail(
-                    'Your My Dear Partner super-admin sign-in code',
-                    f'Your one-time sign-in code is {code}. It expires in 5 minutes.',
-                    settings.DEFAULT_FROM_EMAIL,
-                    [email],
-                    fail_silently=not settings.DEBUG,
-                )
+                if not delivered:
+                    return ApiResponse(
+                        success=False,
+                        message='Unable to send the two-factor verification email. Please try again shortly.',
+                        status=status.HTTP_502_BAD_GATEWAY,
+                    )
                 data = {'requires_two_factor': True, 'expires_in': 300}
-                if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-                    data['developer_otp'] = code
                 return ApiResponse(data=data, message='Two-factor verification is required.', status=status.HTTP_202_ACCEPTED)
             if not _consume_challenge(
                 account_type=self.account_type,
@@ -736,10 +774,7 @@ class AdministrativeLoginView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        account.failed_login_attempts = 0
-        account.locked_until = None
-        account.last_login = timezone.now()
-        account.save(update_fields=('failed_login_attempts', 'locked_until', 'last_login', 'updated_at'))
+        account = _reset_login_state(account)
         tokens = issue_account_tokens(account, request=request)
         record_login_activity(
             account_type=self.account_type,
@@ -1282,58 +1317,54 @@ class MemberProfileSubmitView(APIView):
 
 class MemberForgotPasswordView(APIView):
     permission_classes = (permissions.AllowAny,)
-    throttle_scope = 'reset-password'
+    throttle_classes = (OTPCooldownThrottle,)
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        identifier = _normalize_member_identifier(serializer.validated_data['identifier'])
-        channel = request.data.get('channel', 'auto')
+        identifier = serializer.validated_data['identifier']
+        if request.data.get('channel') == 'email':
+            return ApiResponse(
+                success=False,
+                message='Password reset is available through mobile OTP only.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         member = _member_for_identifier(identifier)
-        developer_otp = None
-        sent_channel = 'email' if '@' in identifier else 'mobile'
 
         if member and member.is_active and member.deleted_at is None:
-            developer_otp = _issue_challenge(
+            _code, delivered = _issue_challenge(
                 account_type=AccountType.MEMBER,
                 identifier=identifier,
                 purpose=AuthChallenge.Purpose.PASSWORD_RESET,
                 request=request,
             )
 
-            if channel == 'email' or (channel == 'auto' and '@' in identifier):
-                sent_channel = 'email'
-                if member.email:
-                    send_mail(
-                        'Your My Dear Partner password reset code',
-                        f'Your one-time reset code is {developer_otp}. It expires in 10 minutes.',
-                        settings.DEFAULT_FROM_EMAIL,
-                        [member.email],
-                        fail_silently=not settings.DEBUG,
-                    )
-            elif channel == 'mobile' or (channel == 'auto' and '@' not in identifier):
-                sent_channel = 'mobile'
-                import logging
-                logging.getLogger(__name__).info(
-                    "SMS OTP dispatched to %s: %s", member.mobile_number, developer_otp
+            if not delivered:
+                return ApiResponse(
+                    success=False,
+                    message='Failed to send the password reset code. Please try again later.',
+                    status=status.HTTP_502_BAD_GATEWAY,
                 )
+            import logging
+            logging.getLogger(__name__).info(
+                "SMS OTP dispatched to %s", member.mobile_number
+            )
 
-        data = {'expires_in': 600, 'sent_via': sent_channel}
-        if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-            data['developer_otp'] = developer_otp
-        msg = f"Reset code successfully sent to your registered {sent_channel}."
+        data = {'expires_in': 600, 'sent_via': 'mobile'}
+        msg = 'Reset code successfully sent to your registered mobile number.'
         return ApiResponse(data=data, message=msg)
 
 
 class MemberResetPasswordView(APIView):
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (PasswordResetAttemptThrottle,)
 
     @transaction.atomic
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        identifier = _normalize_member_identifier(serializer.validated_data['identifier'])
+        identifier = serializer.validated_data['identifier']
         member = _member_for_identifier(identifier)
 
         challenge = (
@@ -1402,12 +1433,25 @@ class MemberResetPasswordView(APIView):
 
 class MemberOtpRequestView(APIView):
     permission_classes = (permissions.AllowAny,)
-    throttle_scope = 'login'
+    throttle_classes = (OTPCooldownThrottle,)
 
     def post(self, request):
         serializer = OtpRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        identifier = _normalize_member_identifier(serializer.validated_data['identifier'])
+        try:
+            identifier = validate_mobile_number(serializer.validated_data['identifier'])
+        except serializers.ValidationError:
+            return ApiResponse(
+                success=False,
+                message='Mobile OTP is available only for a valid mobile number.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not identifier:
+            return ApiResponse(
+                success=False,
+                message='Mobile number is required for OTP verification.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         purpose = serializer.validated_data['purpose']
         if purpose not in {
             AuthChallenge.Purpose.REGISTRATION,
@@ -1416,18 +1460,21 @@ class MemberOtpRequestView(APIView):
         }:
             return ApiResponse(success=False, message='Unsupported OTP purpose.', status=status.HTTP_400_BAD_REQUEST)
         member = _member_for_identifier(identifier)
-        code = None
         if member:
-            code = _issue_challenge(
+            _code, delivered = _issue_challenge(
                 account_type=AccountType.MEMBER,
                 identifier=identifier,
                 purpose=purpose,
                 request=request,
                 lifetime_minutes=5,
             )
+            if not delivered:
+                return ApiResponse(
+                    success=False,
+                    message='Unable to send the verification code. Please try again shortly.',
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
         data = {'expires_in': 300}
-        if getattr(settings, 'USE_FIXED_DEV_OTP', False):
-            data['developer_otp'] = code
         return ApiResponse(data=data, message='If the member exists, a verification code has been sent.')
 class MemberOtpVerifyView(APIView):
     permission_classes = (permissions.AllowAny,)
@@ -1435,7 +1482,20 @@ class MemberOtpVerifyView(APIView):
     def post(self, request):
         serializer = OtpVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        identifier = _normalize_member_identifier(serializer.validated_data['identifier'])
+        try:
+            identifier = validate_mobile_number(serializer.validated_data['identifier'])
+        except serializers.ValidationError:
+            return ApiResponse(
+                success=False,
+                message='Mobile OTP is available only for a valid mobile number.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not identifier:
+            return ApiResponse(
+                success=False,
+                message='Mobile number is required for OTP verification.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         purpose = serializer.validated_data['purpose']
         if not _consume_challenge(
             account_type=AccountType.MEMBER,
@@ -1447,12 +1507,8 @@ class MemberOtpVerifyView(APIView):
         member = _member_for_identifier(identifier)
         if member is None:
             return ApiResponse(success=False, message='Member not found.', status=status.HTTP_404_NOT_FOUND)
-        if '@' in identifier:
-            member.is_email_verified = True
-            update_fields = ('is_email_verified', 'updated_at')
-        else:
-            member.is_mobile_verified = True
-            update_fields = ('is_mobile_verified', 'updated_at')
+        member.is_mobile_verified = True
+        update_fields = ('is_mobile_verified', 'updated_at')
         member.save(update_fields=update_fields)
         data = {'verified': True, 'user': _account_payload(member, request)}
         if purpose == AuthChallenge.Purpose.PASSWORDLESS_LOGIN:
@@ -1552,7 +1608,6 @@ class MemberVerificationStatusView(APIView):
             'account_status': verification_summary.overall_status,
             'is_verified': verification_summary.is_verified,
             'contact': {
-                'email_verified': verification_summary.email_verified,
                 'mobile_verified': verification_summary.mobile_verified,
             },
             'profile': verification_summary.profile,

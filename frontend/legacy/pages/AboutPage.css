@@ -1305,6 +1305,7 @@
 }
 
 .ab-hero__sparkle {
+  display: none !important;
   position: absolute;
   z-index: 3;
   width: 12px;

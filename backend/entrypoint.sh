@@ -13,13 +13,16 @@ if [ "${RUN_DJANGO_MIGRATIONS:-0}" = "1" ]; then
         final)
             python manage.py migrate --noinput
             python manage.py seed_membership_plans
-            python manage.py create_initial_super_admin --skip-if-exists || true
             ;;
         *)
             echo "PROFILE_PHOTO_CUTOVER_PHASE must be 'stage' or 'final'." >&2
             exit 2
             ;;
     esac
+fi
+
+if [ "${RUN_SUPERADMIN_SYNC:-1}" = "1" ]; then
+    python manage.py sync_super_admin_from_env
 fi
 
 if [ "${RUN_DJANGO_COLLECTSTATIC:-0}" = "1" ]; then

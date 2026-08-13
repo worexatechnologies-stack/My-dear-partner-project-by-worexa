@@ -19,7 +19,6 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   UserRoundCheck,
   X,
 } from 'lucide-react';
@@ -194,7 +193,7 @@ function ProfileFeedCard({
           </div>
           {profile.compatibility > 0 && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#edf6f1] px-2.5 py-1 text-[10px] font-extrabold text-[#24664f]">
-              <Sparkles className="h-3 w-3" /> {profile.compatibility}%
+              <Heart className="h-3 w-3" /> {profile.compatibility}%
             </span>
           )}
         </div>
@@ -478,9 +477,9 @@ export default function DashboardReels() {
   const pendingSenderId = pendingSender.id ?? pendingSender.user_id ?? firstPending?.sender_id;
 
   return (
-    <div className="min-h-full bg-[#faf8f6] pb-24 lg:pb-7">
+    <div className="min-h-full bg-white pb-24 lg:pb-7">
       <div className="mx-auto w-full max-w-[73rem] px-3 sm:px-5 lg:px-6">
-        <header className="sticky top-0 z-20 -mx-3 grid bg-[#faf8f6]/95 px-3 pt-2 pb-1 backdrop-blur-xl sm:-mx-5 sm:px-5 lg:-mx-6 lg:hidden">
+        <header className="sticky top-0 z-20 -mx-3 grid bg-white/95 px-3 pt-2 pb-1 backdrop-blur-xl sm:-mx-5 sm:px-5 lg:-mx-6 lg:hidden">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <label className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-[#dfd3ce] bg-white px-3.5 shadow-[0_5px_18px_rgba(64,36,47,.04)] focus-within:border-[#b98291]">
@@ -602,7 +601,7 @@ export default function DashboardReels() {
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#eee7e3]">
                 <div className="h-full rounded-full bg-[#2d8062] transition-[width] duration-700" style={{ width: `${completion}%` }} />
               </div>
-              <Link href="/settings/profile" className="mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#8e3d58]">Complete profile <ChevronRight className="h-3 w-3" /></Link>
+              <Link href="/profile/edit" className="mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#8e3d58]">Complete profile <ChevronRight className="h-3 w-3" /></Link>
             </section>
 
             <section className="rounded-2xl border border-[#e8dcc4] bg-[#fffaf0] p-4">

@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 const settingsNav = [
   { group: 'Profile', items: [
-    { href: '/settings/profile', label: 'Edit Profile', icon: User },
+    { href: '/profile/edit', label: 'Edit Profile', icon: User },
   ]},
   { group: 'Account', items: [
     { href: '/settings/security', label: 'Security', icon: Shield },

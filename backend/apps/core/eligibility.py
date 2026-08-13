@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.db.models import Q
 from apps.accounts.models import Member, AccountType
 from apps.core.models import ProfileBlock
 
@@ -38,7 +37,7 @@ def get_eligible_profiles_for(user):
 
     queryset = Member.objects.filter(**filters)
     if getattr(settings, 'REQUIRE_MEMBER_VERIFICATION', False):
-        queryset = queryset.filter(Q(is_email_verified=True) | Q(is_mobile_verified=True))
+        queryset = queryset.filter(is_mobile_verified=True)
 
     queryset = queryset.exclude(pk=user.pk).exclude(pk__in=blocked_ids).exclude(pk__in=blocker_ids)
     return queryset

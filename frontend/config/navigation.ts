@@ -39,7 +39,7 @@ export const memberNavigation: NavItem[] = [
   {
     label: 'Settings', icon: Settings, href: '/settings', allowedRoles: ['MEMBER'],
     children: [
-      { label: 'Profile', icon: User, href: '/settings/profile', allowedRoles: ['MEMBER'] },
+      { label: 'Profile', icon: User, href: '/profile/edit', allowedRoles: ['MEMBER'] },
       { label: 'Security', icon: LockKeyhole, href: '/settings/security', allowedRoles: ['MEMBER'] },
       { label: 'Membership', icon: CreditCard, href: '/settings/membership', allowedRoles: ['MEMBER'] },
     ],

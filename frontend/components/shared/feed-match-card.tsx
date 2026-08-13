@@ -81,7 +81,7 @@ export default function FeedMatchCard({
         {/* Bottom Info - Rendered cleanly over the gradient */}
         <div className={`absolute bottom-0 left-0 right-0 z-20 p-4 sm:p-6 ${profile.photo ? '' : 'border-t border-rose-100/80 bg-white/85 backdrop-blur-sm'}`}>
           <Link to={`/profile/${profile.id}`} className="block w-fit">
-            <h2 className={`text-2xl font-black transition-colors sm:text-3xl ${profile.photo ? 'text-white drop-shadow-md hover:text-rose-200' : 'text-slate-800 hover:text-rose-600'}`}>
+            <h2 className={`text-2xl font-black transition-colors sm:text-3xl ${profile.photo ? 'bg-gradient-to-r from-white via-rose-100 to-amber-100 bg-clip-text text-transparent drop-shadow-md hover:text-rose-200' : 'bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent'}`}>
               {profile.name || profile.full_name || 'Member'}
             </h2>
           </Link>
@@ -90,8 +90,8 @@ export default function FeedMatchCard({
             {profile.height && profile.height !== 'Not specified' && <><span className="w-1.5 h-1.5 rounded-full bg-white/50" /><span>{profile.height}</span></>}
             {profile.occupation && profile.occupation !== 'Not specified' && <><span className="w-1.5 h-1.5 rounded-full bg-white/50" /><span className="truncate max-w-[200px]">{profile.occupation}</span></>}
           </div>
-          <div className={`mt-2 flex items-center gap-1.5 text-sm ${profile.photo ? 'text-white/80 drop-shadow-md' : 'text-slate-500'}`}>
-            <MapPin className="w-4 h-4 shrink-0" />
+          <div className={`mt-2 flex items-center gap-1.5 text-sm ${profile.photo ? 'text-white/90 drop-shadow-md' : 'text-[#8d143c] font-semibold'}`}>
+            <MapPin className="w-4 h-4 shrink-0 text-[#e11d48]" />
             <span className="truncate">{profile.location && profile.location !== 'Not specified' ? profile.location : 'Location not specified'}</span>
           </div>
         </div>

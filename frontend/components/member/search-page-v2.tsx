@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
-  Sparkles,
   X,
 } from 'lucide-react';
 
@@ -200,17 +199,19 @@ function SearchProfileCard({
           fallbackMessage={PHOTO_FALLBACK_MESSAGE}
           className="h-full w-full rounded-none object-cover object-top transition-transform duration-500 group-hover:scale-[1.025]"
         />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-24 bg-gradient-to-t from-[#24151d]/55 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-28 bg-gradient-to-t from-[#1b0811]/90 via-[#24151d]/60 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 z-30 p-3.5 text-white">
-          <h2 className="truncate font-display text-base font-extrabold tracking-[-.02em]">{profile.name || 'Member'}{profile.age ? `, ${profile.age}` : ''}</h2>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold text-white/85">
-            <MapPin className="h-3 w-3 shrink-0" /> {profile.location || 'Location private'}
+          <h2 className="truncate font-display text-base font-black tracking-tight text-white drop-shadow-sm group-hover:text-rose-200 transition-colors">
+            {profile.name || 'Member'}{profile.age ? `, ${profile.age}` : ''}
+          </h2>
+          <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-xs border border-white/20 px-2 py-0.5 text-[10px] font-bold text-white/90 shadow-2xs">
+            <MapPin className="h-3 w-3 shrink-0 text-rose-300" /> {profile.location || 'Location private'}
           </p>
         </div>
         <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-3">
           {profile.compatibility > 0 ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[9px] font-extrabold text-[#8e3d58] shadow-sm">
-              <Sparkles className="h-3 w-3" /> {profile.compatibility}% match
+              <Heart className="h-3 w-3" /> {profile.compatibility}% match
             </span>
           ) : <span />}
           {profile.verified && (

@@ -113,10 +113,6 @@ def update_member(member, **data):
     return member
 
 
-def dummy_sms_sender(*args, **kwargs):
-    return None
-
-
 def _isoformat(value):
     return value.isoformat() if value else None
 

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
+import SiteLogo from '@/components/branding/site-logo';
 
 const SEEN_KEY = 'mdp.welcome-seen';
 
@@ -56,7 +57,7 @@ export default function WelcomeSplash() {
               <div className="relative bg-[#fffefd] px-7 py-11 sm:px-12 sm:py-14">
                 <div className="pointer-events-none absolute right-0 top-0 h-36 w-36 bg-[#f7e7e2] [clip-path:polygon(100%_0,0_0,100%_100%)]" />
                 <div className="relative">
-                  <Image src="/images/main-logo.png" alt="My Dear Partner" width={44} height={44} className="h-11 w-11 object-contain" priority />
+                  <SiteLogo alt="My Dear Partner" className="h-11 w-11 object-contain" />
                   <p className="mt-8 font-display text-[10px] font-bold uppercase tracking-[.32em] text-[#bd6970]">Welcome to My Dear Partner</p>
                   <h1 id="welcome-title" className="mt-4 max-w-md font-display text-4xl font-light leading-[.94] tracking-[-.055em] text-[#2c2928] sm:text-5xl">
                     Your next chapter can start with a <em className="font-serif font-normal text-[#bd6970]">simple hello.</em>

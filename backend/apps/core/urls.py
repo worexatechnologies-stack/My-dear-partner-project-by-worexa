@@ -33,6 +33,7 @@ from .role_views import (
     AdminProfileReportListView,
     AdminReportExportView,
     AdminSettingsView,
+    PublicSettingsView,
     AdminSupportDashboardView,
     AdminSupportReportsView,
     AdminTicketDetailView,
@@ -301,6 +302,7 @@ urlpatterns = [
     path('admin/faqs/', AdminFAQListCreateView.as_view(), name='admin_faqs'),
     path('admin/faqs/<uuid:item_id>/', AdminFAQDetailView.as_view(), name='admin_faq_detail'),
     path('admin/settings/', AdminSettingsView.as_view(), name='admin_settings'),
+    path('public/settings/', PublicSettingsView.as_view(), name='public_settings'),
     path('admin/backups/', AdminBackupListView.as_view(), name='admin_backups'),
     
     # New Admin Specific Staff CRUD paths

@@ -167,7 +167,7 @@ class VerificationEvents:
         transaction.on_commit(_publish)
     @staticmethod
     def publish_contact_verified(member: Member, contact_type: str):
-        """Publish event when email/mobile is verified"""
+        """Publish event when mobile verification is completed."""
         def _publish():
             channel_layer = get_channel_layer()
             if not channel_layer:
@@ -179,10 +179,9 @@ class VerificationEvents:
             # Event data
             event_data = {
                 'member_id': str(member.id),
-                'contact_type': contact_type,  # 'email' or 'mobile'
-                'overall_status': verification_summary.overall_status,
-                'email_verified': verification_summary.email_verified,
-                'mobile_verified': verification_summary.mobile_verified,
+                    'contact_type': contact_type,
+                    'overall_status': verification_summary.overall_status,
+                    'mobile_verified': verification_summary.mobile_verified,
                 'completed_steps': verification_summary.completed_steps,
                 'total_steps': verification_summary.total_steps,
                 'timestamp': member.updated_at.isoformat() if member.updated_at else None

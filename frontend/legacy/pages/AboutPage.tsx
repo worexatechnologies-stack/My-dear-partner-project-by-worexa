@@ -3,418 +3,109 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Heart,
   ShieldCheck,
-  Users,
-  Globe,
-  Target,
   CheckCircle,
   ArrowRight,
   HeartHandshake,
   UserCheck,
-  Lock,
-  MapPin,
-  Award,
-  Compass,
-  Quote
+  Users,
+  Target,
+  Eye,
+  Heart,
+  LockKeyhole,
+  UsersRound,
 } from 'lucide-react';
 import { Link } from '@/lib/router-compat';
-import SmartImage from '@/components/shared/smart-image';
 
-/* ── STATS DATA ────────────────────────────────────────────── */
-const stats = [
-  { value: '25L+', label: 'Verified Profiles', icon: Users },
-  { value: '9+', label: 'Years of Trust', icon: ShieldCheck },
-  { value: '5L+', label: 'Happy Couples', icon: Heart },
-  { value: '500+', label: 'Cities Covered', icon: MapPin },
-];
-
-/* ── DIFFERENTIATORS ────────────────────────────────────────── */
 const differentiators = [
   {
     icon: UserCheck,
     title: 'Authenticity Above Everything',
-    desc: 'Every profile represents a real, verified individual looking for a genuine, lifelong connection.',
+    desc: 'Every profile represents a genuine person looking for a meaningful relationship.',
     tag: 'Authentic',
   },
   {
     icon: ShieldCheck,
-    title: 'Trust & Safety at Every Step',
-    desc: 'From government ID verification to robust privacy controls, your security is built into every feature.',
+    title: 'Trust at Every Step',
+    desc: 'From profile verification to privacy controls, every feature is designed to help you connect with confidence.',
     tag: 'Secure',
   },
   {
     icon: Heart,
     title: 'Relationships Before Algorithms',
-    desc: 'Smart recommendations assist your search, but human values, intentions, and mutual choices define every match.',
+    desc: 'Technology helps us recommend compatible matches, but people, values, and genuine intentions remain at the heart of every connection.',
     tag: 'People First',
   },
   {
     icon: Users,
     title: 'Designed for Individuals & Families',
-    desc: 'Marriage brings two lives and two families together. We respect personal choices alongside family involvement.',
+    desc: 'Marriage brings two lives together—and often two families as well. That’s why MyDearPartner creates an experience that respects both personal choice and family involvement.',
     tag: 'Family First',
   },
 ];
 
-/* ── VALUES LIST ────────────────────────────────────────────── */
 const valuesList = [
   {
     title: 'Trust',
-    desc: 'Every meaningful relationship begins with honesty, safety, and mutual transparency.',
+    desc: 'Every meaningful relationship begins with honesty.',
   },
   {
     title: 'Respect',
-    titleFull: 'Respect & Dignity',
-    desc: 'Every person, culture, tradition, and life story deserves complete respect.',
+    desc: 'Every person, tradition, culture, and life story deserves respect.',
   },
   {
     title: 'Privacy',
-    desc: 'Your personal details belong to you. Protecting them is our highest responsibility.',
+    desc: 'Your personal information belongs to you & protecting it is our responsibility.',
   },
   {
     title: 'Commitment',
-    desc: 'We are dedicated to helping people build relationships that stand the test of time.',
+    desc: 'We’re committed to helping people build relationships that stand the test of time.',
   },
 ];
-
-/* ── ANIMATION VARIANTS ─────────────────────────────────────── */
-const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
-  visible: (i: number = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.12, duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  }),
-};
 
 export default function AboutPage() {
   return (
     <main className="ab-page">
-
-      {/* ── HERO — INTERLOCKING RINGS & CHAIN ART ────────────── */}
+      {/* HERO SECTION */}
       <section className="ab-hero">
-        {/* Hidden — no bg image used */}
-        <div className="ab-hero__bg" />
-
-        {/* Ambient Glows */}
-        <div className="ab-hero__ambient" aria-hidden />
-        <div className="ab-hero__ambient-secondary" aria-hidden />
-
-        {/* Left Column: Content */}
         <div className="ab-hero__container">
           <div className="ab-hero__grid">
             <motion.div
               className="ab-hero__left"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
             >
               <span className="ab-hero__badge">
-                <Heart size={12} fill="currentColor" /> ESTABLISHED ON TRUST &amp; COMPATIBILITY
+                <Heart size={12} fill="currentColor" /> ABOUT MYDEARPARTNER
               </span>
 
               <h1>
-                Where Genuine Intentions
-                <em>Become Lifelong Marriages.</em>
+                Every Forever Begins with a
+                <em> Meaningful Connection.</em>
               </h1>
 
               <p className="ab-hero__lead">
-                MyDearPartner was created to bring authenticity back to matchmaking. We combine 100% verified profiles, family respect, and strict privacy controls to help you build a lasting, meaningful relationship.
+                Some journeys in life are chosen. Others are shared. Finding the person who will stand beside you through every season of life is one of the most meaningful decisions you’ll ever make. At MyDearPartner, we believe that every relationship deserves a beginning built on trust, understanding, and genuine intentions.
               </p>
 
-              {/* Glassmorphic Metrics Bar */}
-              <div className="ab-hero__metrics-bar">
-                <div className="ab-hero__metric-item">
-                  <span className="ab-hero__metric-val">50,000+</span>
-                  <span className="ab-hero__metric-lbl">Happy Marriages</span>
-                </div>
-                <div className="ab-hero__metric-sep" />
-                <div className="ab-hero__metric-item">
-                  <span className="ab-hero__metric-val">100%</span>
-                  <span className="ab-hero__metric-lbl">Verified Profiles</span>
-                </div>
-                <div className="ab-hero__metric-sep" />
-                <div className="ab-hero__metric-item">
-                  <span className="ab-hero__metric-val">4.9★</span>
-                  <span className="ab-hero__metric-lbl">Satisfaction</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="ab-hero__ctas">
+              <div className="ab-hero__ctas" style={{ marginTop: '2rem' }}>
                 <Link to="/register" className="ab-btn-primary">
                   <Users size={16} /> Create Free Profile <ArrowRight size={16} />
                 </Link>
                 <a href="#our-story" className="ab-btn-secondary">
-                  <HeartHandshake size={16} className="text-gold" /> Explore Our Story
+                  <HeartHandshake size={16} className="text-gold" /> Read Our Story
                 </a>
-              </div>
-
-              {/* Micro Trust Pills */}
-              <div className="ab-hero__trust-pills">
-                <div className="ab-trust-pill">
-                  <ShieldCheck size={14} className="text-gold" /> Govt ID Verified
-                </div>
-                <div className="ab-trust-pill">
-                  <Lock size={14} className="text-gold" /> 100% Confidential
-                </div>
-                <div className="ab-trust-pill">
-                  <Users size={14} className="text-gold" /> Individual &amp; Family Centric
-                </div>
               </div>
             </motion.div>
           </div>
         </div>
-
-        {/* Right Column: decorative ring art only. All page copy stays on the left. */}
-        <motion.div
-          className="ab-hero__right"
-          aria-hidden="true"
-        >
-          <div className="ab-hero__rings">
-            <div className="ab-hero__ring-aura" />
-            <div className="ab-hero__ring-orbit ab-hero__ring-orbit--outer" />
-            <div className="ab-hero__ring-orbit ab-hero__ring-orbit--inner" />
-
-            <svg
-              className="ab-hero__ring-illustration"
-              viewBox="0 0 560 520"
-              focusable="false"
-            >
-              <defs>
-                <linearGradient id="ab-gold-band" x1="145" y1="135" x2="440" y2="410" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#76501f" />
-                  <stop offset="0.16" stopColor="#d1a34e" />
-                  <stop offset="0.32" stopColor="#fff1b8" />
-                  <stop offset="0.48" stopColor="#bd812b" />
-                  <stop offset="0.66" stopColor="#f5d986" />
-                  <stop offset="0.82" stopColor="#b97827" />
-                  <stop offset="1" stopColor="#684119" />
-                </linearGradient>
-                <linearGradient id="ab-platinum-band" x1="115" y1="150" x2="365" y2="420" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#5f5a5c" />
-                  <stop offset="0.16" stopColor="#b9b7b7" />
-                  <stop offset="0.34" stopColor="#fffdf8" />
-                  <stop offset="0.5" stopColor="#9b989a" />
-                  <stop offset="0.68" stopColor="#eeeae5" />
-                  <stop offset="0.84" stopColor="#8a8486" />
-                  <stop offset="1" stopColor="#514a4d" />
-                </linearGradient>
-                <linearGradient id="ab-diamond" x1="-28" y1="-30" x2="24" y2="31" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#ffffff" />
-                  <stop offset="0.22" stopColor="#e8fbff" />
-                  <stop offset="0.46" stopColor="#ffffff" />
-                  <stop offset="0.7" stopColor="#cce7ed" />
-                  <stop offset="1" stopColor="#fff9dd" />
-                </linearGradient>
-                <radialGradient id="ab-gem-flash" cx="38%" cy="28%" r="70%">
-                  <stop offset="0" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="0.42" stopColor="#e5f8fb" stopOpacity="0.8" />
-                  <stop offset="1" stopColor="#bddde4" stopOpacity="0.18" />
-                </radialGradient>
-                <filter id="ab-ring-shadow" x="-45%" y="-45%" width="190%" height="200%">
-                  <feDropShadow dx="0" dy="16" stdDeviation="12" floodColor="#5e3b31" floodOpacity="0.22" />
-                </filter>
-                <filter id="ab-diamond-glow" x="-120%" y="-120%" width="340%" height="340%">
-                  <feGaussianBlur stdDeviation="5" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                <filter id="ab-floor-blur" x="-30%" y="-100%" width="160%" height="300%">
-                  <feGaussianBlur stdDeviation="10" />
-                </filter>
-              </defs>
-
-              {/* A soft contact shadow grounds the jewelry. */}
-              <ellipse cx="283" cy="407" rx="174" ry="22" fill="#76452c" opacity="0.16" filter="url(#ab-floor-blur)" />
-
-              <g filter="url(#ab-ring-shadow)">
-                {/* Polished platinum wedding band, set behind. */}
-                <ellipse
-                  cx="218"
-                  cy="307"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 307)"
-                  fill="none"
-                  stroke="#494044"
-                  strokeWidth="34"
-                  opacity="0.23"
-                />
-                <ellipse
-                  cx="218"
-                  cy="297"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 297)"
-                  fill="none"
-                  stroke="url(#ab-platinum-band)"
-                  strokeWidth="27"
-                />
-                <ellipse
-                  cx="218"
-                  cy="297"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 297)"
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  pathLength="100"
-                  strokeDasharray="30 70"
-                  strokeDashoffset="54"
-                  opacity="0.8"
-                />
-
-                {/* Champagne-gold solitaire ring in front. */}
-                <ellipse
-                  cx="342"
-                  cy="294"
-                  rx="134"
-                  ry="106"
-                  transform="rotate(16 342 294)"
-                  fill="none"
-                  stroke="#604019"
-                  strokeWidth="35"
-                  opacity="0.24"
-                />
-                <ellipse
-                  cx="342"
-                  cy="283"
-                  rx="134"
-                  ry="106"
-                  transform="rotate(16 342 283)"
-                  fill="none"
-                  stroke="url(#ab-gold-band)"
-                  strokeWidth="28"
-                />
-                <ellipse
-                  cx="342"
-                  cy="283"
-                  rx="134"
-                  ry="106"
-                  transform="rotate(16 342 283)"
-                  fill="none"
-                  stroke="#fff7d5"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  pathLength="100"
-                  strokeDasharray="29 71"
-                  strokeDashoffset="53"
-                  opacity="0.9"
-                />
-
-                {/* Platinum returns to the foreground at one crossing for a true interlock. */}
-                <ellipse
-                  cx="218"
-                  cy="307"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 307)"
-                  fill="none"
-                  stroke="#494044"
-                  strokeWidth="34"
-                  pathLength="100"
-                  strokeDasharray="13 87"
-                  strokeDashoffset="1"
-                  opacity="0.23"
-                />
-                <ellipse
-                  cx="218"
-                  cy="297"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 297)"
-                  fill="none"
-                  stroke="url(#ab-platinum-band)"
-                  strokeWidth="27"
-                  strokeLinecap="round"
-                  pathLength="100"
-                  strokeDasharray="13 87"
-                  strokeDashoffset="1"
-                />
-                <ellipse
-                  cx="218"
-                  cy="297"
-                  rx="137"
-                  ry="104"
-                  transform="rotate(-18 218 297)"
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  pathLength="100"
-                  strokeDasharray="9 91"
-                  strokeDashoffset="2"
-                  opacity="0.86"
-                />
-              </g>
-
-              {/* Refined six-prong setting and faceted solitaire. */}
-              <g transform="translate(369 151)">
-                <path d="M -25 17 L -22 47 M 25 17 L 22 47" fill="none" stroke="#8c5e21" strokeWidth="8" strokeLinecap="round" opacity="0.38" />
-                <path d="M -25 14 L -22 43 M 25 14 L 22 43" fill="none" stroke="url(#ab-gold-band)" strokeWidth="6" strokeLinecap="round" />
-                <g className="ab-ring-svg__diamond">
-                  <path d="M -38 -10 L -20 -32 L 20 -32 L 38 -10 L 0 34 Z" fill="#ffffff" opacity="0.45" filter="url(#ab-diamond-glow)" />
-                  <path d="M -38 -10 L -20 -32 L 20 -32 L 38 -10 L 0 34 Z" fill="url(#ab-diamond)" stroke="#a7c9ce" strokeWidth="1.8" />
-                  <path d="M -38 -10 L 38 -10 M -20 -32 L 0 -10 L 20 -32 M -38 -10 L 0 34 L 38 -10 M 0 -10 L 0 34" fill="none" stroke="#8eb8c1" strokeWidth="1.25" opacity="0.9" />
-                  <path d="M -18 -29 L 0 -13 L 17 -29" fill="url(#ab-gem-flash)" opacity="0.9" />
-                  <path d="M -33 -10 L -18 -28 M 33 -10 L 18 -28" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity="0.92" />
-                </g>
-                <circle cx="-25" cy="-7" r="3.1" fill="#d5a64f" />
-                <circle cx="25" cy="-7" r="3.1" fill="#d5a64f" />
-              </g>
-
-              {/* Small pavé accents lead the eye toward the solitaire. */}
-              <g fill="#f8feff" stroke="#b68a43" strokeWidth="1.4">
-                <circle cx="314" cy="190" r="4.4" />
-                <circle cx="328" cy="183" r="4.1" />
-                <circle cx="343" cy="178" r="3.8" />
-                <circle cx="398" cy="190" r="3.8" />
-                <circle cx="411" cy="199" r="4.1" />
-              </g>
-            </svg>
-
-            <span className="ab-hero__sparkle ab-hero__sparkle--1" />
-            <span className="ab-hero__sparkle ab-hero__sparkle--2" />
-          </div>
-        </motion.div>
       </section>
 
-      {/* ── STATS BAR SECTION ───────────────────────────────── */}
-      <section className="ab-stats-section">
-        <div className="ss-container">
-          <div className="ab-stats-grid">
-            {stats.map((stat, i) => {
-              const Icon = stat.icon;
-              return (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                  className="ab-stat-item"
-                >
-                  <div className="ab-stat-icon">
-                    <Icon size={20} />
-                  </div>
-                  <div className="ab-stat-value">{stat.value}</div>
-                  <div className="ab-stat-label">{stat.label}</div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── OUR STORY & MISSION SECTION ─────────────────────── */}
+      {/* OUR STORY SECTION */}
       <section id="our-story" className="ab-story-section">
         <div className="ss-container">
           <div className="ab-story-grid">
-            
-            {/* Story Left */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -422,24 +113,28 @@ export default function AboutPage() {
               transition={{ duration: 0.7 }}
               className="ab-story-left"
             >
-              <span className="ab-story-tag">Our Origin Story</span>
+              <span className="ab-story-tag">Our Story</span>
               <h2>
                 Inspired by <em>Real Relationships</em>
               </h2>
 
               <p>
-                In today’s fast-moving digital world, finding a genuine life partner can often feel overwhelming. Endless swiping, impersonal algorithms, and uncertainty can make an important milestone feel transactional.
+                In today’s fast-moving digital world, finding a genuine life partner can often feel overwhelming. Endless profiles, uncertain conversations, and a lack of trust can make an important journey unnecessarily difficult.
               </p>
 
               <p>
-                <strong>MyDearPartner was born from a simple belief:</strong> Finding your life partner should feel personal, respectful, and meaningful. We created a platform where technology supports genuine human connections without compromising values.
+                <strong>MyDearPartner was born from a simple belief:</strong> Finding your life partner should feel personal, respectful, and meaningful, not complicated.
+              </p>
+
+              <p>
+                That’s why we’ve created a platform where technology supports human connections without replacing the values that matter most.
               </p>
 
               <div className="ab-story-highlights">
                 {[
-                  'Every profile represents a real, verified individual.',
-                  'Every conversation carries the potential of a lasting future.',
-                  'Every successful match is a milestone we celebrate together.'
+                  'Every profile represents a real person.',
+                  'Every conversation carries the possibility of a new beginning.',
+                  'Every successful match becomes part of a story worth celebrating.'
                 ].map((item, i) => (
                   <div key={i} className="ab-story-check-item">
                     <CheckCircle size={18} className="text-gold" />
@@ -449,7 +144,7 @@ export default function AboutPage() {
               </div>
             </motion.div>
 
-            {/* Mission & Vision Cards Right */}
+            {/* Mission & Vision Cards */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -464,11 +159,11 @@ export default function AboutPage() {
                   </div>
                   <div>
                     <span className="ab-story-tag">Our Mission</span>
-                    <h3>Helping You Find More Than a Match</h3>
+                    <h3>Helping People Find More Than a Match</h3>
                   </div>
                 </div>
                 <p>
-                  Our mission is to create a trusted environment where meaningful relationships flourish naturally. By bringing together authenticity, privacy, and thoughtful matchmaking, we empower families and individuals to make life’s biggest decision with peace of mind.
+                  Our mission is to create a trusted environment where meaningful relationships can flourish naturally. By bringing together authenticity, privacy, and thoughtful matchmaking, we help individuals and families make one of life’s biggest decisions with confidence and peace of mind.
                 </p>
                 <blockquote className="ab-mission-quote">
                   "Because marriage isn’t simply about finding someone. It’s about finding the right someone."
@@ -476,30 +171,29 @@ export default function AboutPage() {
               </div>
 
               {/* Vision Card */}
-              <div className="ab-mission-card">
+              <div className="ab-mission-card" style={{ marginTop: '1.5rem' }}>
                 <div className="ab-mission-card-header">
                   <div className="ab-mission-icon">
-                    <Globe size={22} />
+                    <Eye size={22} />
                   </div>
                   <div>
                     <span className="ab-story-tag">Our Vision</span>
-                    <h3>Every Relationship Begins with Trust</h3>
+                    <h3>Creating a Future Where Every Relationship Begins with Trust</h3>
                   </div>
                 </div>
                 <p>
-                  We envision a world where meaningful relationships are built on honesty, mutual respect, and shared values. Our goal is to be India's most trusted, family-friendly matrimony platform.
+                  We dream of a world where meaningful relationships are built through honesty, respect, and shared values. Our vision is to become a platform that people don’t just use—but genuinely trust.
                 </p>
                 <blockquote className="ab-mission-quote">
-                  "Where every introduction has purpose. Every conversation has meaning."
+                  "A place where every introduction has purpose. Every conversation has meaning. And every successful match becomes the beginning of a beautiful new chapter."
                 </blockquote>
               </div>
             </motion.div>
-
           </div>
         </div>
       </section>
 
-      {/* ── DIFFERENTIATORS SECTION ─────────────────────────── */}
+      {/* DIFFERENTIATORS SECTION */}
       <section className="ab-diff-section">
         <div className="ss-container">
           <motion.div
@@ -508,9 +202,8 @@ export default function AboutPage() {
             viewport={{ once: true }}
             className="ab-section-header"
           >
-            <span className="ab-story-tag">Why We Are Different</span>
-            <h2>What Makes MyDearPartner Special</h2>
-            <p>We prioritize genuine intentions, individual dignity, and family trust above simple algorithms.</p>
+            <span className="ab-story-tag">What Makes Us Different</span>
+            <h2>What Makes MyDearPartner Different</h2>
           </motion.div>
 
           <div className="ab-diff-grid">
@@ -540,7 +233,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── CORE PILLARS SECTION ────────────────────────────── */}
+      {/* OUR VALUES SECTION */}
       <section className="ab-pillars-section">
         <div className="ss-container">
           <motion.div
@@ -549,8 +242,8 @@ export default function AboutPage() {
             viewport={{ once: true }}
             className="ab-section-header"
           >
-            <span className="ab-story-tag" style={{ color: '#d9b36c' }}>Our Foundation</span>
-            <h2 style={{ color: '#fff' }}>The Four Pillars of Our Platform</h2>
+            <span className="ab-story-tag" style={{ color: '#d9b36c' }}>Our Principles</span>
+            <h2 style={{ color: '#fff' }}>Our Values</h2>
           </motion.div>
 
           <div className="ab-pillars-grid">
@@ -572,7 +265,41 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── CTA BANNER SECTION ──────────────────────────────── */}
+      {/* WHY CHOOSE & PROMISE */}
+      <section className="ab-story-section" style={{ background: '#fffaf7' }}>
+        <div className="ss-container">
+          <div className="ab-story-grid">
+            <div className="ab-mission-card">
+              <span className="ab-story-tag">For Your Journey</span>
+              <h3 style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.5rem', marginBottom: '1rem' }}>Why Choose MyDearPartner?</h3>
+              <p style={{ fontWeight: 600, color: '#8e3d58', marginBottom: '0.75rem' }}>Because you’re not looking for another profile.</p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> You’re looking for someone who feels like home.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> Someone who understands your journey.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> Someone who shares your dreams.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> Someone with whom I feel forever natural.</li>
+              </ul>
+              <p style={{ marginTop: '1.25rem', fontWeight: 700 }}>At MyDearPartner, we’re honoured to be part of that journey.</p>
+            </div>
+
+            <div className="ab-mission-card">
+              <span className="ab-story-tag">Our Commitment</span>
+              <h3 style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.5rem', marginBottom: '1rem' }}>A Promise From Us</h3>
+              <p style={{ fontWeight: 600, color: '#8e3d58', marginBottom: '0.75rem' }}>
+                We promise to create a space where meaningful relationships can begin with confidence.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> A place where trust is earned.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> Where conversations are genuine.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> Where families feel secure.</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle size={16} className="text-gold" /> And where every introduction carries the possibility of a lifetime together.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CLOSING SECTION */}
       <section className="ab-cta-section">
         <div className="ss-container">
           <motion.div
@@ -581,28 +308,24 @@ export default function AboutPage() {
             viewport={{ once: true }}
             className="ab-cta-box"
           >
-            <span className="ab-story-tag" style={{ color: '#d9b36c' }}>Start Your Journey</span>
+            <span className="ab-story-tag" style={{ color: '#d9b36c' }}>Welcome to MyDearPartner</span>
             <h2>
               Your Story Deserves
               <br />
               <em>the Right Beginning.</em>
             </h2>
             <p>
-              Join thousands of verified profiles today. Take the first step toward finding a life partner who shares your values and aspirations.
+              Every successful marriage begins with a single conversation. Every lasting relationship begins with a shared belief in tomorrow. And every beautiful future begins with one meaningful connection.
             </p>
 
             <div className="ab-cta-actions">
               <Link to="/register" className="ab-btn-primary">
                 Create Free Profile <ArrowRight size={16} />
               </Link>
-              <Link to="/membership" className="ab-btn-secondary">
-                View Membership Plans
-              </Link>
             </div>
           </motion.div>
         </div>
       </section>
-
     </main>
   );
 }

@@ -31,6 +31,7 @@ MemberPhotoSerializer = ProfilePhotoSerializer
 
 class MemberSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    age = serializers.SerializerMethodField()
     is_verified = serializers.SerializerMethodField()
     is_fully_verified = serializers.SerializerMethodField()
     account_type = serializers.CharField(read_only=True)
@@ -48,7 +49,7 @@ class MemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = (
             'id', 'email', 'mobile_number', 'first_name', 'last_name', 'full_name',
-            'gender', 'date_of_birth', 'profile_created_by', 'is_email_verified',
+            'gender', 'date_of_birth', 'age', 'profile_created_by', 'is_email_verified',
             'is_mobile_verified', 'is_verified', 'is_fully_verified', 'is_active', 'is_premium',
             'profile_status', 'photo_status', 'document_status', 'last_login',
             'password_changed_at', 'created_at', 'updated_at', 'date_joined', 'account_type',
@@ -60,6 +61,12 @@ class MemberSerializer(serializers.ModelSerializer):
     def get_admin_role(self, obj):
         return None
 
+    def get_age(self, obj):
+        try:
+            return obj.profile.age
+        except ObjectDoesNotExist:
+            return None
+
     def get_admin_role_display(self, obj):
         return None
 
@@ -67,11 +74,9 @@ class MemberSerializer(serializers.ModelSerializer):
         return []
 
     def get_is_verified(self, obj):
-        # "Verified" means the member's identity contacts are confirmed: both
-        # email and mobile must be verified. This is the lightweight check used
-        # for badges and membership-unlock gating. The stricter, all-steps
-        # state lives in `is_fully_verified` / `are_verification_checks_passed`.
-        return bool(obj.is_email_verified and obj.is_mobile_verified)
+        # Email is ordinary account data; mobile verification is the contact
+        # check used for badges and membership-unlock gating.
+        return bool(obj.is_mobile_verified)
 
     def get_is_fully_verified(self, obj):
         return obj.are_verification_checks_passed
@@ -590,6 +595,12 @@ class PasswordChangeSerializer(serializers.Serializer):
 class ForgotPasswordSerializer(serializers.Serializer):
     identifier = serializers.CharField(max_length=254)
 
+    def validate_identifier(self, value):
+        normalized = validate_mobile_number(value)
+        if not normalized:
+            raise serializers.ValidationError('Enter your registered mobile number.')
+        return normalized
+
 
 def validate_new_password_field(value):
     try:
@@ -603,6 +614,12 @@ class ResetPasswordSerializer(serializers.Serializer):
     identifier = serializers.CharField(max_length=254)
     code = serializers.CharField(max_length=10)
     new_password = serializers.CharField(write_only=True, validators=[validate_new_password_field])
+
+    def validate_identifier(self, value):
+        normalized = validate_mobile_number(value)
+        if not normalized:
+            raise serializers.ValidationError('Enter your registered mobile number.')
+        return normalized
 
 
 class OtpRequestSerializer(serializers.Serializer):

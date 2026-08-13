@@ -1,59 +1,5 @@
-/**
- * Frontend request throttle utility
- * Prevents rapid-fire requests and respects backend Retry-After headers.
- * Production-ready for 10k+ users.
- */
-
-interface ThrottleEntry {
-  count: number;
-  resetAt: number;
-}
-
-const endpointThrottles = new Map<string, ThrottleEntry>();
-
-// Cooldown tracking for sensitive actions
+/** Client-side cooldown state for server-issued Retry-After responses. */
 const cooldowns = new Map<string, number>();
-
-/**
- * Check if an endpoint is currently throttled on the client side.
- * This prevents sending requests we know will be rejected.
- */
-export function isEndpointThrottled(endpoint: string): boolean {
-  const entry = endpointThrottles.get(endpoint);
-  if (!entry) return false;
-  if (Date.now() >= entry.resetAt) {
-    endpointThrottles.delete(endpoint);
-    return false;
-  }
-  return entry.count >= getMaxAttempts(endpoint);
-}
-
-/**
- * Record an attempt for an endpoint.
- */
-export function recordAttempt(endpoint: string): void {
-  const now = Date.now();
-  const entry = endpointThrottles.get(endpoint);
-  const windowMs = 60000; // 1 minute window
-
-  if (!entry || now >= entry.resetAt) {
-    endpointThrottles.set(endpoint, { count: 1, resetAt: now + windowMs });
-  } else {
-    entry.count += 1;
-  }
-}
-
-/**
- * Get max attempts allowed per window for an endpoint.
- */
-function getMaxAttempts(endpoint: string): number {
-  if (endpoint.includes('/login/')) return 5;
-  if (endpoint.includes('/otp/')) return 3;
-  if (endpoint.includes('/register/')) return 3;
-  if (endpoint.includes('/reset-password/')) return 3;
-  if (endpoint.includes('/contact-enquiry/')) return 5;
-  return 30; // general API calls
-}
 
 /**
  * Apply a cooldown to a specific action (e.g., OTP button).
@@ -142,6 +88,5 @@ export function throttle<T extends (...args: any[]) => any>(
  * Reset all throttles (useful for testing or logout).
  */
 export function resetAllThrottles(): void {
-  endpointThrottles.clear();
   cooldowns.clear();
 }

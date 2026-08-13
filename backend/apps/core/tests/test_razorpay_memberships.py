@@ -125,6 +125,51 @@ def test_payment_order_creation_success(mock_urlopen, authenticated_client, veri
     assert PaymentOrder.objects.filter(pk=data['internal_order_id']).exists()
 
 
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_plan_base_price_is_used_for_its_configured_duration_after_admin_edit(mock_urlopen, verified_member, plan):
+    """An optional duration price must not override an edited base plan price."""
+    plan.price = Decimal('1.00')
+    plan.duration_days = 90
+    plan.price_3m = Decimal('2999.00')  # stale optional value from before the edit
+    plan.save(update_fields=('price', 'duration_days', 'price_3m'))
+    mock_urlopen.return_value = _order_ctx('order_test_current_base_price')
+
+    order, missing = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=90,
+    )
+
+    assert missing == []
+    assert order.amount == Decimal('1.00')
+    assert order.amount_subunits == 100
+    assert order.duration_days_snapshot == 90
+    sent_payload = json.loads(mock_urlopen.call_args.args[0].data.decode('utf-8'))
+    assert sent_payload['amount'] == 100
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_alternative_duration_uses_its_configured_price(mock_urlopen, verified_member, plan):
+    plan.duration_days = 30
+    plan.price = Decimal('499.00')
+    plan.price_3m = Decimal('999.00')
+    plan.save(update_fields=('duration_days', 'price', 'price_3m'))
+    mock_urlopen.return_value = _order_ctx('order_test_alternative_duration')
+
+    order, missing = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=90,
+    )
+
+    assert missing == []
+    assert order.amount == Decimal('999.00')
+    assert order.amount_subunits == 99900
+    assert order.duration_days_snapshot == 90
+
+
 @patch.object(rz_module, 'urlopen')
 def test_unverified_member_order_forbidden(mock_urlopen, authenticated_client, member, plan):
     member.is_email_verified = False

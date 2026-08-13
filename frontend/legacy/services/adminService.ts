@@ -97,6 +97,7 @@ export type AdminUserAction =
   | 'unverify'
   | 'approve_profile'
   | 'reject_profile'
+  | 'changes_requested'
   | 'approve_photo'
   | 'reject_photo'
   | 'verify_document'

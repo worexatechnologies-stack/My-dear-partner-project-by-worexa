@@ -254,17 +254,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # the recipient might not have the conversation socket open, but their
         # global notifications socket must still receive a CHAT_MESSAGE event.
         try:
-            from apps.core.api_utils import create_notification
+            from apps.core.api_utils import notify_chat_message
 
-            create_notification(
-                partner,
-                type='CHAT_MESSAGE',
-                title=f'New message from {sender.get_full_name() or "Member"}',
-                body=text[:100],
-                link_url=f'/messages?user={sender.id}',
-                related_object=message,
-                priority='HIGH',
-            )
+            notify_chat_message(partner, sender, text, message)
         except Exception:
             # Never drop the chat message if realtime delivery is temporarily
             # unavailable, but do log the failure rather than hiding it.
@@ -293,6 +285,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return []
         ids = [str(message.id) for message in messages]
         ChatMessage.objects.filter(id__in=ids).update(is_read=True)
+        # Reading the chat also clears its aggregated CHAT_MESSAGE bell alerts.
+        from apps.core.models import Notification
+        from django.utils import timezone
+        Notification.objects.filter(
+            member_recipient=self.user,
+            notification_type='CHAT_MESSAGE',
+            link_url=f'/messages?user={self.partner_id}',
+            is_read=False,
+        ).update(is_read=True, read_at=timezone.now())
         return ids
 
     @staticmethod

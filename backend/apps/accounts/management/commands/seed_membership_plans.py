@@ -4,7 +4,14 @@ from apps.core.models import MembershipPlan, MembershipRequest, Payment
 
 
 class Command(BaseCommand):
-    help = 'Idempotently seeds the 4 membership plans (Free, Gold, Elite, Premium) and removes legacy plans.'
+    help = 'Creates missing default membership plans without overwriting Super Admin changes.'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset',
+            action='store_true',
+            help='Overwrite default plans and remove non-default plans. Use only for a deliberate reset.',
+        )
 
     def handle(self, *args, **options):
         plans_data = [
@@ -157,15 +164,28 @@ class Command(BaseCommand):
 
         for p_data in plans_data:
             slug = p_data.pop('slug')
-            plan, created = MembershipPlan.objects.update_or_create(
-                slug=slug,
-                defaults=p_data,
-            )
-            action = 'Created' if created else 'Updated'
+            if options['reset']:
+                plan, created = MembershipPlan.objects.update_or_create(
+                    slug=slug,
+                    defaults=p_data,
+                )
+            else:
+                # This command runs during every Docker migration startup.
+                # Existing plans belong to the Super Admin, so their price,
+                # duration and entitlements must never be reset by a deploy.
+                plan, created = MembershipPlan.objects.get_or_create(
+                    slug=slug,
+                    defaults=p_data,
+                )
+            action = 'Created' if created else ('Reset' if options['reset'] else 'Kept')
             self.stdout.write(self.style.SUCCESS(f'{action} membership plan: {plan.name}'))
+
+        if not options['reset']:
+            return
 
         # Remove any legacy plans (e.g. the old platinum tier) while preserving
         # member data: detach requests/payments before deleting the plan row.
+        # This is intentionally available only through the explicit reset mode.
         legacy_plans = MembershipPlan.objects.exclude(slug__in=keep_slugs)
         for plan in legacy_plans:
             MembershipRequest.objects.filter(selected_plan=plan).update(selected_plan=None)

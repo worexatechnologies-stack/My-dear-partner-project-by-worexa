@@ -300,16 +300,8 @@ class SendMessageView(APIView):
         # Persist and broadcast a notification for the HTTP fallback path.
         # Socket messages already publish this from the consumer, but users
         # temporarily using HTTP sync must receive the same live alert.
-        from apps.core.api_utils import create_notification
-        create_notification(
-            receiver,
-            type='CHAT_MESSAGE',
-            title=f'New message from {member.get_full_name() or "Member"}',
-            body=text[:100],
-            link_url=f'/messages?user={member.pk}',
-            related_object=message,
-            priority='HIGH',
-        )
+        from apps.core.api_utils import notify_chat_message
+        notify_chat_message(receiver, member, text, message)
         
         return ApiResponse(
             success=True,
@@ -354,6 +346,15 @@ class MarkMessagesReadView(APIView):
             receiver=member,
             is_read=False
         ).update(is_read=True)
+        # Reading the chat also clears its aggregated CHAT_MESSAGE bell alerts.
+        from apps.core.models import Notification
+        from django.utils import timezone
+        Notification.objects.filter(
+            member_recipient=member,
+            notification_type='CHAT_MESSAGE',
+            link_url=f'/messages?user={member_id}',
+            is_read=False,
+        ).update(is_read=True, read_at=timezone.now())
         
         return ApiResponse(
             success=True,

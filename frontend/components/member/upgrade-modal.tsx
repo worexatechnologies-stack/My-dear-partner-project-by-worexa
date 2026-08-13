@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { X, Check, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { X, Check, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useMembership } from './membership-provider';
 import { useGetMembershipPlansQuery, type MembershipPlan } from '@/legacy/services/membershipApi';
@@ -147,7 +147,7 @@ export default function UpgradeModal({ feature, onClose }: UpgradeModalProps) {
           {/* Upgrade Requirement Banner */}
           <div className="text-center bg-gradient-to-br from-amber-500/10 via-rose-500/5 to-purple-500/10 border border-amber-200/60 rounded-2xl p-4">
             <p className="text-xs font-bold text-amber-900 flex items-center justify-center gap-1.5 mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Premium Feature
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Premium Feature
             </p>
             <p className="text-xs text-slate-600">
               Available with <span className="font-extrabold text-rose-600">{requiredPlanName}</span> and higher plans

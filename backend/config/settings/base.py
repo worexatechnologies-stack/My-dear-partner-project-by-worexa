@@ -26,13 +26,8 @@ BACKEND_URL = config['BACKEND_URL']
 API_VERSION = config['API_VERSION']
 
 # Security features & Flags
-DEVELOPER_OTP = os.environ.get('DEVELOPER_OTP', '')
-SMS_PROVIDER = config.get('SMS_PROVIDER', 'renflair')
-OTP_PROVIDER = config.get('OTP_PROVIDER', 'renflair')
-RENFLAIR_API_KEY = config.get('RENFLAIR_API_KEY', 'f5c57423f18c7cfefa9bb4014acfe0f4')
-TWILIO_ACCOUNT_SID = config['TWILIO_ACCOUNT_SID']
-TWILIO_AUTH_TOKEN = config['TWILIO_AUTH_TOKEN']
-TWILIO_PHONE_NUMBER = config['TWILIO_PHONE_NUMBER']
+OTP_PROVIDER = 'renflair'
+RENFLAIR_API_KEY = config['RENFLAIR_API_KEY']
 
 PAYMENT_MODE = config['PAYMENT_MODE']
 MEMBERSHIP_ACTIVATION_MODE = config['MEMBERSHIP_ACTIVATION_MODE']
@@ -52,8 +47,12 @@ FREE_PROFILE_VIEW_LIMIT = int(os.environ.get('FREE_PROFILE_VIEW_LIMIT', 5))
 
 ALLOW_DEVELOPMENT_SEED = config['ENABLE_DEVELOPMENT_SEED']
 ALLOW_DESTRUCTIVE_DEV_RESET = os.environ.get('ALLOW_DESTRUCTIVE_DEV_RESET', 'False') == 'True' and (ENVIRONMENT == 'local')
-SUPER_ADMIN_2FA_REQUIRED = config['ENABLE_TWO_FACTOR']
 ENABLE_TWO_FACTOR = config['ENABLE_TWO_FACTOR']
+SUPERADMIN_EMAIL = config['SUPERADMIN_EMAIL']
+SUPERADMIN_PASSWORD = config['SUPERADMIN_PASSWORD']
+SUPERADMIN_MOBILE = config['SUPERADMIN_MOBILE']
+SUPERADMIN_FIRST_NAME = config['SUPERADMIN_FIRST_NAME']
+SUPERADMIN_LAST_NAME = config['SUPERADMIN_LAST_NAME']
 
 # Application definition
 INSTALLED_APPS = [
@@ -275,17 +274,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardizedPagination',
     'PAGE_SIZE': 10,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_THROTTLE_CLASSES': [],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': config.get('ANON_RATE_LIMIT', '100/day'),
-        # Keep the general authenticated API allowance configurable.  The
-        # previous hard-coded value ignored API_RATE_LIMIT from the runtime
-        # environment and could lock active members out for an entire day.
-        'user': config['API_RATE_LIMIT'],
-        'login': config['LOGIN_RATE_LIMIT'],
-        'reset-password': config['OTP_RATE_LIMIT'],
-        'contact-enquiry': '30/hour',
-    }
+# Normal APIs are intentionally not rate limited. Authentication-sensitive
+    # views opt into their own account/identifier-scoped throttles.
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {},
+    # Retained for DRF compatibility; endpoint throttles use the validated
+    # proxy-aware helper in apps.accounts.throttling.
+    'NUM_PROXIES': config['NUM_PROXIES'],
 }
 
 # JWT Settings
@@ -293,6 +288,11 @@ ACCESS_TOKEN_MINUTES = config['JWT_ACCESS_TOKEN_MINUTES']
 REFRESH_TOKEN_DAYS = config['JWT_REFRESH_TOKEN_DAYS']
 MAX_FAILED_LOGIN_ATTEMPTS = config['MAX_FAILED_LOGIN_ATTEMPTS']
 LOGIN_LOCKOUT_MINUTES = config['LOGIN_LOCKOUT_MINUTES']
+OTP_COOLDOWN_SECONDS = config['OTP_COOLDOWN_SECONDS']
+RESET_PASSWORD_MAX_ATTEMPTS = config['RESET_PASSWORD_MAX_ATTEMPTS']
+RESET_PASSWORD_WINDOW_SECONDS = config['RESET_PASSWORD_WINDOW_SECONDS']
+NUM_PROXIES = config['NUM_PROXIES']
+TRUSTED_PROXY_IPS = config['TRUSTED_PROXY_IPS']
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=ACCESS_TOKEN_MINUTES),
@@ -330,14 +330,5 @@ EMAIL_USE_SSL = config['EMAIL_USE_SSL']
 DEFAULT_FROM_EMAIL = config['DEFAULT_FROM_EMAIL']
 CONTACT_ENQUIRY_RECIPIENT = config['CONTACT_ENQUIRY_RECIPIENT']
 
-# Multi-channel Real-time OTP Gateway Configuration (SMS, WhatsApp, Email)
-OTP_PROVIDER = config['OTP_PROVIDER']  # 'MSG91', 'TWILIO', 'RENFLAIR', or 'MOCK'
-MSG91_AUTH_KEY = os.environ.get('MSG91_AUTH_KEY', '')
-MSG91_OTP_TEMPLATE_ID = os.environ.get('MSG91_OTP_TEMPLATE_ID', '')
-MSG91_WHATSAPP_NUMBER = os.environ.get('MSG91_WHATSAPP_NUMBER', '')
-MSG91_WHATSAPP_TEMPLATE_NAME = os.environ.get('MSG91_WHATSAPP_TEMPLATE_NAME', 'otp_verification')
-
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
-TWILIO_WHATSAPP_NUMBER = os.environ.get('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')
+# Mobile OTP gateway: Renflair only. Email reset codes use the SMTP settings
+# above and are not part of the mobile provider selection.

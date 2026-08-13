@@ -1,7 +1,6 @@
 from .base import *
 
 DEBUG = True
-DEVELOPER_OTP = '123456'
 
 # The integration suite exercises the real API routing surface.  Production
 # may intentionally pause the back-office portal, but doing so in tests turns
@@ -35,19 +34,14 @@ CACHES = {
     },
 }
 
-# Disable rate limiting for tests
+# Disable only DRF's general API throttling in tests; endpoint security
+# throttles remain active and are covered by the authentication tests.
 REST_FRAMEWORK = {
     **REST_FRAMEWORK,
     'DEFAULT_THROTTLE_CLASSES': [],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': None,
-        'user': None,
-        'login': None,
-        'reset-password': None,
-    }
+    'DEFAULT_THROTTLE_RATES': {},
 }
 
-SMS_OTP_SENDER = 'apps.accounts.services.dummy_sms_sender'
 TESTING = True
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True

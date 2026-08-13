@@ -23,7 +23,6 @@ from apps.core.responses import ApiResponse, ApiErrorResponse
 from apps.core.membership_activation_service import MembershipActivationService
 from apps.core.services.membership_service import MembershipService
 from django.db import transaction
-from rest_framework.throttling import UserRateThrottle
 import uuid
 from apps.core.models import MemberMembership, MembershipPlan, PaymentOrder, PaymentTransaction, RefundRequest, RefundTransaction, MembershipPurchase, RazorpayWebhookEvent
 from apps.core.services.razorpay_memberships import (
@@ -288,7 +287,6 @@ class MembershipDeactivateView(APIView):
 
 class PaymentOrderCreateView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_classes = (UserRateThrottle,)
 
     def post(self, request):
         missing = missing_verification_checks(request.user)
@@ -409,7 +407,6 @@ class PaymentOrderCreateView(APIView):
 
 class PaymentVerifyView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_classes = (UserRateThrottle,)
 
     def post(self, request):
         internal_order_id = request.data.get('internal_order_id')
@@ -492,7 +489,6 @@ class PaymentVerifyView(APIView):
 
 class PaymentOrderStatusView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
-    throttle_classes = (UserRateThrottle,)
 
     def get(self, request, id):
         order = get_object_or_404(PaymentOrder, pk=id)
@@ -529,7 +525,6 @@ class PaymentOrderStatusView(APIView):
 
 class PaymentHistoryView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_classes = (UserRateThrottle,)
 
     def get(self, request):
         purchases = MembershipPurchase.objects.filter(user=request.user).select_related('membership_plan', 'payment_transaction').order_by('-created_at')
@@ -582,7 +577,6 @@ class PaymentHistoryView(APIView):
 
 class PaymentReceiptView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
-    throttle_classes = (UserRateThrottle,)
 
     def get(self, request, id):
         order = get_object_or_404(PaymentOrder, pk=id)
@@ -625,7 +619,6 @@ class PaymentReceiptView(APIView):
 
 class PaymentRefundRequestView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    throttle_classes = (UserRateThrottle,)
 
     def post(self, request, id):
         order = get_object_or_404(PaymentOrder, pk=id)
@@ -685,7 +678,6 @@ class PaymentRefundRequestView(APIView):
 
 class PaymentRefundStatusView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
-    throttle_classes = (UserRateThrottle,)
 
     def get(self, request, id):
         refund = get_object_or_404(RefundRequest, pk=id)
@@ -721,7 +713,9 @@ class RazorpayWebhookView(APIView):
 
         # 1. Verify webhook signature using raw body bytes (untouched raw request body).
         # Signature verification is mandatory in BOTH test and live modes — never skipped.
-        webhook_secret = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '') or getattr(settings, 'RAZORPAY_KEY_SECRET', '')
+        # Webhooks require their own Razorpay Dashboard signing secret. Do not
+        # fall back to the API key secret, which would reuse a sensitive credential.
+        webhook_secret = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '')
         if not webhook_secret:
             return ApiErrorResponse(
                 code='WEBHOOK_SECRET_NOT_CONFIGURED',

@@ -1,15 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { publicEnv } from '@/config/public-env';
+import { getClientWebSocketBaseUrl } from '@/config/env';
 import { clearClientAuthState, getFreshAccessToken } from '@/legacy/services/apiClient';
 
 type SocketState = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
-
-function websocketOrigin(baseUrl: string) {
-  return baseUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:').replace(/\/$/, '');
-}
 
 export function useChatSocket({ partnerId, enabled, onMessage, onClose }: {
   partnerId?: string | null;
@@ -59,7 +54,7 @@ export function useChatSocket({ partnerId, enabled, onMessage, onClose }: {
         const accessToken = await getFreshAccessToken();
         if (disposed) return;
 
-        const url = `${websocketOrigin(publicEnv.wsBaseUrl)}/ws/chat/${encodeURIComponent(partnerId)}/?token=${encodeURIComponent(accessToken)}`;
+        const url = `${getClientWebSocketBaseUrl()}/ws/chat/${encodeURIComponent(partnerId)}/?token=${encodeURIComponent(accessToken)}`;
         socket = new WebSocket(url);
         socketRef.current = socket;
 

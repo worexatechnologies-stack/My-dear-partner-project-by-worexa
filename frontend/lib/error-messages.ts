@@ -24,7 +24,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   WRONG_PORTAL: 'Please use the correct login page for your account.',
   OTP_EXPIRED: 'The verification code has expired. Request a new code.',
   OTP_INCORRECT: 'The verification code is incorrect.',
-  OTP_RATE_LIMITED: 'Too many attempts. Please wait before trying again.',
+  OTP_RATE_LIMITED: 'Please wait 2 minutes before requesting another OTP.',
 
   // Validation
   VALIDATION_ERROR: 'Some information is missing or incorrect. Please check your entries and try again.',
@@ -161,6 +161,12 @@ export function statusMessage(status: number, retryAfter?: number): string {
       return 'This action cannot be completed because the information has already changed.';
     case 413:
       return 'The file you uploaded is too large. Please try a smaller one.';
+    case 419:
+      return 'Please login again to continue.';
+    case 423:
+      return retryAfter
+        ? `Too many failed login attempts. Please try again after ${retryAfter} seconds.`
+        : 'Too many failed login attempts. Please try again after 2 minutes.';
     case 429:
       return retryAfter
         ? `Too many attempts. Please wait ${retryAfter} seconds and try again.`

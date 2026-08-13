@@ -147,10 +147,19 @@ export default function NotificationsPage() {
     }
   };
 
-  const clearAll = () => {
-    const timestamp = Date.now();
-    window.localStorage.setItem(visibilityStorageKey, String(timestamp));
-    setClearBefore(timestamp);
+  const clearAll = async () => {
+    try {
+      // Clear must be persisted. Local-only hiding made the bell count and
+      // chat alerts reappear after a refresh.
+      await supportService.markAllNotificationsRead();
+      const timestamp = Date.now();
+      window.localStorage.setItem(visibilityStorageKey, String(timestamp));
+      setClearBefore(timestamp);
+      setRows((items) => items.map((item) => ({ ...item, is_read: true })));
+      window.dispatchEvent(new Event('notifications:read-changed'));
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+    }
   };
 
   // Helper to resolve icon configuration based on notification properties
@@ -290,7 +299,7 @@ export default function NotificationsPage() {
             </button>
             <button
               type="button"
-              onClick={clearAll}
+              onClick={() => void clearAll()}
               disabled={loading || clearBefore === null || visibleRows.length === 0}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
             >

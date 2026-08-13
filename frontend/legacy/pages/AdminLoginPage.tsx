@@ -30,7 +30,6 @@ export default function AdminLoginPage({
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
-  const [developerOtp, setDeveloperOtp] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [mismatchInfo, setMismatchInfo] = useState<{ portal: string; url: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -55,13 +54,12 @@ export default function AdminLoginPage({
     setMismatchInfo(null);
     setSubmitting(true);
     try {
-      await login(email, password, accountType, needsTwoFactor ? otp : undefined);
+      await login(email, password, accountType, accountType === 'ADMIN' && needsTwoFactor ? otp : undefined);
       document.cookie = `mdp_portal=${accountType}; path=/; max-age=31536000; SameSite=Lax`;
       window.location.replace(destination);
     } catch (caught) {
-      if (caught instanceof TwoFactorRequiredError) {
+      if (caught instanceof TwoFactorRequiredError && accountType === 'ADMIN') {
         setNeedsTwoFactor(true);
-        setDeveloperOtp(caught.developerOtp);
         setError('Verification code sent. Enter the code to authenticate.');
       } else {
         const isMismatch = caught && typeof caught === 'object' && 'data' in caught && (caught as any).data?.code === 'ACCOUNT_PORTAL_MISMATCH';
@@ -120,10 +118,12 @@ export default function AdminLoginPage({
           </div>
 
           <div className="relative z-10 space-y-3 pt-6 border-t border-white/10">
-            <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
-              <LockKeyhole className="w-4.5 h-4.5 text-indigo-400" />
-              <span>Multi-Factor Authentication &amp; 2FA Protection</span>
-            </div>
+            {accountType === 'ADMIN' && (
+              <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
+                <LockKeyhole className="w-4.5 h-4.5 text-indigo-400" />
+                <span>Multi-Factor Authentication &amp; 2FA Protection</span>
+              </div>
+            )}
             <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
               <Lock className="w-4.5 h-4.5 text-indigo-400" />
               <span>Session Log Auditing &amp; Permission Checking Active</span>
@@ -182,17 +182,12 @@ export default function AdminLoginPage({
                 />
               </div>
 
-              {needsTwoFactor && (
+              {accountType === 'ADMIN' && needsTwoFactor && (
                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 space-y-3">
                   <div className="flex justify-between items-center">
                     <label className="block text-[10px] font-bold text-indigo-700 uppercase tracking-wider" htmlFor="super-admin-otp">
                       Two-factor code (MFA)
                     </label>
-                    {process.env.NODE_ENV === 'development' && developerOtp && (
-                      <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded">
-                        Dev OTP: {developerOtp}
-                      </span>
-                    )}
                   </div>
                   <input
                     id="super-admin-otp"
@@ -231,7 +226,7 @@ export default function AdminLoginPage({
 
               <button
                 type="submit"
-                disabled={submitting || (needsTwoFactor && otp.length !== 6)}
+                disabled={submitting || (accountType === 'ADMIN' && needsTwoFactor && otp.length !== 6)}
                 className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-indigo-700 to-purple-800 hover:from-indigo-800 hover:to-purple-950 text-white font-bold rounded-xl text-sm transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-950/15 hover:shadow-indigo-950/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Authenticating gateway...' : 'Open dashboard'}
