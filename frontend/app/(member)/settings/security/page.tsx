@@ -49,7 +49,11 @@ export default function SecurityPage() {
     try {
       await fetchApi('/member-auth/change-password/', {
         method: 'POST',
-        body: JSON.stringify(passwords),
+        body: JSON.stringify({
+          old_password: passwords.current_password,
+          new_password: passwords.new_password,
+          confirm_password: passwords.confirm_password,
+        }),
       });
       setNotice({ text: 'Password changed successfully.' });
       setPasswords({ current_password: '', new_password: '', confirm_password: '' });
