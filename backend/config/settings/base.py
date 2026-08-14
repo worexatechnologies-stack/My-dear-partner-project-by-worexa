@@ -275,12 +275,12 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 # Normal APIs are intentionally not rate limited. Authentication-sensitive
-    # views opt into their own account/identifier-scoped throttles.
-    'DEFAULT_THROTTLE_CLASSES': [],
-    'DEFAULT_THROTTLE_RATES': {},
-    # Retained for DRF compatibility; endpoint throttles use the validated
-    # proxy-aware helper in apps.accounts.throttling.
-    'NUM_PROXIES': config['NUM_PROXIES'],
+    # views opt into their own account/identifier-scoped throttles.
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {},
+    # Retained for DRF compatibility; endpoint throttles use the validated
+    # proxy-aware helper in apps.accounts.throttling.
+    'NUM_PROXIES': config['NUM_PROXIES'],
 }
 
 # JWT Settings
