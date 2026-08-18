@@ -11,6 +11,7 @@ from rest_framework import permissions, status
 from rest_framework.views import APIView
 
 from apps.accounts.presence import get_bulk_status, get_last_seen_map
+from apps.accounts.presence_access import authorized_presence_member_ids
 from apps.core.responses import ApiResponse
 
 
@@ -41,13 +42,14 @@ class PresenceBulkView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Bound the request to avoid abuse.
-        user_ids = [str(uid) for uid in raw_ids[:200] if uid]
+        # The caller can only ask about accepted, unblocked matches. Returning
+        # an empty map for all other IDs avoids turning presence into a member
+        # enumeration endpoint.
+        user_ids = authorized_presence_member_ids(request.user, raw_ids)
         if not user_ids:
             return ApiResponse(
-                success=False,
-                message="No valid user_ids provided.",
-                status=status.HTTP_400_BAD_REQUEST,
+                data={"last_seen_at": {}},
+                status=status.HTTP_200_OK,
             )
 
         status_map = get_bulk_status(user_ids)

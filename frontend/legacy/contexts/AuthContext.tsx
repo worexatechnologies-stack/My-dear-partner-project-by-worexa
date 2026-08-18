@@ -77,6 +77,7 @@ interface AuthContextType {
   registerMember: (input: MemberRegistrationInput) => Promise<UserType>;
   requestOtp: (identifier: string, purpose?: string) => Promise<{ expires_in: number }>;
   loginWithOtp: (identifier: string, otp: string) => Promise<void>;
+  recoverAccount: (recoveryTicket: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   updateUser: (updatedUser: Partial<UserType>) => void;
@@ -323,6 +324,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const recoverAccount = async (recoveryTicket: string) => {
+    setLoading(true);
+    const version = startNewSession();
+    try {
+      await fetchApi('/member-auth/account/recovery/verify/', {
+        method: 'POST',
+        body: JSON.stringify({ recovery_ticket: recoveryTicket }),
+        skipAuthRefresh: true,
+      });
+      await commitSession('MEMBER', version);
+    } catch (error) {
+      if (mountedRef.current) clearSessionLocal();
+      throw error;
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
   const logout = async () => {
     const type = accountType || getStoredAccountType();
     try {
@@ -362,7 +381,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return <AuthContext.Provider value={{
     isAuthenticated, user, accountType, loading, login, registerMember, requestOtp,
-    loginWithOtp, logout, logoutAll, updateUser, hasAdminPermission, hasAnyAdminPermission,
+    loginWithOtp, recoverAccount, logout, logoutAll, updateUser, hasAdminPermission, hasAnyAdminPermission,
   }}>{children}</AuthContext.Provider>;
 }
 

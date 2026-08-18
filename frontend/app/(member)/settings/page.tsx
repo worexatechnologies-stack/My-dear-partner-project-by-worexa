@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell, ChevronRight, CreditCard, Shield, UserRound } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Bell, ChevronRight, CreditCard, Shield, Trash2, UserRound } from 'lucide-react';
+import { useAuth } from '@/legacy/contexts/AuthContext';
+import { ApiError, fetchApi } from '@/legacy/services/apiClient';
 
 const options = [
   { href: '/profile/edit', title: 'Profile details', text: 'Update your personal details, photos, preferences, and verification.', icon: UserRound, tone: 'bg-rose-50 text-rose-700' },
@@ -11,6 +14,25 @@ const options = [
 ];
 
 export default function SettingsPage() {
+  const { logout } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const deleteAccount = async () => {
+    if (!window.confirm('Delete your account? Your profile will be hidden immediately, and you can recover it within 30 days.')) return;
+    if (!window.confirm('This will sign you out on every device. Continue?')) return;
+    setBusy(true);
+    setError('');
+    try {
+      await fetchApi('/member-auth/account/delete/', { method: 'DELETE' });
+      await logout();
+      window.location.assign('/login');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'We could not schedule account deletion. Please try again.');
+      setBusy(false);
+    }
+  };
+
   return <div className="space-y-6">
     <section className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#2b101d] via-[#743047] to-[#8e3d58] p-6 text-white shadow-[0_18px_45px_rgba(43,16,29,.16)] sm:p-8">
       <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#f1d18f]/15 blur-3xl" />
@@ -18,6 +40,19 @@ export default function SettingsPage() {
     </section>
     <section className="grid gap-4 sm:grid-cols-2">
       {options.map(({ href, title, text, icon: Icon, tone }) => <Link key={href} href={href} className="group rounded-3xl border border-[#eadfd8] bg-white p-5 shadow-[0_10px_30px_rgba(43,16,29,.05)] transition hover:-translate-y-0.5 hover:border-[#dcaebb] hover:shadow-[0_16px_36px_rgba(43,16,29,.10)]"><div className="flex items-start justify-between gap-4"><span className={`grid h-11 w-11 place-items-center rounded-2xl ${tone}`}><Icon className="h-5 w-5" /></span><ChevronRight className="h-5 w-5 text-slate-300 transition group-hover:translate-x-1 group-hover:text-[#8e3d58]" /></div><h2 className="mt-5 font-extrabold text-[#24151c]">{title}</h2><p className="mt-2 text-sm leading-relaxed text-[#77656d]">{text}</p></Link>)}
+    </section>
+    <section className="rounded-3xl border border-red-200 bg-white p-5 shadow-[0_10px_30px_rgba(43,16,29,.04)] sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600"><Trash2 className="h-5 w-5" /></span>
+        <div>
+          <h2 className="font-extrabold text-[#24151c]">Delete account</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#77656d]">Your profile will disappear immediately. Within 30 days, sign in with your password and select Recover account to restore it; after that, it is permanently deleted.</p>
+          {error && <p role="alert" className="mt-3 flex items-center gap-2 text-sm font-semibold text-red-700"><AlertTriangle className="h-4 w-4" />{error}</p>}
+          <button type="button" onClick={() => void deleteAccount()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60">
+            <Trash2 className="h-4 w-4" />{busy ? 'Scheduling deletion...' : 'Delete account'}
+          </button>
+        </div>
+      </div>
     </section>
   </div>;
 }

@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Member, MemberProfile
 from apps.accounts.security import issue_account_tokens
-from apps.core.models import Interest
+from apps.core.models import Interest, MatchClosure
 from apps.memberships.models import MembershipSubscription
 
 
@@ -166,6 +166,101 @@ def test_shortlist_toggle_and_mutual_interest():
     assert reciprocal.data["id"] == first.data["id"]
     assert reciprocal.data["status"] == Interest.Status.ACCEPTED
     assert Interest.objects.count() == 1
+
+
+def test_interest_sender_can_withdraw_and_resend():
+    sender = make_member("withdraw-sender@example.com", "9001112240")
+    receiver = make_member("withdraw-receiver@example.com", "9001112241", first_name="Receiver")
+    sender_client = client_for(sender)
+    receiver_client = client_for(receiver)
+
+    sent = sender_client.post("/interests/", {"receiver_id": str(receiver.pk)}, format="json")
+    assert sent.status_code == 201, sent.data
+    interest_id = sent.data["id"]
+
+    unauthorized = receiver_client.delete(f"/interests/{interest_id}/")
+    assert unauthorized.status_code == 404
+
+    withdrawn = sender_client.delete(f"/interests/{interest_id}/")
+    assert withdrawn.status_code == 200, withdrawn.data
+    assert withdrawn.data["status"] == Interest.Status.WITHDRAWN
+
+    interest = Interest.objects.get(pk=interest_id)
+    assert interest.status == Interest.Status.WITHDRAWN
+    assert sender_client.get("/interests/?type=outgoing").data == []
+    assert receiver_client.get("/interests/?type=incoming").data == []
+
+    resent = sender_client.post("/interests/", {"receiver_id": str(receiver.pk)}, format="json")
+    assert resent.status_code == 200, resent.data
+    assert resent.data["status"] == Interest.Status.PENDING
+    assert Interest.objects.filter(sender=sender, receiver=receiver).count() == 1
+
+
+def test_contract_sender_can_remove_an_accepted_match():
+    sender = make_member("remove-match-sender@example.com", "9001112244")
+    receiver = make_member("remove-match-receiver@example.com", "9001112245")
+    sender_client = client_for(sender)
+    receiver_client = client_for(receiver)
+    interest = Interest.objects.create(
+        sender=sender,
+        receiver=receiver,
+        status=Interest.Status.ACCEPTED,
+    )
+
+    unauthorized = receiver_client.delete(f"/interests/{interest.pk}/")
+    assert unauthorized.status_code == 404
+
+    removed = sender_client.delete(f"/interests/{interest.pk}/")
+    assert removed.status_code == 200, removed.data
+    assert removed.data["status"] == Interest.Status.WITHDRAWN
+    assert MatchClosure.objects.filter(interest=interest, closed_by=sender).exists()
+
+
+def test_contract_receiver_can_remove_and_reopen_an_accepted_match():
+    sender = make_member("contract-reopen-sender@example.com", "9001112246")
+    receiver = make_member("contract-reopen-receiver@example.com", "9001112247")
+    receiver_client = client_for(receiver)
+    interest = Interest.objects.create(
+        sender=sender,
+        receiver=receiver,
+        status=Interest.Status.ACCEPTED,
+    )
+
+    removed = receiver_client.patch(
+        f"/interests/{interest.pk}/",
+        {"status": Interest.Status.DECLINED},
+        format="json",
+    )
+    assert removed.status_code == 200, removed.data
+    assert removed.data["status"] == Interest.Status.DECLINED
+    assert MatchClosure.objects.filter(interest=interest, closed_by=receiver).exists()
+
+    reopened = receiver_client.patch(
+        f"/interests/{interest.pk}/",
+        {"status": Interest.Status.ACCEPTED},
+        format="json",
+    )
+    assert reopened.status_code == 200, reopened.data
+    assert reopened.data["status"] == Interest.Status.ACCEPTED
+    assert not MatchClosure.objects.filter(interest=interest).exists()
+
+
+def test_versioned_interest_withdrawal_is_sender_only():
+    sender = make_member("versioned-withdraw-sender@example.com", "9001112242")
+    receiver = make_member("versioned-withdraw-receiver@example.com", "9001112243")
+    sender_client = client_for(sender)
+    receiver_client = client_for(receiver)
+    interest = Interest.objects.create(sender=sender, receiver=receiver)
+
+    unauthorized = receiver_client.delete(f"/api/v1/interests/{interest.pk}/")
+    assert unauthorized.status_code == 404
+
+    withdrawn = sender_client.delete(f"/api/v1/interests/{interest.pk}/")
+    assert withdrawn.status_code == 200, withdrawn.data
+    assert withdrawn.data["data"]["status"] == Interest.Status.WITHDRAWN
+
+    repeated = sender_client.delete(f"/api/v1/interests/{interest.pk}/")
+    assert repeated.status_code == 409
 
 
 @patch("apps.accounts.permissions.IsVerifiedMember.has_permission", return_value=True)

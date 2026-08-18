@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import permissions, status, serializers
+from rest_framework.pagination import CursorPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -40,6 +41,7 @@ from .models import (
     ProfileReport,
     ProfileVerificationAssignment,
     ProfileViewLog,
+    ProfileBlock,
     SupportCategory,
     SupportTicket,
     SupportTicketAttachment,
@@ -48,6 +50,7 @@ from .models import (
     TicketStatusHistory,
 )
 from .responses import ApiResponse
+from .services.match_closure_service import MatchClosureService
 from .serializers import (
     ChatMessageSerializer,
     ContactEnquirySerializer,
@@ -65,6 +68,14 @@ from .serializers import (
     TicketReplyInputSerializer,
     MemberComplaintSerializer,
     MemberProfileReportSerializer,
+)
+from .message_service import (
+    conversation_contains_member,
+    create_message,
+    get_or_create_conversation,
+    hide_message_for_user,
+    serialize_message,
+    visible_messages_for_user,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,7 +343,11 @@ class InterestListCreateView(APIView):
         queryset = Interest.objects.select_related(
             'sender', 'receiver', 'sender__profile', 'receiver__profile'
         )
-        queryset = queryset.filter(sender=request.user) if direction == 'outgoing' else queryset.filter(receiver=request.user)
+        queryset = (
+            queryset.filter(sender=request.user)
+            if direction == 'outgoing'
+            else queryset.filter(receiver=request.user)
+        ).exclude(status=Interest.Status.WITHDRAWN)
         return ApiResponse(data=InterestSerializer(queryset, many=True, context={'request': request}).data)
 
     @transaction.atomic
@@ -361,8 +376,26 @@ class InterestListCreateView(APIView):
 
         if receiver.pk == request.user.pk:
             return bad_request('You cannot send an interest to yourself.')
-        interest, created = Interest.objects.get_or_create(sender=request.user, receiver=receiver)
+        interest, created = Interest.objects.select_for_update().get_or_create(
+            sender=request.user,
+            receiver=receiver,
+        )
         if not created:
+            if interest.status == Interest.Status.WITHDRAWN:
+                interest.status = Interest.Status.PENDING
+                interest.save(update_fields=('status', 'updated_at'))
+                notify(
+                    receiver,
+                    notification_type='INTEREST_RECEIVED',
+                    title='New interest received',
+                    message=f'{request.user.get_full_name()} sent you an interest.',
+                    link_url=f'/profile/{request.user.pk}',
+                    related_object=interest,
+                )
+                return ApiResponse(
+                    data=InterestSerializer(interest, context={'request': request}).data,
+                    message='Interest sent.',
+                )
             return ApiResponse(
                 success=False,
                 message='An interest already exists for this member.',
@@ -385,30 +418,105 @@ class InterestListCreateView(APIView):
 class InterestDetailView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
+    @transaction.atomic
     def patch(self, request, pk):
-        interest = get_object_or_404(Interest, pk=pk, receiver=request.user)
+        interest = get_object_or_404(
+            Interest.objects.select_for_update(),
+            pk=pk,
+            receiver=request.user,
+        )
         new_status = request.data.get('status')
         if new_status not in {Interest.Status.ACCEPTED, Interest.Status.DECLINED}:
             return bad_request('Status must be ACCEPTED or DECLINED.')
+        allowed_current_statuses = (
+            {Interest.Status.PENDING, Interest.Status.DECLINED}
+            if new_status == Interest.Status.ACCEPTED
+            else {Interest.Status.PENDING, Interest.Status.ACCEPTED}
+        )
+        if interest.status not in allowed_current_statuses:
+            return ApiResponse(
+                success=False,
+                message='This interest can no longer be updated.',
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        closes_match = (
+            interest.status == Interest.Status.ACCEPTED
+            and new_status == Interest.Status.DECLINED
+        )
         interest.status = new_status
         interest.save(update_fields=('status', 'updated_at'))
-        notify(
-            interest.sender,
-            notification_type='INTEREST_UPDATED',
-            title='Interest updated',
-            message=f'{request.user.get_full_name()} {new_status.lower()} your interest.',
-            link_url=f'/profile/{request.user.pk}',
-            related_object=interest,
-        )
+        if new_status == Interest.Status.ACCEPTED:
+            MatchClosureService.reopen_match(interest.sender, interest.receiver)
+        elif closes_match:
+            MatchClosureService.close_match(interest, request.user)
+            transaction.on_commit(
+                lambda: notify(
+                    interest.sender,
+                    notification_type='MATCH_REMOVED',
+                    title='Match removed',
+                    message='This match is no longer active.',
+                    link_url='/interests/',
+                    related_object=interest,
+                )
+            )
+        else:
+            notify(
+                interest.sender,
+                notification_type='INTEREST_UPDATED',
+                title='Interest updated',
+                message=f'{request.user.get_full_name()} {new_status.lower()} your interest.',
+                link_url=f'/profile/{request.user.pk}',
+                related_object=interest,
+            )
         return ApiResponse(data=InterestSerializer(interest, context={'request': request}).data)
+
+    @transaction.atomic
+    def delete(self, request, pk):
+        """Withdraw a pending interest without deleting the audit record."""
+        interest = get_object_or_404(
+            Interest.objects.select_for_update(),
+            pk=pk,
+            sender=request.user,
+        )
+        if interest.status not in {Interest.Status.PENDING, Interest.Status.ACCEPTED}:
+            return ApiResponse(
+                success=False,
+                message='Only a pending interest or accepted match can be withdrawn.',
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        closes_match = interest.status == Interest.Status.ACCEPTED
+        interest.status = Interest.Status.WITHDRAWN
+        interest.save(update_fields=('status', 'updated_at'))
+        if closes_match:
+            MatchClosureService.close_match(interest, request.user)
+            transaction.on_commit(
+                lambda: notify(
+                    interest.receiver,
+                    notification_type='MATCH_REMOVED',
+                    title='Match removed',
+                    message='This match is no longer active.',
+                    link_url='/interests/',
+                    related_object=interest,
+                )
+            )
+        return ApiResponse(
+            data=InterestSerializer(interest, context={'request': request}).data,
+            message='Match removed.' if closes_match else 'Interest withdrawn.',
+        )
 
 
 class ConversationListView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def get(self, request):
+        closed_partner_ids = MatchClosureService.closed_partner_ids(request.user)
+        blocked_partner_ids = set(ProfileBlock.objects.filter(blocker=request.user).values_list('blocked_id', flat=True))
+        blocked_partner_ids.update(ProfileBlock.objects.filter(blocked=request.user).values_list('blocker_id', flat=True))
         messages = (
             ChatMessage.objects.filter(Q(sender=request.user) | Q(receiver=request.user))
+            .exclude(user_visibility__user_id_snapshot=request.user.pk, user_visibility__hidden=True)
             .select_related('sender', 'receiver')
             .order_by('-created_at')
         )
@@ -416,21 +524,145 @@ class ConversationListView(APIView):
         conversations = []
         for message in messages:
             other = message.receiver if message.sender_id == request.user.pk else message.sender
+            if other is None:
+                continue
+            if other.pk in closed_partner_ids or other.pk in blocked_partner_ids:
+                continue
             if other.pk in seen:
                 continue
             seen.add(other.pk)
             unread = ChatMessage.objects.filter(sender=other, receiver=request.user, is_read=False).count()
+            wire_message = serialize_message(message, viewer=request.user)
             conversations.append({
                 # ``id`` is retained for the existing chat UI; ``partner_id``
                 # is the explicit contract for new clients.
                 'id': str(other.pk),
                 'partner_id': str(other.pk),
                 'profile': MemberPublicSerializer(other, context={'request': request}).data,
-                'lastMessage': message.text,
+                'lastMessage': wire_message['text'] if wire_message else '',
                 'time': message.created_at,
                 'unread': unread,
             })
+
+        # An accepted interest is a real mutual match even before either
+        # member sends the first message. Include it so it can be found in the
+        # Messages screen and either member can start the conversation.
+        accepted_interests = (
+            Interest.objects.filter(
+                Q(sender=request.user) | Q(receiver=request.user),
+                status=Interest.Status.ACCEPTED,
+            )
+            .select_related('sender', 'receiver')
+            .order_by('-updated_at')
+        )
+        for interest in accepted_interests:
+            other = interest.receiver if interest.sender_id == request.user.pk else interest.sender
+            if (
+                other.pk in seen
+                or other.pk in closed_partner_ids
+                or other.pk in blocked_partner_ids
+                or not other.is_active
+                or other.deleted_at is not None
+                or other.account_status != Member.AccountStatus.ACTIVE
+                or other.is_hidden
+                or (
+                    getattr(settings, 'REQUIRE_MEMBER_VERIFICATION', False)
+                    and other.profile_status != Member.ProfileStatus.APPROVED
+                )
+            ):
+                continue
+            seen.add(other.pk)
+            conversations.append({
+                'id': str(other.pk),
+                'partner_id': str(other.pk),
+                'profile': MemberPublicSerializer(other, context={'request': request}).data,
+                'lastMessage': '',
+                'time': interest.updated_at,
+                'unread': 0,
+            })
+
+        conversations.sort(key=lambda conversation: conversation['time'], reverse=True)
         return ApiResponse(data=conversations)
+
+
+def _mark_partner_messages_read(reader, partner):
+    unread_ids = list(
+        ChatMessage.objects.filter(
+            sender=partner,
+            receiver=reader,
+            is_read=False,
+        ).values_list('pk', flat=True)
+    )
+    if unread_ids:
+        ChatMessage.objects.filter(pk__in=unread_ids).update(is_read=True)
+
+    # Clear the matching chat alerts even when an earlier request already
+    # marked the messages read but did not finish updating notifications.
+    Notification.objects.filter(
+        member_recipient=reader,
+        notification_type='CHAT_MESSAGE',
+        link_url=f'/messages?user={partner.pk}',
+        is_read=False,
+    ).update(is_read=True, read_at=timezone.now())
+    return [str(message_id) for message_id in unread_ids]
+
+
+def _broadcast_chat_read_receipt(*, reader, partner, message_ids):
+    if not message_ids:
+        return
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        room_ids = sorted((str(reader.pk), str(partner.pk)))
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room_ids[0]}_{room_ids[1]}',
+            {
+                'type': 'chat.read_receipt',
+                'message_ids': message_ids,
+                'reader_id': str(reader.pk),
+            },
+        )
+    except Exception:
+        logger.exception('Unable to broadcast chat read receipt for reader=%s', reader.pk)
+
+
+def _broadcast_chat_message(*, sender, recipient, message):
+    """Keep the HTTP fallback in sync with the WebSocket send path."""
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+
+        payload = serialize_message(message, viewer=sender)
+        if not payload:
+            return
+        for field in ('created_at', 'updated_at', 'deleted_at'):
+            value = payload.get(field)
+            if value is not None and hasattr(value, 'isoformat'):
+                payload[field] = value.isoformat()
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        room_ids = sorted((str(sender.pk), str(recipient.pk)))
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room_ids[0]}_{room_ids[1]}',
+            {'type': 'chat.message', 'message': payload},
+        )
+    except Exception:
+        logger.exception('Unable to broadcast HTTP chat message=%s', message.pk)
+
+
+class MessageHistoryCursorPagination(CursorPagination):
+    """Load recent chat history first without offset scans on long threads."""
+
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+    ordering = '-created_at'
 
 
 class MessageHistoryView(APIView):
@@ -468,6 +700,8 @@ class MessageHistoryView(APIView):
                 message = "Messaging is not included in your Free membership."
             elif code == "messaging_requires_mutual_interest":
                 message = "Messaging is only available after mutual interest acceptance."
+            elif code == "match_removed":
+                message = "This match has been removed."
             elif code == "messaging_blocked":
                 message = "Messaging is not available."
             elif code == "target_ineligible":
@@ -499,20 +733,28 @@ class MessageHistoryView(APIView):
         block = self._check_messaging(request, partner)
         if block:
             return block
+        conversation = get_or_create_conversation(request.user, partner)
         queryset = ChatMessage.objects.filter(
-            Q(sender=request.user, receiver=partner) | Q(sender=partner, receiver=request.user)
-        )
-        queryset.filter(sender=partner, receiver=request.user, is_read=False).update(is_read=True)
-        # Reading the chat also clears its aggregated CHAT_MESSAGE bell alerts.
-        from apps.core.models import Notification
-        from django.utils import timezone
-        Notification.objects.filter(
-            member_recipient=request.user,
-            notification_type='CHAT_MESSAGE',
-            link_url=f'/messages?user={partner.pk}',
-            is_read=False,
-        ).update(is_read=True, read_at=timezone.now())
-        return ApiResponse(data=ChatMessageSerializer(queryset, many=True).data)
+            Q(conversation=conversation)
+            | Q(
+                conversation__isnull=True,
+                sender__in=(request.user, partner),
+                receiver__in=(request.user, partner),
+            )
+        ).exclude(
+            user_visibility__user_id_snapshot=request.user.pk,
+            user_visibility__hidden=True,
+        ).select_related('sender', 'receiver').order_by('-created_at')
+        paginator = MessageHistoryCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return ApiResponse(data={
+            'messages': [
+                serialize_message(message, viewer=request.user)
+                for message in page
+            ],
+            'next': paginator.get_next_link(),
+            'previous': paginator.get_previous_link(),
+        })
 
     def post(self, request, user_id):
         partner = self._partner(user_id)
@@ -522,8 +764,86 @@ class MessageHistoryView(APIView):
         text = str(request.data.get('text', '')).strip()
         if not text:
             return bad_request('Message text is required.')
-        message = ChatMessage.objects.create(sender=request.user, receiver=partner, text=text)
-        return ApiResponse(data=ChatMessageSerializer(message).data, status=status.HTTP_201_CREATED)
+        if len(text) > 4000:
+            return bad_request('Message text must be 4000 characters or fewer.')
+        message = create_message(sender=request.user, receiver=partner, text=text)
+        try:
+            notify_chat_message = __import__('apps.core.api_utils', fromlist=['notify_chat_message']).notify_chat_message
+            notify_chat_message(partner, request.user, text, message)
+        except Exception:
+            logging.getLogger(__name__).exception('Unable to create chat notification for message=%s', message.pk)
+        transaction.on_commit(
+            lambda: _broadcast_chat_message(
+                sender=request.user,
+                recipient=partner,
+                message=message,
+            )
+        )
+        return ApiResponse(data=serialize_message(message, viewer=request.user), status=status.HTTP_201_CREATED)
+
+
+class MessageMarkReadView(MessageHistoryView):
+    """Persist a read state and notify the sender without reloading history."""
+
+    def post(self, request, user_id):
+        partner = self._partner(user_id)
+        block = self._check_messaging(request, partner)
+        if block:
+            return block
+        read_message_ids = _mark_partner_messages_read(request.user, partner)
+        _broadcast_chat_read_receipt(
+            reader=request.user,
+            partner=partner,
+            message_ids=read_message_ids,
+        )
+        return ApiResponse(data={'marked_count': len(read_message_ids)})
+
+
+class MessageDeleteView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def post(self, request, message_id):
+        message = get_object_or_404(
+            ChatMessage.objects.select_related('conversation'),
+            pk=message_id,
+        )
+        if not message.conversation_id or not conversation_contains_member(message.conversation, request.user):
+            return Response({'message': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        action = str(request.data.get('action') or request.data.get('delete_for') or 'for_me').lower()
+        if action in {'for_everyone', 'everyone'}:
+            if message.sender_id != request.user.pk:
+                return Response(
+                    {'message': 'Only the sender can delete a message for everyone.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            message.deleted_for_everyone = True
+            message.deleted_at = timezone.now()
+            message.deleted_by = request.user
+            message.deletion_type = ChatMessage.DeletionType.FOR_EVERYONE
+            message.save(update_fields=('deleted_for_everyone', 'deleted_at', 'deleted_by', 'deletion_type', 'updated_at'))
+            event = {'type': 'chat.message_deleted', 'message_id': str(message.pk), 'for_everyone': True}
+        elif action in {'for_me', 'me'}:
+            hide_message_for_user(message, request.user)
+            event = {'type': 'chat.message_deleted', 'message_id': str(message.pk), 'for_everyone': False, 'user_id': str(request.user.pk)}
+        else:
+            return bad_request('action must be for_me or for_everyone.')
+
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                partner_id = message.receiver_id if message.sender_id == request.user.pk else message.sender_id
+                if partner_id:
+                    room_ids = sorted((str(request.user.pk), str(partner_id)))
+                    room = f'chat_{room_ids[0]}_{room_ids[1]}'
+                    async_to_sync(channel_layer.group_send)(room, event)
+        except Exception:
+            logging.getLogger(__name__).exception('Unable to broadcast message deletion for message=%s', message.pk)
+
+        return ApiResponse(data={'message_id': str(message.pk), 'action': action})
 
 
 class CompatibilityCheckView(APIView):
@@ -534,16 +854,16 @@ class CompatibilityCheckView(APIView):
         if not target_id:
             return bad_request('member_id is required.')
         target = get_object_or_404(Member, pk=target_id, is_active=True, deleted_at__isnull=True)
-        score = 50
-        try:
-            own = request.user.preferences
-            profile = target.profile
-            score += 10 if not own.preferred_religion or own.preferred_religion.lower() == profile.religion.lower() else 0
-            score += 10 if not own.preferred_location or own.preferred_location.lower() in profile.work_location.lower() else 0
-            score += 10 if not own.preferred_education or own.preferred_education.lower() in profile.highest_education.lower() else 0
-        except Exception:
-            pass
-        return ApiResponse(data={'member_id': str(target.pk), 'compatibility': min(score, 100)})
+        from apps.core.matching import calculate_profile_compatibility
+
+        compatibility = calculate_profile_compatibility(request.user, target)
+        return ApiResponse(
+            data={
+                'member_id': str(target.pk),
+                'compatibility': compatibility['score'],
+                'explanations': compatibility['explanations'],
+            }
+        )
 
 
 class MemberSupportTicketListView(APIView):

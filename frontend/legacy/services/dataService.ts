@@ -129,17 +129,43 @@ export const getConversations = async (): Promise<Conversation[]> => {
   });
 };
 
-export const getMessages = async (userId: string): Promise<Message[]> => {
-  const response = await fetchApi<any>(`/conversations/${userId}/messages/`);
-  if (Array.isArray(response)) return response;
+export interface MessageHistoryPage {
+  messages: Message[];
+  nextCursor: string | null;
+}
 
-  // The message endpoint is cursor-paginated, while older deployments return
-  // a plain list. Normalize both response contracts for the chat screen.
-  const messages = response?.results?.data?.messages
-    ?? response?.data?.messages
+function cursorFromLink(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    return new URL(value, 'https://pagination.invalid').searchParams.get('cursor');
+  } catch {
+    return null;
+  }
+}
+
+export const getMessages = async (
+  userId: string,
+  options: { cursor?: string | null; pageSize?: number } = {},
+): Promise<MessageHistoryPage> => {
+  const response = await fetchApi<any>(`/conversations/${userId}/messages/`, {
+    params: {
+      cursor: options.cursor ?? undefined,
+      page_size: options.pageSize ?? 20,
+    },
+  });
+  if (Array.isArray(response)) return { messages: response, nextCursor: null };
+
+  // Accept the current cursor response and the older plain-list contract so a
+  // rolling deployment cannot break an already-open member chat.
+  const page = response?.results?.data
+    ?? response?.data
     ?? response?.results
-    ?? [];
-  return Array.isArray(messages) ? messages : [];
+    ?? response;
+  const messages = page?.messages ?? [];
+  return {
+    messages: Array.isArray(messages) ? messages : [],
+    nextCursor: cursorFromLink(page?.next ?? response?.next),
+  };
 };
 
 export const sendMessage = async (userId: string, text: string): Promise<Message> => {
@@ -170,6 +196,12 @@ export const updateInterestStatus = async (interestId: string, status: 'ACCEPTED
   return fetchApi<any>(`/interests/${interestId}/`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+};
+
+export const withdrawInterest = async (interestId: string): Promise<any> => {
+  return fetchApi<any>(`/interests/${interestId}/`, {
+    method: 'DELETE',
   });
 };
 

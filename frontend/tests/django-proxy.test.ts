@@ -5,6 +5,31 @@ import { forwardToDjango } from '@/lib/django-proxy';
 
 
 describe('Django proxy private image caching', () => {
+  it('does not forward a stale bearer token to Super Admin login', async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', upstreamFetch);
+    const request = new NextRequest(
+      'http://localhost/api/proxy/super-admin-auth/login',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer stale-session-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: 'owner@example.com', password: 'example-password' }),
+      },
+    );
+
+    const response = await forwardToDjango(request, ['super-admin-auth', 'login']);
+    const upstreamHeaders = new Headers(upstreamFetch.mock.calls[0][1].headers);
+
+    expect(response.status).toBe(200);
+    expect(upstreamHeaders.get('authorization')).toBeNull();
+  });
+
   it('preserves private validators for a protected image response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
       status: 200,

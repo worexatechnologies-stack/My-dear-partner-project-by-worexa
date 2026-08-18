@@ -269,7 +269,10 @@ class Member(BaseAccount):
     class AccountStatus(models.TextChoices):
         ACTIVE = 'ACTIVE', 'Active'
         SUSPENDED = 'SUSPENDED', 'Suspended'
+        DELETION_PENDING = 'DELETION_PENDING', 'Deletion pending'
         ARCHIVED = 'ARCHIVED', 'Archived'
+        # Retained for compatibility with historical rows. New deletions use
+        # DELETION_PENDING and are permanently removed by the cleanup task.
         DELETED = 'DELETED', 'Deleted'
 
     class VerificationStatus(models.TextChoices):
@@ -301,6 +304,10 @@ class Member(BaseAccount):
         default=AccountStatus.ACTIVE,
         db_index=True,
     )
+    recovery_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.CharField(max_length=20, blank=True, default='')
+    deleted_by_user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    deletion_reason = models.TextField(blank=True, default='')
     profile_status = models.CharField(
         max_length=20,
         choices=VerificationStatus.choices,

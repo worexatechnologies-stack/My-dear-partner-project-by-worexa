@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
   BadgeCheck,
   CheckCheck,
@@ -19,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
-import { Link, useLocation, useSearchParams } from '@/lib/router-compat';
+import { Link, useLocation, useNavigate, useSearchParams } from '@/lib/router-compat';
 import { useAuth } from '../contexts/AuthContext';
 import { getConversations, getMessages, getProfile, markMessagesRead, sendMessage } from '../services/dataService';
 import { fetchApi } from '../services/apiClient';
@@ -33,11 +34,13 @@ interface ChatMessage {
   id: string;
   senderId: string;
   text: string;
+  createdAt: string;
   time: string;
   date: string;
   read: boolean;
   pending?: boolean;
   failed?: boolean;
+  deletedForEveryone?: boolean;
 }
 
 function conversationTime(value?: string | null) {
@@ -54,10 +57,10 @@ function lastSeenLabel(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Offline';
   const elapsedMinutes = Math.floor((Date.now() - date.getTime()) / 60_000);
-  if (elapsedMinutes < 1) return 'Active recently';
-  if (elapsedMinutes < 60) return `Active ${elapsedMinutes}m ago`;
-  if (date.toDateString() === new Date().toDateString()) return `Active today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  return `Active ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+  if (elapsedMinutes < 1) return 'Last seen recently';
+  if (elapsedMinutes < 60) return `Last seen ${elapsedMinutes}m ago`;
+  if (date.toDateString() === new Date().toDateString()) return `Last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return `Last seen ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 }
 
 function profileName(conversation: any) {
@@ -73,10 +76,24 @@ function unreadBadge(count: unknown) {
   return unread >= 4 ? '4+' : String(unread);
 }
 
+function mergeMessagesByTime(...groups: ChatMessage[][]) {
+  const unique = new Map<string, ChatMessage>();
+  for (const group of groups) {
+    for (const message of group) unique.set(message.id, message);
+  }
+  return [...unique.values()].sort((first, second) => {
+    const firstTime = Date.parse(first.createdAt);
+    const secondTime = Date.parse(second.createdAt);
+    return (Number.isNaN(firstTime) ? 0 : firstTime) - (Number.isNaN(secondTime) ? 0 : secondTime)
+      || first.id.localeCompare(second.id);
+  });
+}
+
 export default function MessagesPage() {
   const { user } = useAuth();
   const { subscribe } = useRealtime();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedUserId = searchParams.get('user');
   const requestedProfile = (location.state as { profile?: any } | null)?.profile;
@@ -92,22 +109,49 @@ export default function MessagesPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [mobileChatOpen, setMobileChatOpen] = useState(Boolean(requestedUserId));
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [nextMessageCursor, setNextMessageCursor] = useState<string | null>(null);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [restriction, setRestriction] = useState('');
   const [error, setError] = useState('');
   const [limitOpen, setLimitOpen] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
+  const [typingByPartner, setTypingByPartner] = useState<Record<string, boolean>>({});
+  const [isAtBottom, setIsAtBottom] = useState(false);
+  const [newMessagesBelow, setNewMessagesBelow] = useState(0);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<any>(null);
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastTypingSentRef = useRef(0);
+  const typingTimeoutsRef = useRef<Map<string, number>>(new Map());
+  const outgoingTypingStopRef = useRef<number | null>(null);
+  const isTypingRef = useRef(false);
+  const pendingRouteSelectionRef = useRef<string | null>(requestedUserId);
+  const isAtBottomRef = useRef(false);
+  const shouldScrollToLatestRef = useRef(false);
   activeRef.current = activeConversation;
 
   const isMember = user?.account_type === 'MEMBER';
   const blockedByMembership = isMember && membershipAllowed === false;
   const currentUserId = user?.id;
+
+  const formatMessageRows = useCallback(async (rows: any[], conversation: any) => {
+    const partnerId = profileId(conversation);
+    return Promise.all(rows.map(async (message) => {
+      const senderId = message.sender_id ?? message.sender?.id;
+      const createdAt = new Date(message.created_at || Date.now());
+      const safeCreatedAt = Number.isNaN(createdAt.getTime()) ? new Date() : createdAt;
+      return {
+        id: String(message.id),
+        senderId: String(senderId) === String(currentUserId) ? 'me' : String(senderId),
+        text: await smartDecryptText(message.text, currentUserId, partnerId, conversation.id),
+        createdAt: safeCreatedAt.toISOString(),
+        time: safeCreatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: safeCreatedAt.toLocaleDateString(),
+        read: Boolean(message.is_read),
+        deletedForEveryone: Boolean(message.deleted_for_everyone),
+      } satisfies ChatMessage;
+    }));
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!isMember) {
@@ -137,28 +181,43 @@ export default function MessagesPage() {
     return { ...row, lastMessage: text };
   })), [currentUserId]);
 
+  useEffect(() => {
+    // A profile link or browser notification may ask us to open one thread.
+    // Consume it once, then keep all later list refreshes selection-neutral.
+    pendingRouteSelectionRef.current = requestedUserId || null;
+  }, [requestedUserId]);
+
   const refreshConversations = useCallback(async () => {
     try {
+      const pendingRouteId = pendingRouteSelectionRef.current;
       let rows = await decryptConversations(await getConversations());
-      if (requestedUserId && !rows.some((row) => profileId(row) === requestedUserId)) {
-        const profile = requestedProfile || await getProfile(requestedUserId);
-        rows = [{ id: requestedUserId, profile, lastMessage: '', time: '', unread: 0 }, ...rows];
+      if (pendingRouteId && !rows.some((row) => profileId(row) === pendingRouteId)) {
+        const profile = requestedProfile || await getProfile(pendingRouteId);
+        rows = [{ id: pendingRouteId, profile, lastMessage: '', time: '', unread: 0 }, ...rows];
       }
       setConversations(rows);
+      const requestedConversation = pendingRouteId
+        ? rows.find((row) => profileId(row) === pendingRouteId) || null
+        : null;
       setActiveConversation((current: any) => {
         const currentId = profileId(current);
-        return rows.find((row) => profileId(row) === requestedUserId)
+        return requestedConversation
           || rows.find((row) => profileId(row) === currentId)
-          || rows[0]
           || null;
       });
-      if (requestedUserId) setMobileChatOpen(true);
+      if (requestedConversation) {
+        pendingRouteSelectionRef.current = null;
+        setMobileChatOpen(true);
+        // Do not leave a stale `?user=` behind. Otherwise a browser reload can
+        // reopen a thread the member already backed out of.
+        navigate('/messages', { replace: true, preventScrollReset: true });
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Conversations could not be loaded.');
     } finally {
       setLoadingConversations(false);
     }
-  }, [decryptConversations, requestedProfile, requestedUserId]);
+  }, [decryptConversations, navigate, requestedProfile, requestedUserId]);
 
   useEffect(() => { void refreshConversations(); }, [refreshConversations]);
 
@@ -166,6 +225,27 @@ export default function MessagesPage() {
     conversations.map(profileId).concat(activeConversation ? [profileId(activeConversation)] : []).filter(Boolean),
   )), [activeConversation, conversations]);
   const { isOnline, getLastSeen } = usePresence(visiblePartnerIds);
+
+  const setPartnerTypingState = useCallback((partnerId: string, isTyping: boolean) => {
+    if (!partnerId) return;
+    const currentTimer = typingTimeoutsRef.current.get(partnerId);
+    if (currentTimer) {
+      window.clearTimeout(currentTimer);
+      typingTimeoutsRef.current.delete(partnerId);
+    }
+    setTypingByPartner((current) => ({ ...current, [partnerId]: isTyping }));
+
+    if (isTyping) {
+      const timer = window.setTimeout(() => {
+        typingTimeoutsRef.current.delete(partnerId);
+        setTypingByPartner((current) => ({ ...current, [partnerId]: false }));
+      }, 3500);
+      typingTimeoutsRef.current.set(partnerId, timer);
+      if (partnerId === profileId(activeRef.current) && isAtBottomRef.current) {
+        shouldScrollToLatestRef.current = true;
+      }
+    }
+  }, []);
 
   const handleSocketMessage = useCallback(async (data: any) => {
     const current = activeRef.current;
@@ -177,9 +257,7 @@ export default function MessagesPage() {
     }
     if (data.type === 'typing') {
       if (String(data.sender_id) === profileId(current)) {
-        setPartnerTyping(Boolean(data.is_typing));
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        if (data.is_typing) typingTimeoutRef.current = setTimeout(() => setPartnerTyping(false), 3500);
+        setPartnerTypingState(profileId(current), Boolean(data.is_typing));
       }
       return;
     }
@@ -189,27 +267,45 @@ export default function MessagesPage() {
       return;
     }
 
+    if (data.type === 'message_deleted') {
+      setMessages((currentMessages) => data.for_everyone
+        ? currentMessages.map((message) => String(message.id) === String(data.message_id) ? { ...message, text: 'Message deleted', deletedForEveryone: true } : message)
+        : currentMessages.filter((message) => String(message.id) !== String(data.message_id)));
+      return;
+    }
+
     const partnerId = profileId(current);
-    const text = await smartDecryptText(data.text, currentUserId, partnerId, current.id);
+    const text = await smartDecryptText(String(data.text || ''), currentUserId, partnerId, current.id);
+    const createdAt = new Date(data.created_at || Date.now());
     const incoming: ChatMessage = {
       id: String(data.id),
       senderId: String(data.sender_id) === String(currentUserId) ? 'me' : String(data.sender_id),
       text,
-      time: new Date(data.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date(data.created_at || Date.now()).toLocaleDateString(),
+      createdAt: createdAt.toISOString(),
+      time: createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: createdAt.toLocaleDateString(),
       read: Boolean(data.is_read),
+      deletedForEveryone: Boolean(data.deleted_for_everyone),
     };
-    setPartnerTyping(false);
+    setPartnerTypingState(partnerId, false);
+    const feed = feedRef.current;
+    const nearBottom = !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+    shouldScrollToLatestRef.current = nearBottom;
+    if (!nearBottom && incoming.senderId !== 'me') {
+      setNewMessagesBelow((count) => count + 1);
+    }
     setMessages((currentMessages) => {
       if (incoming.senderId === 'me') {
         const pendingIndex = currentMessages.findIndex((message) => message.pending);
         if (pendingIndex >= 0) {
           const next = [...currentMessages];
           next[pendingIndex] = incoming;
-          return next;
+          return mergeMessagesByTime(next);
         }
       }
-      return currentMessages.some((message) => message.id === incoming.id) ? currentMessages : [...currentMessages, incoming];
+      return currentMessages.some((message) => message.id === incoming.id)
+        ? currentMessages
+        : mergeMessagesByTime(currentMessages, [incoming]);
     });
     setConversations((currentRows) => {
       const index = currentRows.findIndex((row) => profileId(row) === partnerId);
@@ -219,9 +315,10 @@ export default function MessagesPage() {
       const [updated] = next.splice(index, 1);
       return [updated, ...next];
     });
-  }, [currentUserId]);
+  }, [currentUserId, setPartnerTypingState]);
 
   const currentPartnerId = activeConversation ? profileId(activeConversation) : '';
+  const partnerTyping = Boolean(currentPartnerId && typingByPartner[currentPartnerId]);
 
   // Conversation selection happens in local state, so publish it separately
   // from the URL. This immediately silences chat alerts for the open thread.
@@ -231,35 +328,57 @@ export default function MessagesPage() {
     return () => clearActiveChatPartnerId(currentPartnerId);
   }, [currentPartnerId]);
 
-  const { connected, send: sendSocket } = useChatSocket({
+  useEffect(() => subscribe('chat.typing', (event) => {
+    const senderId = typeof event.data.sender_id === 'string' ? event.data.sender_id : '';
+    if (!senderId || senderId === String(currentUserId || '')) return;
+    setPartnerTypingState(senderId, Boolean(event.data.is_typing));
+  }), [currentUserId, setPartnerTypingState, subscribe]);
+
+  const syncLatestMessages = useCallback(async () => {
+    const conversation = activeRef.current;
+    const partnerId = profileId(conversation);
+    if (!conversation || !partnerId || !currentUserId) return;
+    try {
+      const page = await getMessages(partnerId, { pageSize: 20 });
+      const formatted = await formatMessageRows(page.messages, conversation);
+      if (profileId(activeRef.current) !== partnerId) return;
+      if (isAtBottomRef.current) shouldScrollToLatestRef.current = true;
+      else if (formatted.some((message) => message.senderId !== 'me')) setNewMessagesBelow((count) => Math.max(count, 1));
+      setMessages((current) => mergeMessagesByTime(current, formatted));
+    } catch {
+      // The normal history request remains the source of truth. A later
+      // reconnect will make another bounded sync attempt.
+    }
+  }, [currentUserId, formatMessageRows]);
+
+  const { connected, state: chatSocketState, send: sendSocket } = useChatSocket({
     partnerId: currentPartnerId,
     enabled: Boolean(currentPartnerId && currentUserId && membershipAllowed),
     onMessage: handleSocketMessage,
     onClose: (code) => { if (code === 4004) setLimitOpen(true); },
+    onOpen: () => { void syncLatestMessages(); },
   });
 
   useEffect(() => {
     if (!membershipAllowed || !activeConversation || !currentUserId) return;
     let cancelled = false;
     setLoadingMessages(true);
+    setLoadingOlderMessages(false);
     setMessages([]);
+    setNextMessageCursor(null);
+    setNewMessagesBelow(0);
+    isAtBottomRef.current = false;
+    setIsAtBottom(false);
     setRestriction('');
     setError('');
-    getMessages(profileId(activeConversation))
-      .then(async (rows) => {
-        const formatted = await Promise.all((rows as any[]).map(async (message) => {
-          const senderId = message.sender_id ?? message.sender?.id;
-          const date = new Date(message.created_at || Date.now());
-          return {
-            id: String(message.id),
-            senderId: String(senderId) === String(currentUserId) ? 'me' : String(senderId),
-            text: await smartDecryptText(message.text, currentUserId, profileId(activeConversation), activeConversation.id),
-            time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            date: date.toLocaleDateString(),
-            read: Boolean(message.is_read),
-          } satisfies ChatMessage;
-        }));
-        if (!cancelled) setMessages(formatted);
+    getMessages(profileId(activeConversation), { pageSize: 20 })
+      .then(async (page) => {
+        const formatted = await formatMessageRows(page.messages, activeConversation);
+        if (!cancelled) {
+          shouldScrollToLatestRef.current = true;
+          setMessages((current) => mergeMessagesByTime(current, formatted));
+          setNextMessageCursor(page.nextCursor);
+        }
       })
       .catch((requestError: any) => {
         if (cancelled) return;
@@ -272,14 +391,68 @@ export default function MessagesPage() {
       })
       .finally(() => { if (!cancelled) setLoadingMessages(false); });
     return () => { cancelled = true; };
-  }, [activeConversation?.id, currentUserId, membershipAllowed]);
+  }, [activeConversation?.id, formatMessageRows, membershipAllowed]);
+
+  const loadOlderMessages = useCallback(async () => {
+    const conversation = activeRef.current;
+    const partnerId = profileId(conversation);
+    if (!conversation || !partnerId || !nextMessageCursor || loadingOlderMessages) return;
+
+    const feed = feedRef.current;
+    const previousHeight = feed?.scrollHeight ?? 0;
+    const previousTop = feed?.scrollTop ?? 0;
+    setLoadingOlderMessages(true);
+    try {
+      const page = await getMessages(partnerId, { cursor: nextMessageCursor, pageSize: 20 });
+      const formatted = await formatMessageRows(page.messages, conversation);
+      if (profileId(activeRef.current) !== partnerId) return;
+      setMessages((current) => mergeMessagesByTime(formatted, current));
+      setNextMessageCursor(page.nextCursor);
+      window.requestAnimationFrame(() => {
+        const currentFeed = feedRef.current;
+        if (currentFeed) currentFeed.scrollTop = previousTop + currentFeed.scrollHeight - previousHeight;
+      });
+    } catch (requestError: any) {
+      if (profileId(activeRef.current) === partnerId) {
+        setError(requestError?.message || 'Older messages could not be loaded. Please try again.');
+      }
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [formatMessageRows, loadingOlderMessages, nextMessageCursor]);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    feed.scrollTo({ top: feed.scrollHeight, behavior });
+    isAtBottomRef.current = true;
+    setIsAtBottom(true);
+    setNewMessagesBelow(0);
+  }, []);
+
+  const handleFeedScroll = useCallback(() => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+    if (isAtBottomRef.current !== nearBottom) {
+      isAtBottomRef.current = nearBottom;
+      setIsAtBottom(nearBottom);
+    }
+    if (nearBottom) setNewMessagesBelow(0);
+    if (feed.scrollTop < 120) void loadOlderMessages();
+  }, [loadOlderMessages]);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: messages.length > 1 ? 'smooth' : 'auto' });
-  }, [messages, partnerTyping]);
+    if (!shouldScrollToLatestRef.current) return;
+    shouldScrollToLatestRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      scrollToLatest(messages.length > 1 ? 'smooth' : 'auto');
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages.length, partnerTyping, scrollToLatest]);
 
   useEffect(() => {
-    if (!activeConversation || !currentPartnerId) return;
+    if (!activeConversation || !currentPartnerId || loadingMessages || !isAtBottom) return;
     const unreadIds = messages.filter((message) => message.senderId !== 'me' && !message.read).map((message) => message.id);
     if (unreadIds.length === 0) return;
 
@@ -303,7 +476,7 @@ export default function MessagesPage() {
       }
     };
     void persistRead();
-  }, [activeConversation, connected, currentPartnerId, messages, sendSocket]);
+  }, [activeConversation, connected, currentPartnerId, isAtBottom, loadingMessages, messages, sendSocket]);
 
   useEffect(() => {
     const unsubscribe = subscribe('notification.created', (event) => {
@@ -313,7 +486,9 @@ export default function MessagesPage() {
   }, [refreshConversations, subscribe]);
 
   useEffect(() => () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    for (const timer of typingTimeoutsRef.current.values()) window.clearTimeout(timer);
+    typingTimeoutsRef.current.clear();
+    if (outgoingTypingStopRef.current) window.clearTimeout(outgoingTypingStopRef.current);
   }, []);
 
   const filteredConversations = useMemo(() => {
@@ -324,28 +499,36 @@ export default function MessagesPage() {
     });
   }, [conversationQuery, conversations, filter]);
 
+  const stopOutgoingTyping = useCallback(() => {
+    if (outgoingTypingStopRef.current) window.clearTimeout(outgoingTypingStopRef.current);
+    outgoingTypingStopRef.current = null;
+    if (isTypingRef.current) sendSocket({ type: 'typing', is_typing: false });
+    isTypingRef.current = false;
+  }, [sendSocket]);
+
+  useEffect(() => () => {
+    stopOutgoingTyping();
+  }, [currentPartnerId, stopOutgoingTyping]);
+
   const updateDraft = (value: string) => {
     setDraft(value);
-    if (!connected) return;
-    if (!value.trim()) {
-      sendSocket({ type: 'typing', is_typing: false });
+    if (!connected) {
+      if (outgoingTypingStopRef.current) window.clearTimeout(outgoingTypingStopRef.current);
+      outgoingTypingStopRef.current = null;
+      isTypingRef.current = false;
       return;
     }
-    const now = Date.now();
-    if (now - lastTypingSentRef.current > 2000) {
-      lastTypingSentRef.current = now;
-      sendSocket({ type: 'typing', is_typing: true });
+    if (!value.trim()) {
+      stopOutgoingTyping();
+      return;
     }
-  };
 
-  const encryptOutgoing = async (plainText: string, partnerId: string) => {
-    try {
-      if (!currentUserId || !partnerId) return plainText;
-      const key = await deriveFallbackKey([currentUserId, partnerId].sort().join('_'));
-      return await encryptMessage(plainText, key);
-    } catch {
-      return plainText;
+    if (!isTypingRef.current) {
+      sendSocket({ type: 'typing', is_typing: true });
+      isTypingRef.current = true;
     }
+    if (outgoingTypingStopRef.current) window.clearTimeout(outgoingTypingStopRef.current);
+    outgoingTypingStopRef.current = window.setTimeout(() => stopOutgoingTyping(), 1800);
   };
 
   const sendViaHttp = async (partnerId: string, text: string, temporaryId: string) => {
@@ -367,20 +550,31 @@ export default function MessagesPage() {
     const plainText = (preset ?? draft).trim();
     if (!plainText || !activeConversation || !currentUserId || restriction) return;
     const partnerId = profileId(activeConversation);
-    const wireText = await encryptOutgoing(plainText, partnerId);
+    let wireText = plainText;
+    try {
+      const key = await deriveFallbackKey([currentUserId, partnerId].sort().join('_'));
+      wireText = await encryptMessage(plainText, key);
+    } catch {
+      // Plaintext remains a safe compatibility fallback if Web Crypto is unavailable.
+    }
     const temporaryId = `temp_${Date.now()}`;
+    const createdAt = new Date();
     const optimistic: ChatMessage = {
       id: temporaryId,
       senderId: 'me',
       text: plainText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString(),
+      createdAt: createdAt.toISOString(),
+      time: createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: createdAt.toLocaleDateString(),
       read: false,
       pending: true,
     };
+    stopOutgoingTyping();
     setDraft('');
     setError('');
-    setMessages((current) => [...current, optimistic]);
+    setNewMessagesBelow(0);
+    shouldScrollToLatestRef.current = true;
+    setMessages((current) => mergeMessagesByTime(current, [optimistic]));
     setConversations((current) => {
       const index = current.findIndex((conversation) => profileId(conversation) === partnerId);
       if (index < 0) return current;
@@ -390,22 +584,55 @@ export default function MessagesPage() {
       return [updated, ...next];
     });
     if (connected) {
-      sendSocket({ type: 'typing', is_typing: false });
       if (!sendSocket({ text: wireText })) await sendViaHttp(partnerId, wireText, temporaryId);
     } else {
       await sendViaHttp(partnerId, wireText, temporaryId);
     }
   };
 
+  const handleDeleteMessage = async (message: ChatMessage, action: 'for_me' | 'for_everyone') => {
+    try {
+      await fetchApi(`/messages/${message.id}/delete/`, {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      });
+      setMessages((currentMessages) => action === 'for_everyone'
+        ? currentMessages.map((item) => item.id === message.id ? { ...item, text: 'Message deleted', deletedForEveryone: true } : item)
+        : currentMessages.filter((item) => item.id !== message.id));
+    } catch (requestError: any) {
+      setError(requestError?.message || 'The message could not be deleted.');
+    }
+  };
+
   const selectConversation = (conversation: any) => {
-    setActiveChatPartnerId(profileId(conversation));
+    const partnerId = profileId(conversation);
+    stopOutgoingTyping();
     setActiveConversation(conversation);
     setMobileChatOpen(true);
+    setDetailsOpen(typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
+  };
+
+  const closeActiveConversation = () => {
+    stopOutgoingTyping();
+    setDraft('');
     setDetailsOpen(false);
+    setMobileChatOpen(false);
+    setActiveConversation(null);
+    setMessages([]);
+    setNewMessagesBelow(0);
+    isAtBottomRef.current = false;
+    setIsAtBottom(false);
+    clearActiveChatPartnerId();
   };
 
   const activeOnline = activeConversation ? Boolean(isOnline(currentPartnerId)) : false;
   const activeLastSeen = activeConversation ? getLastSeen(currentPartnerId) : null;
+
+  useEffect(() => {
+    if (activeConversation && window.matchMedia('(min-width: 1280px)').matches) {
+      setDetailsOpen(true);
+    }
+  }, [activeConversation?.id]);
 
   if (isMember && membershipAllowed === null) {
     return (
@@ -473,6 +700,7 @@ export default function MessagesPage() {
               const id = profileId(conversation);
               const selected = id === currentPartnerId;
               const online = Boolean(isOnline(id));
+              const typing = Boolean(typingByPartner[id]);
               return (
                 <button key={id} type="button" onClick={() => selectConversation(conversation)} className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3.5 text-left hover:bg-[#f7f8f8] sm:px-5 ${selected ? 'bg-[#f1f7f4]' : 'bg-white'}`}>
                   <div className="relative shrink-0">
@@ -481,11 +709,16 @@ export default function MessagesPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-extrabold text-[#17232d]">{profileName(conversation)}</p>
+                      <p className="flex min-w-0 items-center gap-1 truncate text-sm font-extrabold text-[#17232d]">
+                        <span className="truncate">{profileName(conversation)}</span>
+                        {conversation.profile?.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#267255]" aria-label="Verified" />}
+                      </p>
                       <span className={`shrink-0 text-[10px] font-bold ${conversation.unread ? 'text-[#267255]' : 'text-slate-400'}`}>{conversationTime(conversation.time)}</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <p className="truncate text-xs text-slate-500">{conversation.lastMessage || 'Start a conversation'}</p>
+                      <p className={`truncate text-xs ${typing ? 'font-semibold text-[#267255]' : 'text-slate-500'}`}>
+                        {typing ? 'typing...' : conversation.lastMessage || 'Start a conversation'}
+                      </p>
                       {Number(conversation.unread || 0) > 0 && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#267255] px-1 text-[10px] font-extrabold text-white">{unreadBadge(conversation.unread)}</span>}
                     </div>
                   </div>
@@ -499,7 +732,7 @@ export default function MessagesPage() {
           <section className={`${mobileChatOpen ? 'flex' : 'hidden lg:flex'} min-w-0 flex-1 flex-col bg-[#f8f9f9]`}>
             <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
-                <button type="button" onClick={() => setMobileChatOpen(false)} aria-label="Back to conversations" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 lg:hidden"><ArrowLeft className="h-5 w-5" /></button>
+                <button type="button" onClick={closeActiveConversation} aria-label="Back to conversations" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 lg:hidden"><ArrowLeft className="h-5 w-5" /></button>
                 <Link to={`/profile/${currentPartnerId}`} className="relative shrink-0">
                   <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} className="h-10 w-10 rounded-lg object-cover" />
                   {activeOnline && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#2aa66f]" />}
@@ -509,8 +742,8 @@ export default function MessagesPage() {
                     <span className="truncate">{profileName(activeConversation)}</span>
                     {activeConversation.profile?.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#267255]" />}
                   </Link>
-                  <p className={`truncate text-[11px] font-semibold ${partnerTyping || activeOnline ? 'text-[#267255]' : 'text-slate-400'}`}>
-                    {partnerTyping ? 'Typing...' : activeOnline ? 'Online' : lastSeenLabel(activeLastSeen)}
+                  <p className={`truncate text-[11px] font-semibold ${partnerTyping || activeOnline || chatSocketState === 'connecting' ? 'text-[#267255]' : 'text-slate-400'}`}>
+                    {partnerTyping ? 'Typing...' : activeOnline ? 'Online' : chatSocketState === 'connecting' ? 'Connecting...' : lastSeenLabel(activeLastSeen)}
                   </p>
                 </div>
               </div>
@@ -533,7 +766,8 @@ export default function MessagesPage() {
               </div>
             ) : (
               <>
-                <div ref={feedRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-6">
+                <div className="relative min-h-0 flex-1">
+                  <div ref={feedRef} onScroll={handleFeedScroll} className="h-full overflow-y-auto px-3 py-5 sm:px-6">
                   <div className="mx-auto max-w-3xl">
                     <div className="mx-auto mb-6 flex max-w-md items-start gap-2 rounded-lg border border-[#dce9e3] bg-[#f2f8f5] px-3 py-2.5 text-[11px] leading-5 text-[#4b6d5f]">
                       <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#267255]" />
@@ -541,6 +775,11 @@ export default function MessagesPage() {
                     </div>
 
                     {loadingMessages && <div className="py-16 text-center text-xs font-bold text-slate-400">Loading conversation...</div>}
+                    {!loadingMessages && messages.length > 0 && (
+                      <p className="mb-4 text-center text-[11px] font-semibold text-slate-400">
+                        {loadingOlderMessages ? 'Loading older messages...' : nextMessageCursor ? 'Scroll up to load older messages' : 'Beginning of this conversation'}
+                      </p>
+                    )}
                     {!loadingMessages && messages.length === 0 && !partnerTyping && (
                       <div className="py-12 text-center">
                         <MessageCircleMore className="mx-auto h-9 w-9 text-slate-300" />
@@ -563,11 +802,21 @@ export default function MessagesPage() {
                             {showDate && <div className="my-5 text-center"><span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-400">{message.date}</span></div>}
                             <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                               <div className={`max-w-[86%] rounded-lg px-3.5 py-2.5 shadow-sm sm:max-w-[72%] ${mine ? 'bg-[#245f4a] text-white' : 'border border-slate-200 bg-white text-[#17232d]'}`}>
-                                <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.text}</p>
+                                <p className={`whitespace-pre-wrap break-words text-sm leading-5 ${message.deletedForEveryone ? 'italic opacity-70' : ''}`}>{message.text}</p>
                                 <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-white/60' : 'text-slate-400'}`}>
                                   <span>{message.failed ? 'Not sent' : message.pending ? 'Sending' : message.time}</span>
-                                  {mine && !message.failed && <CheckCheck className={`h-3.5 w-3.5 ${message.read ? 'text-[#8fe0bd]' : ''}`} />}
+                                  {mine && !message.failed && (
+                                    <span className={`inline-flex items-center justify-center ${message.read ? 'rounded-full bg-white p-0.5 text-[#0b3d91] shadow-sm' : 'text-white/60'}`} aria-label={message.read ? 'Read' : 'Delivered'}>
+                                      <CheckCheck className="h-3.5 w-3.5" />
+                                    </span>
+                                  )}
                                 </div>
+                                {!message.pending && !message.failed && !message.deletedForEveryone && (
+                                  <div className={`mt-2 flex gap-2 text-[10px] ${mine ? 'justify-end text-white/70' : 'justify-start text-slate-400'}`}>
+                                    <button type="button" onClick={() => void handleDeleteMessage(message, 'for_me')} className="underline underline-offset-2">Delete for me</button>
+                                    {mine && <button type="button" onClick={() => void handleDeleteMessage(message, 'for_everyone')} className="underline underline-offset-2">Delete for everyone</button>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -582,6 +831,18 @@ export default function MessagesPage() {
                       )}
                     </div>
                   </div>
+                  </div>
+                  {(!isAtBottom || newMessagesBelow > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => scrollToLatest('smooth')}
+                      aria-label={newMessagesBelow > 0 ? `Jump to ${newMessagesBelow} new messages` : 'Scroll to latest message'}
+                      className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[#17232d] px-3 py-2 text-xs font-bold text-white shadow-lg transition hover:bg-[#bd304d] focus:outline-none focus:ring-2 focus:ring-[#bd304d] focus:ring-offset-2"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                      {newMessagesBelow > 0 && <span>{newMessagesBelow} new {newMessagesBelow === 1 ? 'message' : 'messages'}</span>}
+                    </button>
+                  )}
                 </div>
 
                 <footer className="shrink-0 border-t border-slate-200 bg-white p-3 sm:px-5 sm:py-4">
@@ -619,6 +880,28 @@ export default function MessagesPage() {
               </div>
             </div>
           </aside>
+        )}
+
+        {detailsOpen && activeConversation && (
+          <div className="fixed inset-0 z-[70] xl:hidden" role="dialog" aria-modal="true" aria-label="Profile details">
+            <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close profile details" className="absolute inset-0 bg-slate-950/35" />
+            <aside className="absolute bottom-0 right-0 top-0 flex w-[min(88vw,360px)] flex-col border-l border-slate-200 bg-white shadow-2xl">
+              <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5">
+                <p className="text-sm font-extrabold text-[#17232d]">Profile details</p>
+                <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="overflow-y-auto p-5 text-center">
+                <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} className="mx-auto aspect-[4/5] w-full rounded-lg object-cover" />
+                <h2 className="mt-4 text-lg font-extrabold text-[#17232d]">{profileName(activeConversation)}</h2>
+                <p className="mt-1 text-xs text-slate-500">{activeConversation.profile?.occupation || 'Member'}</p>
+                <Link to={`/profile/${currentPartnerId}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white"><UserRound className="h-4 w-4" /> View full profile</Link>
+                <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#dce9e3] bg-[#f2f8f5] p-3 text-left">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-[#267255]" />
+                  <div><p className="text-xs font-bold text-[#1f5f47]">Stay on the platform</p><p className="mt-1 text-[11px] leading-5 text-[#5a7469]">Use in-app chat until you trust the other member.</p></div>
+                </div>
+              </div>
+            </aside>
+          </div>
         )}
       </div>
 

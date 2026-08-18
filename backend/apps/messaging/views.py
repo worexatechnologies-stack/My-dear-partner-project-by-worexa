@@ -15,7 +15,8 @@ from rest_framework.pagination import CursorPagination
 
 from apps.accounts.permissions import IsMember
 from apps.core.responses import ApiResponse, ApiErrorResponse
-from apps.core.models import ChatMessage
+from apps.core.models import ChatMessage, ProfileBlock
+from apps.core.message_service import create_message, get_or_create_conversation, serialize_message, visible_messages_for_user
 from apps.accounts.models import Member
 from apps.profiles.models import ProfilePhoto
 from apps.profiles.photo_permissions import can_view_profile_photo
@@ -24,7 +25,9 @@ from apps.profiles.serializers import photo_endpoint_urls
 
 class MessageCursorPagination(CursorPagination):
     """Cursor pagination for messages (efficient for large datasets)"""
-    page_size = 50
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 50
     ordering = '-created_at'
     cursor_query_param = 'cursor'
 
@@ -69,15 +72,27 @@ class ConversationListView(APIView):
         conversations = []
         
         # Get unique conversation partners
-        sent_to = ChatMessage.objects.filter(sender=member).values_list('receiver_id', flat=True).distinct()
-        received_from = ChatMessage.objects.filter(receiver=member).values_list('sender_id', flat=True).distinct()
+        sent_to = ChatMessage.objects.filter(sender=member).exclude(
+            user_visibility__user_id_snapshot=member.pk,
+            user_visibility__hidden=True,
+        ).values_list('receiver_id', flat=True).distinct()
+        received_from = ChatMessage.objects.filter(receiver=member).exclude(
+            user_visibility__user_id_snapshot=member.pk,
+            user_visibility__hidden=True,
+        ).values_list('sender_id', flat=True).distinct()
         partner_ids = set(sent_to) | set(received_from)
+        blocked_ids = set(ProfileBlock.objects.filter(blocker=member).values_list('blocked_id', flat=True))
+        blocked_ids.update(ProfileBlock.objects.filter(blocked=member).values_list('blocker_id', flat=True))
+        partner_ids.difference_update(blocked_ids)
         
         for partner_id in partner_ids:
             # Get last message in this conversation
             last_message = ChatMessage.objects.filter(
                 Q(sender=member, receiver_id=partner_id) |
                 Q(sender_id=partner_id, receiver=member)
+            ).exclude(
+                user_visibility__user_id_snapshot=member.pk,
+                user_visibility__hidden=True,
             ).order_by('-created_at').first()
             
             if not last_message:
@@ -92,6 +107,9 @@ class ConversationListView(APIView):
             
             # Get partner details
             try:
+                wire_message = serialize_message(last_message, viewer=member)
+                if wire_message is None:
+                    continue
                 partner = Member.objects.select_related('profile').get(pk=partner_id)
                 primary_photo = (
                     ProfilePhoto.objects.without_binary()
@@ -118,7 +136,8 @@ class ConversationListView(APIView):
                     },
                     'last_message': {
                         'id': str(last_message.id),
-                        'text': last_message.text,
+                        'text': wire_message['text'],
+                        'status': wire_message['status'],
                         'sender_id': str(last_message.sender_id),
                         'created_at': last_message.created_at.isoformat(),
                         'is_read': last_message.is_read,
@@ -176,26 +195,14 @@ class MessageHistoryView(APIView):
             )
         
         # Get messages between these two members
-        messages = ChatMessage.objects.filter(
-            Q(sender=member, receiver=other_member) |
-            Q(sender=other_member, receiver=member)
-        ).select_related('sender', 'receiver').order_by('-created_at')
+        conversation = get_or_create_conversation(member, other_member)
+        messages = visible_messages_for_user(conversation, member).select_related('sender', 'receiver').order_by('-created_at')
         
         # Apply pagination
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(messages, request, view=self)
         
-        message_data = [
-            {
-                'id': str(msg.id),
-                'sender_id': str(msg.sender_id),
-                'receiver_id': str(msg.receiver_id),
-                'text': msg.text,
-                'is_read': msg.is_read,
-                'created_at': msg.created_at.isoformat(),
-            }
-            for msg in page
-        ]
+        message_data = [serialize_message(msg, viewer=member) for msg in page]
         
         return paginator.get_paginated_response({
             'success': True,
@@ -290,12 +297,7 @@ class SendMessageView(APIView):
             )
         
         # Create message
-        message = ChatMessage.objects.create(
-            sender=member,
-            receiver=receiver,
-            text=text,
-            is_read=False
-        )
+        message = create_message(sender=member, receiver=receiver, text=text)
 
         # Persist and broadcast a notification for the HTTP fallback path.
         # Socket messages already publish this from the consumer, but users
@@ -311,6 +313,7 @@ class SendMessageView(APIView):
                 'sender_id': str(message.sender_id),
                 'receiver_id': str(message.receiver_id),
                 'text': message.text,
+                'message_type': message.message_type,
                 'is_read': message.is_read,
                 'created_at': message.created_at.isoformat(),
             },

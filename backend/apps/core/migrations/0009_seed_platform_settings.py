@@ -108,10 +108,9 @@ SETTINGS = [
     {
         'key': 'VERIFICATION',
         'is_public': False,
-        'description': 'AI background verification desk and rules.',
+        'description': 'Manual verification workflow and document requirements.',
         'value': {
             'required_documents': ['Aadhaar', 'PAN', 'Passport'],
-            'ai_verification_enabled': False,
         }
     },
     {

@@ -1,5 +1,5 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -7,7 +7,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Member, MemberProfile
-from apps.core.models import Interest
+from apps.core.api_utils import notify
+from apps.core.models import Interest, ProfileBlock
+from apps.core.services.match_closure_service import MatchClosureService
 from apps.profiles.models import ProfilePhoto
 from apps.profiles.serializers import MemberProfileDetailSerializer
 
@@ -15,12 +17,53 @@ from .models import MemberShortlist
 from .serializers import MemberInterestSerializer
 
 
+class ProfileBlockView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        blocked_ids = ProfileBlock.objects.filter(blocker=request.user).values_list('blocked_id', flat=True)
+        members = Member.objects.filter(pk__in=blocked_ids).only('id', 'first_name', 'last_name', 'gender')
+        return Response({
+            'success': True,
+            'data': [
+                {'id': str(member.pk), 'full_name': member.get_full_name(), 'gender': member.gender}
+                for member in members
+            ],
+        })
+
+    @transaction.atomic
+    def post(self, request):
+        profile_id = request.data.get('profile_id') or request.data.get('member_id')
+        profile = get_object_or_404(Member.objects.filter(is_active=True), pk=profile_id)
+        if profile.pk == request.user.pk:
+            return Response({'detail': 'You cannot block your own profile.'}, status=status.HTTP_400_BAD_REQUEST)
+        block, created = ProfileBlock.objects.get_or_create(blocker=request.user, blocked=profile)
+        return Response(
+            {'success': True, 'blocked': True, 'created': created, 'member_id': str(profile.pk)},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @transaction.atomic
+    def delete(self, request, member_id=None):
+        if not member_id:
+            return Response({'detail': 'member_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        deleted, _ = ProfileBlock.objects.filter(blocker=request.user, blocked_id=member_id).delete()
+        if not deleted:
+            return Response({'detail': 'Block not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'success': True, 'blocked': False, 'member_id': str(member_id)})
+
+
 class ShortlistView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
+        blocked_pairs = ProfileBlock.objects.filter(
+            Q(blocker=request.user) | Q(blocked=request.user)
+        ).values_list('blocker_id', 'blocked_id')
+        excluded_ids = {value for pair in blocked_pairs for value in pair}
         rows = (
             MemberShortlist.objects.filter(user=request.user)
+            .exclude(profile__member_id__in=excluded_ids)
             .select_related("profile__member")
             .prefetch_related(
                 Prefetch(
@@ -46,6 +89,11 @@ class ShortlistView(APIView):
                 {"detail": "You cannot shortlist your own profile."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if ProfileBlock.objects.filter(
+            Q(blocker=request.user, blocked=profile.member) |
+            Q(blocker=profile.member, blocked=request.user)
+        ).exists():
+            return Response({'detail': 'This profile is not available.'}, status=status.HTTP_403_FORBIDDEN)
         shortlist = MemberShortlist.objects.filter(user=request.user, profile=profile).first()
         if shortlist:
             shortlist.delete()
@@ -77,14 +125,17 @@ class InterestListCreateView(APIView):
             queryset.filter(receiver=request.user)
             if direction == "incoming"
             else queryset.filter(sender=request.user)
-        )
+        ).exclude(status=Interest.Status.WITHDRAWN)
         return Response(MemberInterestSerializer(queryset, many=True, context={"request": request}).data)
 
     @transaction.atomic
     def post(self, request):
         receiver_id = request.data.get("receiver_id")
         receiver = get_object_or_404(
-            Member.objects.filter(is_active=True, deleted_at__isnull=True),
+            Member.objects.filter(is_active=True, deleted_at__isnull=True).exclude(
+                Q(pk__in=ProfileBlock.objects.filter(blocker=request.user).values('blocked_id')) |
+                Q(pk__in=ProfileBlock.objects.filter(blocked=request.user).values('blocker_id'))
+            ),
             pk=receiver_id,
         )
         if receiver.pk == request.user.pk:
@@ -118,6 +169,7 @@ class InterestListCreateView(APIView):
         if reverse:
             reverse.status = Interest.Status.ACCEPTED
             reverse.save(update_fields=("status", "updated_at"))
+            MatchClosureService.reopen_match(reverse.sender, reverse.receiver)
             return Response(MemberInterestSerializer(reverse, context={"request": request}).data)
 
         existing = Interest.objects.select_for_update().filter(
@@ -125,6 +177,13 @@ class InterestListCreateView(APIView):
             receiver=receiver,
         ).first()
         if existing:
+            if existing.status == Interest.Status.WITHDRAWN:
+                existing.status = Interest.Status.PENDING
+                existing.save(update_fields=("status", "updated_at"))
+                self._dispatch_notification(existing)
+                return Response(
+                    MemberInterestSerializer(existing, context={"request": request}).data,
+                )
             return Response(MemberInterestSerializer(existing, context={"request": request}).data)
 
         try:
@@ -156,4 +215,92 @@ class InterestListCreateView(APIView):
                 pass
 
         # A worker must not see an interest until its transaction is durable.
+        transaction.on_commit(dispatch)
+
+
+class InterestDetailView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @transaction.atomic
+    def patch(self, request, pk):
+        """Let the receiver accept a request again or remove an accepted match."""
+        interest = get_object_or_404(
+            Interest.objects.select_for_update(),
+            pk=pk,
+            receiver=request.user,
+        )
+        new_status = request.data.get("status")
+        if new_status not in {Interest.Status.ACCEPTED, Interest.Status.DECLINED}:
+            return Response(
+                {"detail": "status must be ACCEPTED or DECLINED."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        allowed_current_statuses = (
+            {Interest.Status.PENDING, Interest.Status.DECLINED}
+            if new_status == Interest.Status.ACCEPTED
+            else {Interest.Status.PENDING, Interest.Status.ACCEPTED}
+        )
+        if interest.status not in allowed_current_statuses:
+            return Response(
+                {"detail": "This interest can no longer be updated.", "code": "INTEREST_NOT_ACTIONABLE"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        closes_match = (
+            interest.status == Interest.Status.ACCEPTED
+            and new_status == Interest.Status.DECLINED
+        )
+        interest.status = new_status
+        interest.save(update_fields=("status", "updated_at"))
+        if new_status == Interest.Status.ACCEPTED:
+            MatchClosureService.reopen_match(interest.sender, interest.receiver)
+        elif closes_match:
+            MatchClosureService.close_match(interest, request.user)
+            self._notify_match_removed(interest, request.user)
+
+        return Response(MemberInterestSerializer(interest, context={"request": request}).data)
+
+    @transaction.atomic
+    def delete(self, request, pk):
+        """Withdraw a sender's pending interest while preserving its history."""
+        interest = get_object_or_404(
+            Interest.objects.select_for_update(),
+            pk=pk,
+            sender=request.user,
+        )
+        if interest.status not in {Interest.Status.PENDING, Interest.Status.ACCEPTED}:
+            return Response(
+                {
+                    "detail": "Only a pending interest or accepted match can be withdrawn.",
+                    "code": "INTEREST_NOT_PENDING",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        closes_match = interest.status == Interest.Status.ACCEPTED
+        interest.status = Interest.Status.WITHDRAWN
+        interest.save(update_fields=("status", "updated_at"))
+        if closes_match:
+            MatchClosureService.close_match(interest, request.user)
+            self._notify_match_removed(interest, request.user)
+        return Response(MemberInterestSerializer(interest, context={"request": request}).data)
+
+    @staticmethod
+    def _notify_match_removed(interest, removed_by):
+        recipient = interest.receiver if interest.sender_id == removed_by.pk else interest.sender
+
+        def dispatch():
+            try:
+                notify(
+                    recipient,
+                    notification_type="MATCH_REMOVED",
+                    title="Match removed",
+                    message="This match is no longer active.",
+                    link_url="/interests/",
+                    related_object=interest,
+                )
+            except Exception:
+                # Notification delivery must not block a member's removal action.
+                pass
+
         transaction.on_commit(dispatch)

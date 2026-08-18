@@ -451,21 +451,8 @@ When a payment succeeds, if these checks are not yet fully passed, the membershi
 
 ---
 
-## 13. Compatibility Matching Engine & AstroTalk Integration
+## 13. Deterministic Compatibility
 
-The compatibility matching engine computes match percentages and explanatory bullet points between viewing members and prospective partners.
+Compatibility is calculated directly from the viewer's saved partner preferences and the other member's stored profile. The rule set considers age, height, location, religion, community, education, profession, marital status, and mother tongue.
 
-### Architecture
-
-The engine is designed as a modular provider-driven system:
-- **Interface Base**: `CompatibilityProvider` in `backend/apps/core/matching.py` defines the base contract `calculate(viewer, target)`.
-- **Active Engine**: `RuleBasedCompatibilityProvider` implements basic scoring (age range, location/city overlap, religion/community, education level, and marital status).
-- **Environment Variable**: Configure the active engine using `COMPATIBILITY_PROVIDER` in settings/env (defaults to `rule_based`).
-
-### Future AstroTalk Integration
-
-To integrate AstroTalk or any external astrological matching engine:
-1. Define a new provider subclass, e.g. `AstroTalkCompatibilityProvider(CompatibilityProvider)`.
-2. Configure external client authorization tokens and API URLs via environment variables.
-3. Update `get_compatibility_provider()` to return the `AstroTalkCompatibilityProvider` when `COMPATIBILITY_PROVIDER=astrotalk` is configured.
-4. Serializer representations and detail view APIs will remain completely unchanged, ensuring decoupling between views and external providers.
+The result includes a bounded score and only the matching rules that actually applied. There are no external matching providers or generated explanations.

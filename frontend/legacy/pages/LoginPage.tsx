@@ -7,6 +7,7 @@ import {
   CheckCircle2, LockKeyhole, Users, Star,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { ApiError } from '../services/apiClient';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -15,8 +16,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryTicket, setRecoveryTicket] = useState('');
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
 
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, recoverAccount, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requested = searchParams.get('next');
@@ -66,6 +70,13 @@ export default function LoginPage() {
       await login(identifier.trim(), password, 'MEMBER');
       navigate(destination, { replace: true });
     } catch (caught) {
+      const pendingRecovery = caught instanceof ApiError
+        ? caught.data as { code?: string; recovery_ticket?: string } | null
+        : null;
+      if (pendingRecovery?.code === 'ACCOUNT_DELETION_PENDING' && pendingRecovery.recovery_ticket) {
+        setRecoveryTicket(pendingRecovery.recovery_ticket);
+        setRecoveryOpen(true);
+      }
       setError(
         caught instanceof Error
           ? caught.message
@@ -73,6 +84,20 @@ export default function LoginPage() {
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const verifyRecovery = async () => {
+    if (!recoveryTicket) return setError('Sign in with your password again to recover this account.');
+    setRecoveryBusy(true);
+    setError('');
+    try {
+      await recoverAccount(recoveryTicket);
+      navigate(destination, { replace: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'We could not recover your account. Please sign in again.');
+    } finally {
+      setRecoveryBusy(false);
     }
   };
 
@@ -206,6 +231,16 @@ export default function LoginPage() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', borderRadius: 16, background: '#fef2f2', border: '1px solid #fecaca' }}>
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, flexShrink: 0, marginTop: 1 }}>!</div>
                 <span style={{ color: '#b91c1c', fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>{error}</span>
+              </div>
+            )}
+
+            {recoveryOpen && (
+              <div style={{ padding: '16px', borderRadius: 16, background: '#fff8ed', border: '1px solid #f5d6a0' }}>
+                <div style={{ color: '#8a5313', fontSize: 13, fontWeight: 800 }}>Recover your account</div>
+                <p style={{ margin: '6px 0 12px', color: '#8a6b3b', fontSize: 12, lineHeight: 1.5 }}>Your password has been confirmed. No OTP or recovery code is needed. Select Recover account within 30 days to restore it.</p>
+                <button type="button" onClick={() => void verifyRecovery()} disabled={recoveryBusy} style={{ width: '100%', border: 0, borderRadius: 12, padding: '11px 14px', background: '#8e3d58', color: 'white', fontWeight: 800, cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.6 : 1 }}>
+                  {recoveryBusy ? 'Recovering account...' : 'Recover account'}
+                </button>
               </div>
             )}
 

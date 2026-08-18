@@ -35,7 +35,7 @@ const journeySteps = [
   {
     step: '02',
     title: 'Discover Compatible Matches',
-    text: 'Our intelligent matching system recommends profiles based on your preferences, values, lifestyle, and compatibility—saving you time while helping you meet the right people.',
+    text: 'Our rule-based matching system surfaces profiles using your preferences, values, lifestyle, and compatibility details—saving you time while helping you meet the right people.',
   },
   {
     step: '03',

@@ -13,7 +13,7 @@ const CONFIG_TABS = [
   { key: 'GENERAL', label: 'General', icon: Sliders, desc: 'Application Name, contact info and maintenance mode.' },
   { key: 'BRANDING', label: 'Branding', icon: Sliders, desc: 'Corporate branding, logos, favicons, and accent colors.' },
   { key: 'REGISTRATION', label: 'Registration', icon: ShieldCheck, desc: 'Onboarding policies and verification requirements.' },
-  { key: 'VERIFICATION', label: 'Verification', icon: ShieldCheck, desc: 'Identity checklist documents and AI checks.' },
+  { key: 'VERIFICATION', label: 'Verification', icon: ShieldCheck, desc: 'Identity checklist documents and manual review rules.' },
   { key: 'PAYMENTS', label: 'Payments', icon: CreditCard, desc: 'Manual approval, currency, and refund policies.' },
   { key: 'NOTIFICATIONS', label: 'Notifications', icon: Bell, desc: 'WhatsApp notifications, push messages, and system alerts.' },
   { key: 'EMAIL', label: 'Email', icon: Mail, desc: 'SMTP server host, port, username, password and templates.' },
@@ -324,14 +324,6 @@ export default function AdminSystemPage({ mode }: { mode: 'settings' | 'backups'
       case 'VERIFICATION':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: '#f3f4f6', borderRadius: '8px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={Boolean(val.ai_verification_enabled)} onChange={e => updateFormField('VERIFICATION', 'ai_verification_enabled', e.target.checked)} style={{ width: '18px', height: '18px' }} />
-              <div>
-                <strong style={{ fontSize: '0.9rem' }}>Enable AI document validation</strong>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--admin-muted)' }}>Automate ID verification checks with optical matching.</p>
-              </div>
-            </label>
-
             <div>
               <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--admin-ink)', marginBottom: '0.5rem' }}>Accepted verification documents</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>

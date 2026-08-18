@@ -1,118 +1,107 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchApi } from '@/legacy/services/apiClient';
-import { useWindowRealtimeEvent } from './useRealtimeRefresh';
+import { useRealtime } from '@/providers/RealtimeProvider';
 
 export type PresenceMap = Map<string, boolean>;
 export type LastSeenMap = Map<string, string | null>;
 
 /**
- * Targeted presence for the currently visible users only.
- *
- * We never subscribe to a global online/offline firehose. Instead we ask the
- * backend for the status of exactly the profiles on screen (conversation
- * list, search results, matches) via POST /api/v1/presence/bulk/, and then
- * patch the local map when a `presence.changed` event arrives for one of them.
- *
- * The backend only emits `presence.changed` to a user's own personal group, so
- * a member only learns about their own transitions unless the UI explicitly
- * queries the peers it is showing.
+ * Targeted presence for members currently visible on screen. The server
+ * authorizes each ID against accepted, unblocked matches and then delivers
+ * changes through a private WebSocket subscription.
  */
 export function usePresence(userIds: string[]) {
   const userIdsKey = useMemo(() => userIds.join(','), [userIds]);
   const stableIds = useMemo(
     () => Array.from(new Set(userIds.filter(Boolean))).slice(0, 200).sort(),
-    // Re-fetch only when the actual set of ids changes.
     [userIdsKey],
   );
-
+  const { status, subscribe, send } = useRealtime();
   const [presence, setPresence] = useState<PresenceMap>(new Map());
-  const presenceRef = useRef<PresenceMap>(presence);
-  presenceRef.current = presence;
   const [lastSeen, setLastSeen] = useState<LastSeenMap>(new Map());
-  const lastSeenRef = useRef<LastSeenMap>(lastSeen);
-  lastSeenRef.current = lastSeen;
 
   const applyStatus = useCallback((id: string, online: boolean) => {
-    setPresence((prev) => {
-      if (prev.get(id) === online) return prev;
-      const next = new Map(prev);
+    setPresence((previous) => {
+      if (previous.get(id) === online) return previous;
+      const next = new Map(previous);
       next.set(id, online);
       return next;
     });
   }, []);
 
-  // Initial & periodic bulk fetch for visible id set
+  const applySnapshot = useCallback((statusMap: Record<string, unknown>, seenMap: Record<string, unknown>) => {
+    const nextPresence = new Map<string, boolean>();
+    const nextLastSeen = new Map<string, string | null>();
+    for (const id of stableIds) {
+      nextPresence.set(id, statusMap[id] === 'ONLINE');
+      const value = seenMap[id];
+      nextLastSeen.set(id, typeof value === 'string' ? value : null);
+    }
+    setPresence(nextPresence);
+    setLastSeen(nextLastSeen);
+  }, [stableIds]);
+
+  // HTTP establishes the initial state. It is not used as an interval-based
+  // substitute for realtime presence.
   useEffect(() => {
     if (stableIds.length === 0) {
       setPresence(new Map());
       setLastSeen(new Map());
       return;
     }
+
     let cancelled = false;
-    const fetchPresence = () => {
-      fetchApi<any>('/presence/bulk/', {
-        method: 'POST',
-        body: JSON.stringify({ user_ids: stableIds }),
-      })
-        .then((res: any) => {
-          if (cancelled) return;
-          const statusMap = res?.data && typeof res.data === 'object' ? res.data : res;
-          const next = new Map<string, boolean>();
-          for (const id of stableIds) {
-            next.set(id, statusMap?.[id] === 'ONLINE');
-          }
-          setPresence(next);
+    void fetchApi<any>('/presence/bulk/', {
+      method: 'POST',
+      body: JSON.stringify({ user_ids: stableIds }),
+    }).then((response) => {
+      if (cancelled) return;
+      const statusMap = response?.data && typeof response.data === 'object'
+        ? response.data as Record<string, unknown>
+        : response as Record<string, unknown>;
+      const seenMap = statusMap?.last_seen_at && typeof statusMap.last_seen_at === 'object'
+        ? statusMap.last_seen_at as Record<string, unknown>
+        : {};
+      applySnapshot(statusMap, seenMap);
+    }).catch(() => {
+      // The existing snapshot remains usable until the socket reconnects.
+    });
 
-          // Durable "last seen" info for OFFLINE users (sibling key).
-          const seenMap: Record<string, unknown> =
-            statusMap?.last_seen_at && typeof statusMap.last_seen_at === 'object'
-              ? (statusMap.last_seen_at as Record<string, unknown>)
-              : {};
-          const nextSeen = new Map<string, string | null>();
-          for (const id of stableIds) {
-            const value = seenMap[id];
-            nextSeen.set(id, typeof value === 'string' ? value : null);
-          }
-          setLastSeen(nextSeen);
-        })
-        .catch(() => {});
-    };
+    return () => { cancelled = true; };
+  }, [applySnapshot, stableIds]);
 
-    fetchPresence();
-    const timer = setInterval(fetchPresence, 10000);
+  useEffect(() => {
+    if (status !== 'connected' || stableIds.length === 0) return;
+    send({ type: 'presence.subscribe', user_ids: stableIds });
+  }, [send, stableIds, status]);
 
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [stableIds]);
+  useEffect(() => subscribe('presence.snapshot', (event) => {
+    const statuses = event.data.statuses;
+    const lastSeenAt = event.data.last_seen_at;
+    applySnapshot(
+      statuses && typeof statuses === 'object' ? statuses as Record<string, unknown> : {},
+      lastSeenAt && typeof lastSeenAt === 'object' ? lastSeenAt as Record<string, unknown> : {},
+    );
+  }), [applySnapshot, subscribe]);
 
-  // Live patches from WebSocket presence.changed events.
-  useWindowRealtimeEvent((event) => {
-    const detail = event.detail as { type?: string; user_id?: string; status?: string };
-    if (detail?.type !== 'presence.changed') return;
-    const id = detail.user_id;
-    if (!id) return;
-    applyStatus(id, detail.status === 'ONLINE');
-    if (detail.status === 'ONLINE') {
-      // Going back online invalidates the stale last-seen timestamp.
-      setLastSeen((prev) => {
-        if (!prev.has(id)) return prev;
-        const next = new Map(prev);
-        next.set(id, null);
-        return next;
-      });
-    }
-  });
+  useEffect(() => subscribe('presence.changed', (event) => {
+    const id = typeof event.data.user_id === 'string' ? event.data.user_id : '';
+    const statusValue = typeof event.data.status === 'string' ? event.data.status : '';
+    if (!id || !stableIds.includes(id)) return;
+
+    applyStatus(id, statusValue === 'ONLINE');
+    setLastSeen((previous) => {
+      if (!previous.has(id)) return previous;
+      const next = new Map(previous);
+      next.set(id, statusValue === 'ONLINE' ? null : event.timestamp || next.get(id) || null);
+      return next;
+    });
+  }), [applyStatus, stableIds, subscribe]);
 
   const isOnline = useCallback((id?: string) => (id ? presence.get(id) === true : false), [presence]);
-
-  const getLastSeen = useCallback(
-    (id?: string) => (id ? lastSeen.get(id) ?? null : null),
-    [lastSeen],
-  );
+  const getLastSeen = useCallback((id?: string) => (id ? lastSeen.get(id) ?? null : null), [lastSeen]);
 
   return { presence, lastSeen, isOnline, getLastSeen };
 }

@@ -104,10 +104,9 @@ export type AdminUserAction =
   | 'reject_document'
   | 'activate'
   | 'deactivate'
-  | 'soft_delete'
+  | 'delete'
   | 'restore'
-  | 'grant_membership'
-  | 'permanent_delete';
+  | 'grant_membership';
 
 export interface AdminUserActionInput {
   action: AdminUserAction;

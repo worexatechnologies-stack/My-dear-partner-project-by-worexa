@@ -13,6 +13,8 @@ from .views import (
     MemberDocumentReuploadView,
     MemberForgotPasswordView,
     MemberLoginView,
+    MemberAccountDeletionView,
+    MemberAccountRecoveryVerifyView,
     MemberLogoutAllView,
     MemberLogoutView,
     MemberMeView,
@@ -64,6 +66,8 @@ app_name = 'member_auth'
 urlpatterns = [
     path('register/', MemberRegisterView.as_view(), name='register'),
     path('login/', MemberLoginView.as_view(), name='login'),
+    path('account/delete/', MemberAccountDeletionView.as_view(), name='account_delete'),
+    path('account/recovery/verify/', MemberAccountRecoveryVerifyView.as_view(), name='account_recovery_verify'),
     path('logout/', MemberLogoutView.as_view(), name='logout'),
     path('logout-all/', MemberLogoutAllView.as_view(), name='logout_all'),
     path('refresh/', MemberRefreshView.as_view(), name='refresh'),

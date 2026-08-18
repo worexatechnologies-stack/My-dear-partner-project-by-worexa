@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r requirements/base.txt -r requirements/producti
 
 COPY . .
 
+# Docker Desktop can forward a Windows checkout with CRLF shell scripts.
+# Normalise the runtime entrypoint so /bin/sh can execute it reliably.
+RUN sed -i 's/\r$//' /app/entrypoint.sh
+
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
 USER appuser
 

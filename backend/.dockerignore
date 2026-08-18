@@ -9,6 +9,7 @@ __pycache__
 media/member_photos/
 private_media/
 venv/
+pytest_temp/
 node_modules/
 *.log
 *.pot

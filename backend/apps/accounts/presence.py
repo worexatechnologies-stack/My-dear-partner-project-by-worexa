@@ -57,6 +57,30 @@ def _expire_key(user_id: str) -> str:
     return f"presence:user:{user_id}:expires_at"
 
 
+def _refresh_count_ttl(cache, count_key: str, fallback_count: int = 1) -> None:
+    """Keep the live-connection counter available for active sockets.
+
+    Redis expires keys independently. Refreshing only ``expires_at`` would
+    allow the count key to disappear while a long-lived socket still sends
+    heartbeats, incorrectly making that member look offline.
+    """
+    timeout = int(PRESENCE_TTL.total_seconds())
+    try:
+        if cache.touch(count_key, timeout):
+            return
+    except Exception:
+        # Some cache backends do not implement ``touch``. Re-setting the
+        # current count keeps the fallback compatible without losing presence.
+        pass
+
+    current_count = cache.get(count_key)
+    try:
+        count = max(int(current_count or 0), fallback_count)
+    except (TypeError, ValueError):
+        count = fallback_count
+    cache.set(count_key, count, timeout)
+
+
 def mark_online(user_id: str, connection_id: str) -> bool:
     """Register a connection as alive. Returns True if Redis is available."""
     cache = _cache()
@@ -68,6 +92,7 @@ def mark_online(user_id: str, connection_id: str) -> bool:
             cache.incr(count_key, 1)
         except (ValueError, KeyError):
             cache.set(count_key, 1, int(PRESENCE_TTL.total_seconds()))
+        _refresh_count_ttl(cache, count_key)
         cache.set(_expire_key(user_id), time.time() + PRESENCE_TTL.total_seconds(), int(PRESENCE_TTL.total_seconds()))
         return True
     except Exception:
@@ -81,6 +106,7 @@ def refresh_connection(user_id: str, connection_id: str) -> bool:
     if cache is None:
         return False
     try:
+        _refresh_count_ttl(cache, _count_key(user_id))
         cache.set(_expire_key(user_id), time.time() + PRESENCE_TTL.total_seconds(), int(PRESENCE_TTL.total_seconds()))
         return True
     except Exception:

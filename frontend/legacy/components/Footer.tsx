@@ -16,7 +16,6 @@ const linkGroups = [
       { name: 'Search Matches', path: '/search' },
       { name: 'Success Stories', path: '/success-stories' },
       { name: 'Membership Plans', path: '/membership' },
-      { name: 'Smart Matchmaker', path: '/matchmaking' },
       { name: 'About MyDearPartner', path: '/about' },
     ],
   },

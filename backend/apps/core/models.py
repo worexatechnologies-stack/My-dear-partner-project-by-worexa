@@ -251,6 +251,7 @@ class Interest(models.Model):
         PENDING = 'PENDING', 'Pending'
         ACCEPTED = 'ACCEPTED', 'Accepted'
         DECLINED = 'DECLINED', 'Declined'
+        WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sender = models.ForeignKey(
@@ -281,22 +282,87 @@ class Interest(models.Model):
         ]
 
 
-class ChatMessage(models.Model):
-    objects = models.Manager()
+class MatchClosure(models.Model):
+    """Records a member's deliberate decision to end an accepted match."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    sender = models.ForeignKey(
+    interest = models.OneToOneField(
+        Interest,
+        on_delete=models.CASCADE,
+        related_name='match_closure',
+    )
+    closed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        related_name='closed_matches',
+    )
+    closed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'match_closures'
+        ordering = ('-closed_at',)
+        indexes = [
+            models.Index(fields=('closed_by', 'closed_at'), name='match_close_by_date_idx'),
+        ]
+
+
+class ChatMessage(models.Model):
+    class MessageType(models.TextChoices):
+        TEXT = 'TEXT', 'Text'
+        IMAGE = 'IMAGE', 'Image'
+        VIDEO = 'VIDEO', 'Video'
+        VOICE = 'VOICE', 'Voice'
+        DOCUMENT = 'DOCUMENT', 'Document'
+        GIF = 'GIF', 'GIF'
+
+    class DeletionType(models.TextChoices):
+        FOR_ME = 'FOR_ME', 'Deleted for me'
+        FOR_EVERYONE = 'FOR_EVERYONE', 'Deleted for everyone'
+
+    objects = models.Manager()
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(
+        'core.ChatConversation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='messages',
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='sent_messages',
     )
     receiver = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='received_messages',
     )
     text = models.TextField()
+    message_type = models.CharField(max_length=20, choices=MessageType.choices, default=MessageType.TEXT, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_for_everyone = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deleted_chat_messages',
+    )
+    deletion_type = models.CharField(max_length=20, choices=DeletionType.choices, blank=True, db_index=True)
+    retention_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    sender_id_snapshot = models.UUIDField(null=True, blank=True, db_index=True)
+    receiver_id_snapshot = models.UUIDField(null=True, blank=True, db_index=True)
+    sender_name_snapshot = models.CharField(max_length=255, blank=True)
+    receiver_name_snapshot = models.CharField(max_length=255, blank=True)
 
     class Meta:
         db_table = 'chat_messages'
@@ -306,6 +372,148 @@ class ChatMessage(models.Model):
                 fields=('sender', 'receiver', 'created_at'),
                 name='chat_sender_recv_created_idx',
             ),
+            models.Index(
+                fields=('conversation', 'created_at'),
+                name='chat_conversation_created_idx',
+            ),
+        ]
+
+
+class ChatConversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member_one = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_conversations_as_one',
+    )
+    member_two = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_conversations_as_two',
+    )
+    member_one_id_snapshot = models.UUIDField(db_index=True)
+    member_two_id_snapshot = models.UUIDField(db_index=True)
+    member_one_name_snapshot = models.CharField(max_length=255, blank=True)
+    member_two_name_snapshot = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_message_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        db_table = 'chat_conversations'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('member_one_id_snapshot', 'member_two_id_snapshot'),
+                name='unique_chat_member_pair_snapshot',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('member_one', 'member_two'), name='chat_conv_member_pair_idx'),
+        ]
+
+
+class ChatConversationParticipant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(ChatConversation, on_delete=models.CASCADE, related_name='participants')
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_participations',
+    )
+    member_id_snapshot = models.UUIDField(db_index=True)
+    display_name_snapshot = models.CharField(max_length=255, blank=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    left_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'chat_conversation_participants'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('conversation', 'member_id_snapshot'),
+                name='unique_chat_conversation_participant',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('member', 'left_at'), name='chat_participant_member_idx'),
+            models.Index(fields=('conversation', 'left_at'), name='chat_participant_conv_idx'),
+        ]
+
+
+class ChatMessageUserVisibility(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='user_visibility')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_message_visibility',
+    )
+    user_id_snapshot = models.UUIDField(db_index=True)
+    hidden = models.BooleanField(default=True)
+    hidden_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'chat_message_user_visibility'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('message', 'user_id_snapshot'),
+                name='unique_chat_message_user_visibility',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('user_id_snapshot', 'hidden'), name='chat_visibility_user_idx'),
+        ]
+
+
+class ChatMessageAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='attachments')
+    storage_key = models.CharField(max_length=1024)
+    file_name = models.CharField(max_length=255)
+    mime_type = models.CharField(max_length=255)
+    file_size = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    deleted_from_user_view = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'chat_message_attachments'
+        indexes = [
+            models.Index(fields=('message', 'created_at'), name='chat_attachment_message_idx'),
+        ]
+
+
+class AdminMessageAccessLog(models.Model):
+    class Action(models.TextChoices):
+        VIEW_CONVERSATION = 'VIEW_CONVERSATION', 'View conversation'
+        VIEW_MESSAGE = 'VIEW_MESSAGE', 'View message'
+        VIEW_DELETED_MESSAGE = 'VIEW_DELETED_MESSAGE', 'View deleted message'
+        SEARCH_MESSAGES = 'SEARCH_MESSAGES', 'Search messages'
+        VIEW_ATTACHMENT = 'VIEW_ATTACHMENT', 'View attachment'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    admin_user = models.ForeignKey('accounts.SuperAdmin', on_delete=models.PROTECT, related_name='message_access_logs')
+    conversation = models.ForeignKey(ChatConversation, on_delete=models.SET_NULL, null=True, blank=True, related_name='admin_access_logs')
+    message = models.ForeignKey(ChatMessage, on_delete=models.SET_NULL, null=True, blank=True, related_name='admin_access_logs')
+    conversation_id_snapshot = models.UUIDField(null=True, blank=True, db_index=True)
+    message_id_snapshot = models.UUIDField(null=True, blank=True, db_index=True)
+    action = models.CharField(max_length=30, choices=Action.choices, db_index=True)
+    reason = models.CharField(max_length=500)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'admin_message_access_logs'
+        indexes = [
+            models.Index(fields=('admin_user', 'created_at'), name='chat_admin_access_admin_idx'),
+            models.Index(fields=('action', 'created_at'), name='chat_admin_access_action_idx'),
         ]
 
 

@@ -28,6 +28,14 @@ app.conf.beat_schedule = {
         'task': 'apps.memberships.tasks.notify_expiring_memberships',
         'schedule': crontab(hour=9, minute=0),
     },
+    'permanently-delete-expired-members': {
+        'task': 'apps.core.tasks.permanently_delete_expired_members',
+        'schedule': crontab(hour=0, minute=30),
+    },
+    'purge-expired-chat-messages': {
+        'task': 'apps.core.tasks.purge_expired_chat_messages',
+        'schedule': crontab(hour=1, minute=0),
+    },
 }
 
 

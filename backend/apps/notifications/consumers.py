@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.accounts.models import AccountType
 from apps.accounts import presence
+from apps.accounts.presence_access import authorized_presence_member_ids
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         self.account_id = str(user.pk)
         self.connection_id = str(uuid.uuid4())
         self.joined_groups = []
+        self.presence_groups = []
 
         # Register this connection in Redis presence (TTL-backed). Run in a
         # thread so the sync Redis client does not block the event loop.
@@ -66,7 +68,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             self.joined_groups.append(role_group)
             await self.channel_layer.group_add(role_group, self.channel_name)
 
-        await self.accept()
+        await self.accept(subprotocol=self.scope.get("jwt_subprotocol"))
 
         await self.send_json({
             "type": "connection.established",
@@ -86,6 +88,8 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             )
 
     async def disconnect(self, close_code):
+        for group_name in getattr(self, "presence_groups", []):
+            await self.channel_layer.group_discard(group_name, self.channel_name)
         for group_name in getattr(self, "joined_groups", []):
             await self.channel_layer.group_discard(group_name, self.channel_name)
 
@@ -121,6 +125,8 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
                     user_id, self.connection_id
                 )
                 await self.send_json({"type": "presence.pong"})
+        elif msg_type == "presence.subscribe":
+            await self._replace_presence_subscriptions(content.get("user_ids"))
 
     async def notification_message(self, event):
         payload = event.get("payload", event)
@@ -140,14 +146,43 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             "status": status_value,
             "timestamp": timezone.now().isoformat(),
         }
-        # Targeted only to the user's own personal group, never globally.
+        # A member's own personal socket can update local state, while the
+        # private presence group is joined only after a server-side match and
+        # block-list authorization check.
         try:
-            await self.channel_layer.group_send(
-                f"user_{user_id}",
-                {"type": "presence_changed", "payload": payload},
-            )
+            for group_name in (f"user_{user_id}", f"presence_{user_id}"):
+                await self.channel_layer.group_send(
+                    group_name,
+                    {"type": "presence_changed", "payload": payload},
+                )
         except Exception:
             logger.exception("Failed to emit presence.changed for user=%s", user_id)
+
+    async def _replace_presence_subscriptions(self, raw_ids):
+        """Subscribe this socket to relationship-authorized presence events."""
+        user_ids = await self._authorized_presence_ids(raw_ids)
+        next_groups = [f"presence_{user_id}" for user_id in user_ids]
+        for group_name in self.presence_groups:
+            if group_name not in next_groups:
+                await self.channel_layer.group_discard(group_name, self.channel_name)
+        for group_name in next_groups:
+            if group_name not in self.presence_groups:
+                await self.channel_layer.group_add(group_name, self.channel_name)
+        self.presence_groups = next_groups
+
+        statuses = await database_sync_to_async(presence.get_bulk_status)(user_ids)
+        last_seen_at = await database_sync_to_async(presence.get_last_seen_map)(user_ids)
+        await self.send_json({
+            "type": "presence.snapshot",
+            "data": {
+                "statuses": statuses,
+                "last_seen_at": last_seen_at,
+            },
+        })
+
+    @database_sync_to_async
+    def _authorized_presence_ids(self, raw_ids):
+        return authorized_presence_member_ids(self.scope.get("user"), raw_ids)
 
     @database_sync_to_async
     def _persist_last_seen(self, user_id):

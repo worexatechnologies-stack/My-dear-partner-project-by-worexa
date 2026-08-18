@@ -24,6 +24,7 @@ const Refunds = load(() => import('@/legacy/pages/admin/AdminRefundsPage'));
 const StaffActivity = load(() => import('@/legacy/pages/admin/AdminStaffActivityPage'));
 const AdminAccounts = load(() => import('@/legacy/pages/admin/AdminAccountsManagementPage'));
 const System = load(() => import('@/legacy/pages/admin/AdminSystemPage'));
+const MessageAudit = load(() => import('@/legacy/pages/admin/AdminMessageAuditPage'));
 const MemberDetail = load(() => import('@/legacy/pages/admin/AdminMemberDetailPage'));
 
 type RouteEntry = { component: ComponentType<any>; permission?: string; props?: Record<string, unknown> };
@@ -47,6 +48,7 @@ const routes: Record<string, RouteEntry> = {
   activity: { component: Activity, permission: 'activity.view_all' },
   settings: { component: System, permission: 'settings.manage', props: { mode: 'settings' } },
   backups: { component: System, permission: 'backups.manage', props: { mode: 'backups' } },
+  'message-audit': { component: MessageAudit, permission: 'message_audit.view' },
   complaints: { component: Complaints, permission: 'complaints.view_all' },
   'reported-profiles': { component: ReportedProfiles, permission: 'profile_reports.manage' },
   'staff-activity': { component: StaffActivity, permission: 'staff.activity' },

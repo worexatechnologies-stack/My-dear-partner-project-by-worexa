@@ -5,10 +5,12 @@ from uuid import UUID
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
+from django.utils import timezone
 
 from apps.accounts.models import AccountType, Member
 
 from .models import ChatMessage
+from .message_service import conversation_contains_member, create_message, hide_message_for_user
 
 
 logger = logging.getLogger(__name__)
@@ -28,8 +30,7 @@ CLOSE_PAYLOAD_TOO_LARGE = 4409
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def _reject_connection(self, code: int):
-        """Complete the WebSocket handshake so clients receive a useful close code."""
-        await self.accept()
+        """Reject the handshake so callers cannot mistake denial for a chat connection."""
         await self.close(code=code)
 
     async def connect(self):
@@ -61,10 +62,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         self.room_name = self._make_room_name(str(self.user.id), str(self.partner_id))
+        self.is_typing = False
         await self.channel_layer.group_add(self.room_name, self.channel_name)
         await self.accept(subprotocol=self.scope.get('jwt_subprotocol'))
 
     async def disconnect(self, close_code):
+        if getattr(self, 'is_typing', False):
+            self.is_typing = False
+            await self._broadcast_typing(False)
         if hasattr(self, 'room_name'):
             await self.channel_layer.group_discard(self.room_name, self.channel_name)
 
@@ -93,14 +98,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if payload.get('type') == 'typing':
             is_typing = bool(payload.get('is_typing', False))
-            await self.channel_layer.group_send(
-                self.room_name,
-                {
-                    'type': 'chat.typing',
-                    'sender_id': str(self.user.id),
-                    'is_typing': is_typing,
-                },
-            )
+            self.is_typing = is_typing
+            await self._broadcast_typing(is_typing)
             return
 
         if payload.get('type') == 'read_receipt':
@@ -126,6 +125,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 )
             return
 
+        if payload.get('type') == 'delete_message':
+            message_id = payload.get('message_id')
+            action = str(payload.get('action') or 'for_me').lower()
+            if not message_id or action not in {'for_me', 'for_everyone'}:
+                await self.close(code=CLOSE_INVALID_PAYLOAD)
+                return
+            result = await self._delete_message(message_id, action)
+            if result is None:
+                await self.send(text_data=json.dumps({'type': 'error', 'code': 'MESSAGE_DELETE_NOT_ALLOWED'}))
+                return
+            await self.channel_layer.group_send(
+                self.room_name,
+                {
+                    'type': 'chat.message_deleted',
+                    'message_id': result['message_id'],
+                    'for_everyone': result['for_everyone'],
+                    'user_id': result.get('user_id'),
+                },
+            )
+            return
+
         if not isinstance(payload.get('text'), str):
             await self.close(code=CLOSE_INVALID_PAYLOAD)
             return
@@ -142,6 +162,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if len(text) > MAX_CHAT_MESSAGE_LENGTH:
             await self.close(code=CLOSE_PAYLOAD_TOO_LARGE)
             return
+
+        if self.is_typing:
+            self.is_typing = False
+            await self._broadcast_typing(False)
 
         result = await self._create_message_if_allowed(text)
         message, denial_code = result if isinstance(result, tuple) else (result, None)
@@ -184,6 +208,42 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     }
                 )
             )
+
+    async def chat_message_deleted(self, event):
+        if not event.get('for_everyone') and event.get('user_id') != str(self.user.id):
+            return
+        await self.send(text_data=json.dumps({
+            'type': 'message_deleted',
+            'message_id': event['message_id'],
+            'for_everyone': bool(event.get('for_everyone')),
+        }))
+
+    async def _broadcast_typing(self, is_typing):
+        """Deliver ephemeral typing state to the open chat and chat sidebar."""
+        payload = {
+            'type': 'chat.typing',
+            'sender_id': str(self.user.id),
+            'partner_id': str(self.partner_id),
+            'is_typing': bool(is_typing),
+        }
+        await self.channel_layer.group_send(
+            self.room_name,
+            {
+                'type': 'chat.typing',
+                'sender_id': payload['sender_id'],
+                'is_typing': payload['is_typing'],
+            },
+        )
+        try:
+            await self.channel_layer.group_send(
+                f"user_{self.partner_id}",
+                {
+                    'type': 'notification_message',
+                    'payload': payload,
+                },
+            )
+        except Exception:
+            logger.exception('Unable to publish typing state for sender=%s', self.user.id)
 
     @database_sync_to_async
     def _connection_denial_code(self):
@@ -247,7 +307,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not allowed:
             return None, reason
 
-        message = ChatMessage.objects.create(sender=sender, receiver=partner, text=text)
+        message = create_message(sender=sender, receiver=partner, text=text)
         
         # Every chat message is also a persisted personal notification.  This
         # is deliberately created in the same path as the websocket message:
@@ -269,7 +329,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'text': message.text,
             'created_at': message.created_at.isoformat(),
             'is_read': message.is_read,
+            'message_type': message.message_type,
+            'status': 'ACTIVE',
         }, None
+
+    @database_sync_to_async
+    def _delete_message(self, message_id, action):
+        try:
+            message = ChatMessage.objects.select_related('conversation').get(pk=message_id)
+        except (ChatMessage.DoesNotExist, ValueError, TypeError):
+            return None
+        if not message.conversation_id or not conversation_contains_member(message.conversation, self.user):
+            return None
+        if action == 'for_everyone':
+            if message.sender_id != self.user.id:
+                return None
+            message.deleted_for_everyone = True
+            message.deleted_at = timezone.now()
+            message.deleted_by = self.user
+            message.deletion_type = ChatMessage.DeletionType.FOR_EVERYONE
+            message.save(update_fields=('deleted_for_everyone', 'deleted_at', 'deleted_by', 'deletion_type', 'updated_at'))
+            return {'message_id': str(message.pk), 'for_everyone': True}
+        hide_message_for_user(message, self.user)
+        return {'message_id': str(message.pk), 'for_everyone': False, 'user_id': str(self.user.id)}
 
     @database_sync_to_async
     def _mark_messages_read(self, message_ids):
@@ -300,6 +382,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def _make_room_name(user_a, user_b):
         ordered = sorted([user_a, user_b])
         return f'chat_{ordered[0]}_{ordered[1]}'
+
+    make_room_name = _make_room_name
 
 
 from apps.notifications.consumers import NotificationConsumer  # Re-export unified consumer

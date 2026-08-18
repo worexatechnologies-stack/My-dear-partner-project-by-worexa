@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.core.models import Interest
 from apps.accounts.models import Member
 from apps.core.eligibility import get_eligible_profiles_for
+from .match_closure_service import MatchClosureService
 from .membership_service import MembershipService
 from .profile_unlock_service import ProfileUnlockService
 
@@ -69,8 +70,8 @@ class InterestService:
         ).first()
         
         if existing_interest:
-            if existing_interest.status == Interest.Status.DECLINED:
-                # Allow resending after decline
+            if existing_interest.status in {Interest.Status.DECLINED, Interest.Status.WITHDRAWN}:
+                # A new request is allowed after a decline or a withdrawal.
                 existing_interest.status = Interest.Status.PENDING
                 existing_interest.created_at = timezone.now()
                 existing_interest.save(update_fields=['status', 'created_at', 'updated_at'])
@@ -123,6 +124,7 @@ class InterestService:
         interest.status = Interest.Status.ACCEPTED
         interest.updated_at = timezone.now()
         interest.save(update_fields=['status', 'updated_at'])
+        MatchClosureService.reopen_match(interest.sender, interest.receiver)
         
         # Send notification to sender
         try:
@@ -159,12 +161,15 @@ class InterestService:
         if interest.receiver_id != user.pk:
             return False, 'You are not authorized to decline this interest.'
         
-        if interest.status != Interest.Status.PENDING:
+        if interest.status not in {Interest.Status.PENDING, Interest.Status.ACCEPTED}:
             return False, f'Interest is already {interest.status.lower()}.'
-        
+
+        closes_match = interest.status == Interest.Status.ACCEPTED
         interest.status = Interest.Status.DECLINED
         interest.updated_at = timezone.now()
         interest.save(update_fields=['status', 'updated_at'])
+        if closes_match:
+            MatchClosureService.close_match(interest, user)
         
         # Optionally notify sender
         try:
@@ -198,13 +203,16 @@ class InterestService:
         if interest.sender_id != user.pk:
             return False, 'You are not authorized to withdraw this interest.'
         
-        if interest.status == Interest.Status.ACCEPTED:
-            return False, 'Cannot withdraw an accepted interest.'
-        
-        # Delete the interest
-        interest.delete()
-        
-        return True, 'Interest withdrawn successfully.'
+        if interest.status not in {Interest.Status.PENDING, Interest.Status.ACCEPTED}:
+            return False, 'Only a pending interest or accepted match can be withdrawn.'
+
+        closes_match = interest.status == Interest.Status.ACCEPTED
+        interest.status = Interest.Status.WITHDRAWN
+        interest.save(update_fields=['status', 'updated_at'])
+        if closes_match:
+            MatchClosureService.close_match(interest, user)
+
+        return True, 'Match removed successfully.' if closes_match else 'Interest withdrawn successfully.'
     
     @staticmethod
     def can_send_interest(sender):
@@ -317,7 +325,13 @@ class InterestService:
         Returns:
             bool: True if mutual interest exists
         """
+        if MatchClosureService.has_closed_match(user1, user2):
+            return False
         return Interest.objects.filter(
             Q(sender=user1, receiver=user2, status=Interest.Status.ACCEPTED) |
             Q(sender=user2, receiver=user1, status=Interest.Status.ACCEPTED)
         ).exists()
+
+    @staticmethod
+    def has_closed_match(user1, user2):
+        return MatchClosureService.has_closed_match(user1, user2)

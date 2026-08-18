@@ -17,6 +17,7 @@ from apps.core.eligibility import get_eligible_profiles_for
 from apps.core.models import MemberMembership, ProfileBlock, ProfileViewLog
 from apps.profiles.models import ProfilePhoto
 from .membership_service import MembershipService
+from .match_closure_service import MatchClosureService
 from .profile_unlock_service import ProfileUnlockService
 from .interest_service import InterestService
 
@@ -201,10 +202,10 @@ class ProfileService:
             view_date=timezone.now().date(),
         )
 
-        # Calculate compatibility
-        from apps.core.matching import get_compatibility_provider
-        provider = get_compatibility_provider()
-        compatibility = provider.calculate(viewer, member)
+        # Calculate compatibility from the viewer's saved preferences only.
+        from apps.core.matching import calculate_profile_compatibility
+
+        compatibility = calculate_profile_compatibility(viewer, member)
         
         # Get interest usage
         interest_usage = InterestService.get_daily_usage(viewer)
@@ -250,7 +251,7 @@ class ProfileService:
     @staticmethod
     def can_message(viewer, target):
         """
-        Check if viewer can message target.
+        Check whether the viewer can open a chat with the target.
         
         Args:
             viewer: Member sending message
@@ -259,41 +260,12 @@ class ProfileService:
         Returns:
             tuple: (allowed: bool, reason: str)
         """
-        # Check messaging mode and can_message flag
-        plan = MembershipService.get_effective_plan(viewer)
-        can_msg = getattr(plan, 'can_message', False) if plan else False
-        messaging_mode = getattr(plan, 'messaging_mode', 'DISABLED') if plan else 'DISABLED'
-        
-        if not can_msg and messaging_mode == 'DISABLED':
-            return False, 'messaging_not_included'
-        
-        # Check target eligibility
-        if (
-            not target.is_active
-            or target.deleted_at is not None
-            or target.account_status != Member.AccountStatus.ACTIVE
-            or target.is_hidden
-            or (
-                getattr(settings, 'REQUIRE_MEMBER_VERIFICATION', False)
-                and target.profile_status != Member.ProfileStatus.APPROVED
-            )
-        ):
-            return False, 'target_ineligible'
-        
-        # Check blocked relationships
-        is_blocked = ProfileBlock.objects.filter(
-            Q(blocker=viewer, blocked=target) | Q(blocker=target, blocked=viewer)
-        ).exists()
-        
-        if is_blocked:
-            return False, 'messaging_blocked'
-        
-        # Check mutual interest requirement for MUTUAL_ONLY mode
-        if messaging_mode == 'MUTUAL_ONLY':
-            if not InterestService.has_mutual_interest(viewer, target):
-                return False, 'messaging_requires_mutual_interest'
-        
-        return True, 'Allowed'
+        # Keep the profile action in sync with the HTTP and WebSocket chat
+        # authorization path. In particular, a current free-trial entitlement
+        # can enable chat even though it has no MemberMembership row.
+        from apps.core.entitlement_service import MembershipEntitlementService
+
+        return MembershipEntitlementService.can_connect_chat(viewer, target)
     
     @staticmethod
     def can_view_contact(viewer, target):
@@ -323,6 +295,9 @@ class ProfileService:
         ).exists()
         
         if is_blocked:
+            return False, 'NONE'
+
+        if MatchClosureService.has_closed_match(viewer, target):
             return False, 'NONE'
         
         plan = MembershipService.get_effective_plan(viewer)

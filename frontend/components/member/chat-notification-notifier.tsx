@@ -192,11 +192,9 @@ export function ChatNotificationNotifier() {
     };
     window.addEventListener(ACTIVE_CHAT_CHANGED_EVENT, dismissActiveChat);
     window.addEventListener('focus', dismissActiveChat);
-    const timer = window.setInterval(dismissActiveChat, 1500);
     return () => {
       window.removeEventListener(ACTIVE_CHAT_CHANGED_EVENT, dismissActiveChat);
       window.removeEventListener('focus', dismissActiveChat);
-      window.clearInterval(timer);
     };
   }, [dismissChatNotification]);
 
@@ -220,11 +218,14 @@ export function ChatNotificationNotifier() {
       }
     });
 
+    const syncOnVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshUnreadChats();
+    };
     void refreshUnreadChats();
-    const timer = window.setInterval(() => void refreshUnreadChats(), 10000);
+    window.addEventListener('visibilitychange', syncOnVisibility);
     return () => {
       unsubscribe();
-      window.clearInterval(timer);
+      window.removeEventListener('visibilitychange', syncOnVisibility);
     };
   }, [refreshUnreadChats, subscribe]);
 

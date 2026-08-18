@@ -105,6 +105,8 @@ from .views import (
     MemberNotificationUnreadCountView,
     MembershipPlanListView,
     MessageHistoryView,
+    MessageMarkReadView,
+    MessageDeleteView,
     PaymentHistoryView,
     ProfileDetailView,
     ProfileListView,
@@ -154,6 +156,11 @@ from .views.admin_lifecycle_views import (
     AdminExpiringMembersDashboardView,
     AdminNotificationDeliveryLogView,
 )
+from .message_audit_views import (
+    MessageAuditConversationListView,
+    MessageAuditConversationMessagesView,
+    MessageAuditMessageDetailView,
+)
 
 
 urlpatterns = [
@@ -183,6 +190,11 @@ urlpatterns = [
     path('matchmaking/compatibility/', CompatibilityCheckView.as_view(), name='compatibility_check'),
     path('conversations/', ConversationListView.as_view(), name='conversations_list'),
     path('conversations/<uuid:user_id>/messages/', MessageHistoryView.as_view(), name='conversation_messages'),
+    path('conversations/<uuid:user_id>/mark-read/', MessageMarkReadView.as_view(), name='conversation_mark_read'),
+    path('messages/<uuid:message_id>/delete/', MessageDeleteView.as_view(), name='message_delete'),
+    path('admin/message-audit/conversations/', MessageAuditConversationListView.as_view(), name='admin_message_audit_conversations'),
+    path('admin/message-audit/conversations/<uuid:conversation_id>/messages/', MessageAuditConversationMessagesView.as_view(), name='admin_message_audit_conversation_messages'),
+    path('admin/message-audit/messages/<uuid:message_id>/', MessageAuditMessageDetailView.as_view(), name='admin_message_audit_message_detail'),
 
     # Razorpay Payment Gateway integration endpoints
     path('payments/orders/', PaymentOrderCreateView.as_view(), name='payment_order_create'),

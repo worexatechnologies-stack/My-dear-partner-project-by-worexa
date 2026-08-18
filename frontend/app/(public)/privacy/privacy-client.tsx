@@ -117,7 +117,11 @@ export default function PrivacyClient() {
       bg: '#faf5ff',
       border: '#e9d5ff',
       content: 'We retain your information only as long as necessary to provide our services, meet legal obligations, resolve disputes, or prevent fraud. Upon permanent account deletion, personal info is removed or anonymized except where retention is legally required.',
-      bullets: []
+      bullets: [
+        'Chat messages are stored on our servers for safety, abuse investigation, dispute resolution, security, and legal/compliance purposes. The current configured message-retention window is up to 365 days after the message retention deadline.',
+        'Deleting a message from your chat view hides it for you. Delete for everyone replaces it with a deletion notice for members, while the retained record may remain available to authorized Super Admin investigators during the retention window.',
+        'Chat attachments are kept in private storage and are never exposed through permanent public URLs. Access is authorized and time-limited.'
+      ]
     },
     {
       num: 9,

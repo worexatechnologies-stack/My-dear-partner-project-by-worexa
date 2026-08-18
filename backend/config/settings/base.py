@@ -45,6 +45,11 @@ PERMANENT_DELETE_DOCUMENT_POLICY = config['PERMANENT_DELETE_DOCUMENT_POLICY']
 
 FREE_PROFILE_VIEW_LIMIT = int(os.environ.get('FREE_PROFILE_VIEW_LIMIT', 5))
 
+# Chat records are retained for the disclosed moderation/safety window.  The
+# value is configurable so the retention policy can be changed without a
+# schema migration or code deployment.
+MESSAGE_RETENTION_DAYS = max(1, int(os.environ.get('MESSAGE_RETENTION_DAYS', 365)))
+
 ALLOW_DEVELOPMENT_SEED = config['ENABLE_DEVELOPMENT_SEED']
 ALLOW_DESTRUCTIVE_DEV_RESET = os.environ.get('ALLOW_DESTRUCTIVE_DEV_RESET', 'False') == 'True' and (ENVIRONMENT == 'local')
 ENABLE_TWO_FACTOR = config['ENABLE_TWO_FACTOR']

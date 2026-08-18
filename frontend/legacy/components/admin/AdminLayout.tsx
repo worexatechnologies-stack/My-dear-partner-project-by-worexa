@@ -5,7 +5,7 @@ import SmartImage from '@/components/shared/smart-image';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from '@/lib/router-compat';
 import {
-  Bell, ChevronDown, ChevronLeft, ChevronRight,
+  ChevronDown, ChevronLeft, ChevronRight,
   HeartHandshake, LogOut, Menu, Search, ShieldCheck, UserRound, X,
 } from 'lucide-react';
 import {
@@ -21,7 +21,7 @@ const roleLabels: Record<AdminRole, string> = {
 };
 
 function AdminLayoutInner({ children }: { children?: ReactNode }) {
-  const { user, logout, hasAdminPermission } = useAuth();
+  const { user, logout } = useAuth();
   const { status, lastEvent } = useRealtime();
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -237,7 +237,6 @@ function AdminLayoutInner({ children }: { children?: ReactNode }) {
           </form>
 
           <div className="admin-topbar-actions">
-            {hasAdminPermission('notifications.manage') && <Link to={user?.account_type === 'SUPER_ADMIN' ? '/super-admin/notifications' : '/admin/notifications'} className="admin-icon-btn admin-notification-btn" aria-label="Notifications"><Bell /><i /></Link>}
             <div className="admin-profile-menu" ref={profileRef}>
               <button type="button" className="admin-profile-trigger" onClick={() => setProfileOpen((value) => !value)} aria-expanded={profileOpen}>
                 <span className="admin-avatar">{user?.id ? <img src={`/api/proxy/users/${user.id}/avatar/`} alt="" /> : initials}</span>

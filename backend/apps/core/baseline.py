@@ -55,7 +55,7 @@ def seed_membership_plans():
             'color': 'from-blue-500 to-indigo-600',
             'features': [
                 'Everything in Gold',
-                'AI matchmaking engine',
+                'Rule-based compatibility preferences',
                 'Priority profile visibility',
                 'Video call feature',
                 'Relationship manager',

@@ -73,18 +73,34 @@ function Section({ id, title, description, children }: { id: string; title: stri
   );
 }
 
+type InterestState = 'PENDING' | 'ACCEPTED' | null;
+
+function resolveInterestState(outgoing: any[], incoming: any[], profileId: string): InterestState {
+  const sentToProfile = outgoing.filter(
+    (interest) => String(interest?.receiver?.id || interest?.receiver?.user_id || '') === profileId,
+  );
+  const receivedFromProfile = incoming.filter(
+    (interest) => String(interest?.sender?.id || interest?.sender?.user_id || '') === profileId,
+  );
+  const relatedInterests = [...sentToProfile, ...receivedFromProfile];
+
+  if (relatedInterests.some((interest) => interest?.status === 'ACCEPTED')) return 'ACCEPTED';
+  if (sentToProfile.some((interest) => interest?.status === 'PENDING')) return 'PENDING';
+  return null;
+}
+
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const profileId = id;
   const router = useRouter();
   const { user } = useAuth();
   const { membershipSummary } = useMembership();
-  const { data: profileData, isLoading, error } = useGetProfileDetailQuery(profileId);
+  const { data: profileData, isLoading, error, refetch } = useGetProfileDetailQuery(profileId);
   const [sendInterest, { isLoading: interestLoading }] = useSendInterestMutation();
   const [reportProfile, { isLoading: reporting }] = useReportProfileMutation();
 
   const [shortlisted, setShortlisted] = useState(false);
-  const [interestSent, setInterestSent] = useState(false);
+  const [interestState, setInterestState] = useState<InterestState>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | null>(null);
   const [showMessageTerms, setShowMessageTerms] = useState(false);
@@ -97,19 +113,24 @@ export default function ProfilePage() {
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
+    let cancelled = false;
+    setInterestState(null);
     getShortlists()
-      .then((response) => setShortlisted(response.results.some((profile) => profile.id === profileId)))
-      .catch(() => undefined);
-    // Preload whether the interest was already sent so the button shows
-    // "Interest sent" (disabled) immediately instead of after a click.
-    getInterests('outgoing')
-      .then((outgoing) => {
-        const already = (outgoing || []).some(
-          (i: any) => (i?.receiver?.id || i?.receiver?.user_id) === profileId
-        );
-        if (already) setInterestSent(true);
+      .then((response) => {
+        if (!cancelled) setShortlisted(response.results.some((profile) => profile.id === profileId));
       })
       .catch(() => undefined);
+
+    // Accepted interests are mutual matches, not merely sent requests. Read
+    // both directions so the label stays correct for either member.
+    Promise.all([
+      getInterests('outgoing').catch(() => []),
+      getInterests('incoming').catch(() => []),
+    ]).then(([outgoing, incoming]) => {
+      if (!cancelled) setInterestState(resolveInterestState(outgoing, incoming, profileId));
+    });
+
+    return () => { cancelled = true; };
   }, [profileId]);
 
   const handleShortlist = async () => {
@@ -122,17 +143,18 @@ export default function ProfilePage() {
   };
 
   const handleInterest = async () => {
-    if (!profileData?.profile.id || interestSent) return;
+    if (!profileData?.profile.id || interestState) return;
     try {
-      await sendInterest(profileData.profile.id).unwrap();
-      setInterestSent(true);
+      const interest = await sendInterest(profileData.profile.id).unwrap();
+      setInterestState(interest.status === 'ACCEPTED' ? 'ACCEPTED' : 'PENDING');
+      if (interest.status === 'ACCEPTED') void refetch();
     } catch (requestError: any) {
       const membershipError = requestError?.data?.code === 'MEMBERSHIP_REQUIRED'
         || requestError?.code === 'MEMBERSHIP_REQUIRED'
         || requestError?.status === 402
         || requestError?.status === 403;
       if (membershipError) setUpgradeFeature('messaging');
-      else if (requestError?.status === 409) setInterestSent(true);
+      else if (requestError?.status === 409) setInterestState('PENDING');
       else window.alert('Interest could not be sent. Please try again.');
     }
   };
@@ -201,6 +223,8 @@ export default function ProfilePage() {
   const location = [profile.location?.city, profile.location?.state].filter(Boolean).join(', ') || 'Location private';
   const matchScore = profile.compatibility_score;
   const currentPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
+  const isMatched = interestState === 'ACCEPTED';
+  const interestLabel = isMatched ? 'Matched' : interestState === 'PENDING' ? 'Interest sent' : 'Connect';
 
   const highlights = [
     { label: 'Age', value: profile.age ? `${profile.age} years` : 'Private', icon: CalendarDays },
@@ -307,21 +331,21 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => void handleInterest()}
-                      disabled={interestLoading || interestSent}
+                      disabled={interestLoading || Boolean(interestState)}
                       className={`group flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs sm:text-sm font-black text-white shadow-md transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed ${
-                        interestSent
+                        interestState
                           ? 'bg-gradient-to-r from-emerald-600 to-teal-600 shadow-emerald-600/25'
                           : 'bg-gradient-to-r from-[#a91d4c] via-[#bd1e4e] to-[#e11d48] shadow-rose-500/30 hover:from-[#8d143c] hover:to-[#be123c] hover:shadow-lg hover:shadow-rose-500/40'
                       }`}
                     >
                       {interestLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin text-white" />
-                      ) : interestSent ? (
+                      ) : interestState ? (
                         <Check className="h-4 w-4 text-white" />
                       ) : (
                         <Heart className="h-4 w-4 fill-white/20 text-white transition-transform group-hover:scale-110" />
                       )}
-                      <span>{interestSent ? 'Interest sent' : 'Connect'}</span>
+                      <span>{interestLabel}</span>
                     </button>
                   </>
                 )}

@@ -36,12 +36,14 @@ type RealtimeContextValue = {
   status: RealtimeStatus;
   lastEvent: RealtimeEvent | null;
   subscribe: (eventType: string, handler: (event: RealtimeEvent) => void) => () => void;
+  send: (payload: unknown) => boolean;
 };
 
 const RealtimeContext = createContext<RealtimeContextValue>({
   status: 'disconnected',
   lastEvent: null,
   subscribe: () => () => {},
+  send: () => false,
 });
 
 export function useRealtime() {
@@ -90,6 +92,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const send = useCallback((payload: unknown) => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(payload));
+    return true;
+  }, []);
+
   const connect = useCallback(async () => {
     const instanceId = ++connectInstanceRef.current;
     if (manuallyClosedRef.current) return;
@@ -113,7 +122,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     const wsBase = getClientWebSocketBaseUrl();
 
-    const socket = new WebSocket(`${wsBase}/ws/notifications/?token=${encodeURIComponent(token)}`);
+    // The access token travels in the WebSocket subprotocol, not the URL, so
+    // reverse-proxy and browser history logs never receive it.
+    const socket = new WebSocket(`${wsBase}/ws/notifications/`, ['access_token', token]);
     socketRef.current = socket;
 
     socket.onopen = () => {
@@ -136,6 +147,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         const rawData = rawEvent.data && typeof rawEvent.data === 'object'
           ? rawEvent.data as Record<string, unknown>
           : {};
+        const eventData: Record<string, unknown> = {
+          ...rawData,
+          notification_type: rawEvent.notification_type ?? rawData.notification_type,
+          link_url: rawEvent.link_url ?? rawData.link_url,
+          title: rawEvent.title ?? rawData.title,
+          message: rawEvent.message ?? rawData.message,
+        };
+        for (const key of ['user_id', 'status', 'sender_id', 'partner_id', 'is_typing', 'statuses', 'last_seen_at']) {
+          if (rawEvent[key] !== undefined) eventData[key] = rawEvent[key];
+        }
         const realtimeEvent: RealtimeEvent = {
           type: String(rawEvent.type || ''),
           entity: String(rawEvent.entity || ''),
@@ -145,13 +166,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           notification_type: typeof rawEvent.notification_type === 'string' ? rawEvent.notification_type : undefined,
           message: String(rawEvent.message || ''),
           timestamp: String(rawEvent.timestamp || rawEvent.created_at || new Date().toISOString()),
-          data: {
-            ...rawData,
-            notification_type: rawEvent.notification_type ?? rawData.notification_type,
-            link_url: rawEvent.link_url ?? rawData.link_url,
-            title: rawEvent.title ?? rawData.title,
-            message: rawEvent.message ?? rawData.message,
-          },
+          data: eventData,
         };
         setLastEvent(realtimeEvent);
 
@@ -253,7 +268,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   }, [connect, clearReconnectTimer]);
 
   return (
-    <RealtimeContext.Provider value={{ status, lastEvent, subscribe }}>
+    <RealtimeContext.Provider value={{ status, lastEvent, subscribe, send }}>
       {children}
     </RealtimeContext.Provider>
   );

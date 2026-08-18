@@ -1,12 +1,17 @@
+import logging
 from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
 
-from apps.accounts.models import Admin, SuperAdmin
+from apps.accounts.models import Admin, Member, SuperAdmin
+from apps.accounts.services import permanently_delete_member
 
 from .api_utils import notify
-from .models import Notification, SupportTicket
+from .models import ChatMessage, Notification, SupportTicket
+
+
+logger = logging.getLogger(__name__)
 
 
 def _already_notified(recipient_field, recipient, ticket):
@@ -81,3 +86,50 @@ def reconcile_razorpay_payments_task(minutes=60):
     """Reconciles payment records with Razorpay gateway periodically."""
     from django.core.management import call_command
     call_command('reconcile_razorpay_payments', minutes=minutes)
+
+
+@shared_task(name='apps.core.tasks.permanently_delete_expired_members')
+def permanently_delete_expired_members():
+    """Delete deletion-pending members after their only recovery window ends."""
+
+    now = timezone.now()
+    member_ids = list(
+        Member.objects.filter(
+            account_status=Member.AccountStatus.DELETION_PENDING,
+            recovery_until__isnull=False,
+            recovery_until__lte=now,
+        ).values_list('pk', flat=True)
+    )
+    deleted_count = 0
+    for member_id in member_ids:
+        try:
+            member = Member.objects.filter(
+                pk=member_id,
+                account_status=Member.AccountStatus.DELETION_PENDING,
+                recovery_until__lte=timezone.now(),
+            ).first()
+            if member is None:
+                continue
+            permanently_delete_member(member=member)
+            deleted_count += 1
+        except Exception:
+            # One corrupt relationship must not prevent the next expired
+            # account from being processed on this or the next beat run.
+            logger.exception('Permanent deletion failed for member %s', member_id)
+    return deleted_count
+
+
+@shared_task(name='apps.core.tasks.purge_expired_chat_messages')
+def purge_expired_chat_messages(batch_size=1000):
+    """Purge message records only after the configured retention deadline."""
+
+    now = timezone.now()
+    message_ids = list(
+        ChatMessage.objects.filter(
+            retention_expires_at__isnull=False,
+            retention_expires_at__lte=now,
+        ).values_list('pk', flat=True)[:max(1, min(int(batch_size), 5000))]
+    )
+    if not message_ids:
+        return 0
+    return ChatMessage.objects.filter(pk__in=message_ids).delete()[0]

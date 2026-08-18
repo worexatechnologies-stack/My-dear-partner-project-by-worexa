@@ -78,6 +78,7 @@ def test_chat_broadcasts_and_marks_read_with_a_receipt():
         duration="30 days",
         features=[],
         can_message=True,
+        message_limit_daily=None,
     )
     sender = make_member("chat-sender@example.com", "9002223301")
     receiver = make_member("chat-receiver@example.com", "9002223302")
@@ -121,3 +122,58 @@ def test_chat_broadcasts_and_marks_read_with_a_receipt():
 
     async_to_sync(scenario)()
     assert ChatMessage.objects.get().is_read is True
+
+
+@override_settings(CHANNEL_LAYERS=IN_MEMORY_CHANNEL_LAYER)
+def test_typing_is_published_to_the_recipient_global_realtime_socket():
+    plan = MembershipPlan.objects.create(
+        name="Typing",
+        slug="chat-typing-realtime",
+        price=1,
+        duration="30 days",
+        features=[],
+        can_message=True,
+        message_limit_daily=None,
+    )
+    sender = make_member("typing-sender@example.com", "9002223303")
+    receiver = make_member("typing-receiver@example.com", "9002223304")
+    enable_chat(sender, plan)
+    enable_chat(receiver, plan)
+
+    application = JWTAuthMiddleware(URLRouter(websocket_urlpatterns))
+    sender_token = issue_account_tokens(sender)["access"]
+    receiver_token = issue_account_tokens(receiver)["access"]
+
+    async def scenario():
+        sender_chat = WebsocketCommunicator(
+            application,
+            f"/ws/chat/{receiver.pk}/",
+            subprotocols=["access_token", sender_token],
+        )
+        receiver_notifications = WebsocketCommunicator(
+            application,
+            "/ws/notifications/",
+            subprotocols=["access_token", receiver_token],
+        )
+        assert (await sender_chat.connect())[0] is True
+        assert (await receiver_notifications.connect())[0] is True
+        established = await receiver_notifications.receive_json_from()
+        assert established["type"] == "connection.established"
+
+        await sender_chat.send_json_to({"type": "typing", "is_typing": True})
+        started = await receiver_notifications.receive_json_from()
+        assert started == {
+            "type": "chat.typing",
+            "sender_id": str(sender.pk),
+            "partner_id": str(receiver.pk),
+            "is_typing": True,
+        }
+
+        await sender_chat.send_json_to({"type": "typing", "is_typing": False})
+        stopped = await receiver_notifications.receive_json_from()
+        assert stopped["type"] == "chat.typing"
+        assert stopped["is_typing"] is False
+        await sender_chat.disconnect()
+        await receiver_notifications.disconnect()
+
+    async_to_sync(scenario)()

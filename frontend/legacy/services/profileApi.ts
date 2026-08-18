@@ -64,6 +64,11 @@ export interface ProfileDetailResponse {
   usage: UnlockUsage;
 }
 
+interface InterestResponse {
+  id: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'WITHDRAWN';
+}
+
 /**
  * Unlock error response (403)
  */
@@ -150,7 +155,7 @@ export const profileApi = baseApi.injectEndpoints({
 
     // Send interest to profile
     sendInterest: builder.mutation<
-      { success: boolean; message: string; data: any },
+      InterestResponse,
       string
     >({
       query: (targetProfileId) => ({
@@ -158,7 +163,10 @@ export const profileApi = baseApi.injectEndpoints({
         method: 'POST',
         body: { receiver_id: targetProfileId },
       }),
-      invalidatesTags: ['UnlockUsage'],
+      invalidatesTags: (_result, _error, targetProfileId) => [
+        'UnlockUsage',
+        { type: 'ProfileDetail', id: targetProfileId },
+      ],
     }),
 
     // Get profile unlock history

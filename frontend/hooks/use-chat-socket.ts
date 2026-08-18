@@ -6,17 +6,19 @@ import { clearClientAuthState, getFreshAccessToken } from '@/legacy/services/api
 
 type SocketState = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
-export function useChatSocket({ partnerId, enabled, onMessage, onClose }: {
+export function useChatSocket({ partnerId, enabled, onMessage, onClose, onOpen }: {
   partnerId?: string | null;
   enabled: boolean;
   onMessage: (payload: any) => void | Promise<void>;
   onClose?: (code: number) => void;
+  onOpen?: () => void;
 }) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const messageHandlerRef = useRef(onMessage);
   const onCloseRef = useRef(onClose);
+  const onOpenRef = useRef(onOpen);
   const [state, setState] = useState<SocketState>('idle');
   const [error, setError] = useState('');
 
@@ -27,6 +29,10 @@ export function useChatSocket({ partnerId, enabled, onMessage, onClose }: {
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    onOpenRef.current = onOpen;
+  }, [onOpen]);
 
   useEffect(() => {
     if (!enabled || !partnerId) {
@@ -54,14 +60,15 @@ export function useChatSocket({ partnerId, enabled, onMessage, onClose }: {
         const accessToken = await getFreshAccessToken();
         if (disposed) return;
 
-        const url = `${getClientWebSocketBaseUrl()}/ws/chat/${encodeURIComponent(partnerId)}/?token=${encodeURIComponent(accessToken)}`;
-        socket = new WebSocket(url);
+        const url = `${getClientWebSocketBaseUrl()}/ws/chat/${encodeURIComponent(partnerId)}/`;
+        socket = new WebSocket(url, ['access_token', accessToken]);
         socketRef.current = socket;
 
         socket.onopen = () => {
           if (!disposed) {
             reconnectAttemptsRef.current = 0;
             setState('open');
+            onOpenRef.current?.();
           }
         };
         socket.onmessage = (event) => {

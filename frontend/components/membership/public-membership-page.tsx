@@ -223,7 +223,7 @@ export default function PublicMembershipPage() {
           ) : (
             <div className="mp-empty">
               <Gift size={30} />
-              <h3>New membership options are coming soon.</h3>
+              <h3>Membership options are temporarily unavailable.</h3>
               <p>You can still create a free profile and begin exploring verified matches today.</p>
               <Link href="/register">Create free profile <ArrowRight size={16} /></Link>
             </div>

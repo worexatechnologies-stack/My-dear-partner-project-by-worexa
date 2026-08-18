@@ -11,6 +11,7 @@ const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const tokenResponsePath = /\/(?:login|register|otp\/verify|token\/refresh)\/?$/;
 const refreshRequestPath = /\/(?:token\/refresh|logout|logout-all)\/?$/;
 const logoutPath = /\/(?:logout|logout-all)\/?$/;
+const publicAuthPath = /^(?:member|admin|super-admin|staff)-auth\/(?:login|register|otp\/verify|token\/refresh|logout(?:-all)?)\/?$/;
 const UPSTREAM_TIMEOUT_MS = 15_000;
 
 function cookieOptions() {
@@ -246,13 +247,15 @@ export async function forwardToDjango(request: NextRequest, segments: string[]) 
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // Login and refresh requests must be independent of any stale browser
+  // session. This includes hyphenated namespaces such as super-admin-auth.
+  if (publicAuthPath.test(path)) headers.delete("authorization");
   const requestId = headers.get("x-request-id") || crypto.randomUUID();
   headers.set("x-request-id", requestId);
   // For public / unauthenticated paths (register, login, otp/verify, etc.)
   // do NOT forward any access token — it may be stale/expired and would
   // cause a spurious 401 from Django even though no auth is required.
-  const authTokenPath = /^\w*-auth\/(?:login|register|otp\/verify|token\/refresh|logout)\/?$/;
-  if (!headers.has("authorization") && !authTokenPath.test(path)) {
+  if (!headers.has("authorization") && !publicAuthPath.test(path)) {
     // Always prefer the primary session access_token cookie.
     let accessToken = request.cookies.get("access_token")?.value;
 

@@ -331,9 +331,9 @@ export default function AdminUsersPage() {
                             <MenuBtn icon={UserCheck} label={user.is_active ? 'Suspend' : 'Activate'} onClick={() => setPendingAction({ user, action: user.is_active ? 'deactivate' : 'activate', label: user.is_active ? 'Suspend Member' : 'Activate Member', description: `${user.is_active ? 'Deactivate' : 'Reactivate'} ${user.first_name}'s account?`, dangerous: user.is_active })} />
                             {hasAdminPermission('members.delete') && (
                               (user as any).is_deleted || (user as any).deleted_at ? (
-                                <MenuBtn icon={RotateCcw} label="Restore Profile" onClick={() => setPendingAction({ user, action: 'restore', label: 'Restore Member Profile', description: `Restore soft-deleted profile for ${user.first_name}?`, dangerous: false })} />
+                                <MenuBtn icon={RotateCcw} label="Recover Account" onClick={() => setPendingAction({ user, action: 'restore', label: 'Recover Member Account', description: `Recover ${user.first_name} within the 30-day recovery window?`, dangerous: false })} />
                               ) : (
-                                <MenuBtn icon={Trash2} label="Soft Delete" onClick={() => setPendingAction({ user, action: 'soft_delete', label: 'Delete Member', description: `Soft-delete ${user.first_name}? This hides the profile.`, dangerous: true })} />
+                                <MenuBtn icon={Trash2} label="Delete" onClick={() => setPendingAction({ user, action: 'delete', label: 'Delete Member', description: `Delete ${user.first_name}? The account will have a 30-day recovery window.`, dangerous: true })} />
                               )
                             )}
                           </div>

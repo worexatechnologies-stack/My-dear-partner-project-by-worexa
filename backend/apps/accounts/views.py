@@ -2,12 +2,14 @@ import gzip
 import hashlib
 import logging
 import secrets
+import uuid
 from datetime import timedelta
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
+from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import permissions, serializers, status
@@ -50,6 +52,7 @@ from .security import (
     revoke_session,
     rotate_refresh_token,
 )
+from .lifecycle import deletion_days_remaining, request_member_deletion, restore_member_account
 from .permissions import IsMember
 from .serializers import (
     AdministrativeLoginSerializer,
@@ -363,6 +366,45 @@ def _challenge_code():
     return f'{secrets.randbelow(1_000_000):06d}'
 
 
+ACCOUNT_RECOVERY_TICKET_SALT = 'accounts.member-account-recovery'
+ACCOUNT_RECOVERY_TICKET_MAX_AGE_SECONDS = 10 * 60
+
+
+def _issue_member_recovery_ticket(member):
+    """Issue a short-lived recovery ticket after a successful password check."""
+
+    return signing.dumps(
+        {
+            'member_id': str(member.pk),
+            'token_version': member.token_version,
+        },
+        salt=ACCOUNT_RECOVERY_TICKET_SALT,
+        compress=True,
+    )
+
+
+def _member_from_recovery_ticket(value):
+    """Return the pending member only when the signed ticket is still valid."""
+
+    try:
+        payload = signing.loads(
+            str(value or ''),
+            salt=ACCOUNT_RECOVERY_TICKET_SALT,
+            max_age=ACCOUNT_RECOVERY_TICKET_MAX_AGE_SECONDS,
+        )
+        member_id = uuid.UUID(str(payload.get('member_id')))
+        token_version = payload.get('token_version')
+    except (signing.BadSignature, signing.SignatureExpired, TypeError, ValueError, AttributeError):
+        return None
+    if not isinstance(token_version, int):
+        return None
+
+    member = Member.objects.filter(pk=member_id).first()
+    if member is None or member.token_version != token_version:
+        return None
+    return member
+
+
 def _issue_challenge(*, account_type, identifier, purpose, request, lifetime_minutes=10, channel='SMS'):
     now = timezone.now()
     normalized = _normalize_member_identifier(identifier)
@@ -526,17 +568,6 @@ class MemberLoginView(APIView):
                 message='Unable to sign in with the supplied credentials.',
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        if not member.is_active or member.deleted_at is not None:
-            record_login_activity(
-                account_type=AccountType.MEMBER,
-                account=member,
-                identifier=identifier,
-                login_status=LoginStatus.BLOCKED,
-                failure_reason='Inactive member account',
-                request=request,
-            )
-            return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
-
         _clear_expired_login_lock(member)
         if member.is_account_locked:
             record_login_activity(
@@ -582,6 +613,60 @@ class MemberLoginView(APIView):
             )
 
         member = _reset_login_state(member)
+        if member.account_status == Member.AccountStatus.DELETION_PENDING:
+            if member.recovery_until and member.recovery_until > timezone.now():
+                record_login_activity(
+                    account_type=AccountType.MEMBER,
+                    account=member,
+                    identifier=identifier,
+                    login_status=LoginStatus.BLOCKED,
+                    failure_reason='Account deletion pending',
+                    request=request,
+                )
+                record_security_audit_event(
+                    'MEMBER_ACCOUNT_RECOVERY_AUTHENTICATED',
+                    request=request,
+                    account=member,
+                )
+                return ApiResponse(
+                    success=False,
+                    data={
+                        'code': 'ACCOUNT_DELETION_PENDING',
+                        'recovery_until': member.recovery_until.isoformat(),
+                        'days_remaining': deletion_days_remaining(member),
+                        'recovery_required': True,
+                        'recovery_ticket': _issue_member_recovery_ticket(member),
+                    },
+                    message=(
+                        'Your account is scheduled for permanent deletion. '
+                        f'You have {deletion_days_remaining(member)} days remaining to recover your account.'
+                    ),
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return ApiResponse(
+                success=False,
+                data={'code': 'ACCOUNT_PERMANENTLY_DELETED'},
+                message='This account has been permanently deleted and can no longer be recovered.',
+                status=status.HTTP_410_GONE,
+            )
+        if member.account_status == Member.AccountStatus.SUSPENDED:
+            return ApiResponse(
+                success=False,
+                data={'code': 'ACCOUNT_SUSPENDED'},
+                message='This account is suspended. Please contact support for help.',
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not member.is_active or member.deleted_at is not None:
+            record_login_activity(
+                account_type=AccountType.MEMBER,
+                account=member,
+                identifier=identifier,
+                login_status=LoginStatus.BLOCKED,
+                failure_reason='Inactive member account',
+                request=request,
+            )
+            return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
+
         tokens = issue_account_tokens(member, request=request)
         record_login_activity(
             account_type=AccountType.MEMBER,
@@ -602,6 +687,72 @@ class MemberLoginView(APIView):
         }
         res = ApiResponse(data=payload, message='Login successful.')
         return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
+
+
+class MemberAccountDeletionView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def delete(self, request):
+        member = request.user
+        try:
+            member = request_member_deletion(member=member)
+        except ValueError as exc:
+            return ApiResponse(success=False, message=str(exc), status=status.HTTP_409_CONFLICT)
+        record_security_audit_event('MEMBER_ACCOUNT_DELETION_REQUESTED', request=request, account=member)
+        response = ApiResponse(
+            data={
+                'account_status': member.account_status,
+                'deleted_at': member.deleted_at.isoformat() if member.deleted_at else None,
+                'recovery_until': member.recovery_until.isoformat() if member.recovery_until else None,
+                'days_remaining': deletion_days_remaining(member),
+            },
+            message='Your account is scheduled for deletion. You can recover it within 30 days.',
+        )
+        return clear_auth_cookies(response)
+
+
+class MemberAccountRecoveryVerifyView(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
+        member = _member_from_recovery_ticket(request.data.get('recovery_ticket'))
+        if member is None:
+            return ApiResponse(
+                success=False,
+                message='Your recovery confirmation has expired. Sign in with your password again to continue.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if member.account_status != Member.AccountStatus.DELETION_PENDING:
+            return ApiResponse(success=False, message='This account is not awaiting recovery.', status=status.HTTP_400_BAD_REQUEST)
+        if not member.recovery_until or member.recovery_until <= timezone.now():
+            return ApiResponse(
+                success=False,
+                data={'code': 'ACCOUNT_PERMANENTLY_DELETED'},
+                message='This account has been permanently deleted and can no longer be recovered.',
+                status=status.HTTP_410_GONE,
+            )
+        member = restore_member_account(member=member)
+        tokens = issue_account_tokens(member, request=request)
+        record_login_activity(
+            account_type=AccountType.MEMBER,
+            account=member,
+            identifier=member.email,
+            login_status=LoginStatus.SUCCESS,
+            request=request,
+            session_id=tokens['session_id'],
+        )
+        record_security_audit_event('MEMBER_ACCOUNT_RECOVERED', request=request, account=member, session_id=tokens['session_id'])
+        response = ApiResponse(
+            data={
+                'user': _account_payload(member, request),
+                'session_expires_at': tokens['session_expires_at'],
+                'session_id': tokens['session_id'],
+                'access': tokens['access'],
+                'refresh': tokens['refresh'],
+            },
+            message='Your account has been recovered successfully.',
+        )
+        return attach_auth_cookies(response, tokens['access'], tokens['refresh'])
 
 
 class AdministrativeLoginView(APIView):
@@ -1504,6 +1655,20 @@ class MemberOtpVerifyView(APIView):
         member = _member_for_identifier(identifier)
         if member is None:
             return ApiResponse(success=False, message='Member not found.', status=status.HTTP_404_NOT_FOUND)
+        if purpose == AuthChallenge.Purpose.PASSWORDLESS_LOGIN and (
+            not member.is_active or member.deleted_at is not None or
+            member.account_status != Member.AccountStatus.ACTIVE
+        ):
+            if member.account_status == Member.AccountStatus.DELETION_PENDING and member.recovery_until and member.recovery_until > timezone.now():
+                return ApiResponse(
+                    success=False,
+                    data={'code': 'ACCOUNT_DELETION_PENDING', 'recovery_until': member.recovery_until.isoformat()},
+                    message='Your account is scheduled for deletion. Use account recovery to restore it first.',
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if member.account_status == Member.AccountStatus.SUSPENDED:
+                return ApiResponse(success=False, data={'code': 'ACCOUNT_SUSPENDED'}, message='This account is suspended.', status=status.HTTP_403_FORBIDDEN)
+            return ApiResponse(success=False, data={'code': 'ACCOUNT_UNAVAILABLE'}, message='This account is unavailable.', status=status.HTTP_403_FORBIDDEN)
         member.is_mobile_verified = True
         update_fields = ('is_mobile_verified', 'updated_at')
         member.save(update_fields=update_fields)

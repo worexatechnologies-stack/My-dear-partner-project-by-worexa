@@ -5,6 +5,7 @@ from django.db.models import Q
 from apps.accounts.models import Member
 from apps.core.models import ProfileUnlock, Interest, ProfileBlock
 from apps.core.entitlements import get_active_entitlements
+from apps.core.services.match_closure_service import MatchClosureService
 
 class MembershipEntitlementService:
     @staticmethod
@@ -161,9 +162,12 @@ class MembershipEntitlementService:
         if is_blocked:
             return False, "messaging_blocked"
 
+        if MatchClosureService.has_closed_match(user, target_user):
+            return False, "match_removed"
+
         # Enforce mutual interest requirement for Gold (MUTUAL_ONLY)
         plan = cls.get_effective_plan(user)
-        default_mode = 'ENABLED' if getattr(settings, 'DEBUG', False) else 'DISABLED'
+        default_mode = 'DISABLED'
         messaging_mode = getattr(plan, 'messaging_mode', default_mode) if plan else default_mode
         if messaging_mode == 'MUTUAL_ONLY':
             # Check if there is mutual accepted interest
@@ -207,8 +211,11 @@ class MembershipEntitlementService:
         if is_blocked:
             return False, "messaging_blocked"
 
+        if MatchClosureService.has_closed_match(user, target_user):
+            return False, "match_removed"
+
         plan = cls.get_effective_plan(user)
-        default_mode = 'ENABLED' if getattr(settings, 'DEBUG', False) else 'DISABLED'
+        default_mode = 'DISABLED'
         messaging_mode = getattr(plan, 'messaging_mode', default_mode) if plan else default_mode
         if messaging_mode == 'MUTUAL_ONLY':
             has_mutual = Interest.objects.filter(
@@ -242,6 +249,9 @@ class MembershipEntitlementService:
             Q(blocker=user, blocked=target_user) | Q(blocker=target_user, blocked=user)
         ).exists()
         if is_blocked:
+            return False, "NONE"
+
+        if MatchClosureService.has_closed_match(user, target_user):
             return False, "NONE"
 
         entitlements = get_active_entitlements(user)

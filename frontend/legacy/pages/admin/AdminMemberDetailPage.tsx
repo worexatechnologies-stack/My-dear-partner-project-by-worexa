@@ -311,7 +311,7 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       {toast && <AdminToast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
       <div className="admin-page-header">
         <div className="flex items-center gap-4">
-          <Link to="../members" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
+          <Link to={basePath} className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
             <ArrowLeft className="h-4 w-4" /> Members
           </Link>
         </div>
@@ -817,9 +817,9 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
           )}
           {(hasAdminPermission('members.delete') || isSuper) && (
             m.is_deleted || m.deleted_at ? (
-              <QuickActionBtn icon={RotateCcw} label="Restore Profile" color="emerald" onClick={() => setConfirmAction({ user: memberId, action: 'restore', label: 'Restore Member Profile', description: 'Restore this soft-deleted member profile to active status?', dangerous: false })} />
+              <QuickActionBtn icon={RotateCcw} label="Recover Account" color="emerald" onClick={() => setConfirmAction({ user: memberId, action: 'restore', label: 'Recover Member Account', description: 'Recover this account within its 30-day recovery window?', dangerous: false })} />
             ) : (
-              <QuickActionBtn icon={Trash2} label="Soft Delete" color="red" onClick={() => setConfirmAction({ user: memberId, action: 'soft_delete', label: 'Soft Delete Member', description: 'This hides the member profile without permanent deletion.', dangerous: true })} />
+              <QuickActionBtn icon={Trash2} label="Delete" color="red" onClick={() => setConfirmAction({ user: memberId, action: 'delete', label: 'Delete Member', description: 'This hides the member immediately and starts the 30-day recovery window.', dangerous: true })} />
             )
           )}
         </div>

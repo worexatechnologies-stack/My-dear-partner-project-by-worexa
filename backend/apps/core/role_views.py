@@ -40,7 +40,6 @@ from apps.accounts.models import (
     PermissionAuditLog,
 )
 from apps.accounts.serializers import MemberSerializer, administrative_account_payload
-from apps.accounts.services import permanently_delete_member
 from apps.accounts.verification_service import AccountVerificationService
 from apps.accounts.throttling import get_client_ip
 
@@ -89,32 +88,51 @@ from .serializers import (
 
 
 def notify_members_of_account_unavailability(*, member, action):
-    """Make a member suspension/deletion visible to the rest of the platform.
+    """Notify only members with a meaningful relationship to *member*."""
+    from datetime import timedelta
 
-    The notification deliberately does not identify the affected member.  An
-    administrator's action must not expose a suspended or deleted member's
-    personal information, while other active members still receive a clear
-    explanation when an existing profile or conversation becomes unavailable.
-    """
-    action_label = "suspended" if action in {"deactivate", "suspend"} else "deleted"
-    recipients = (
-        Member.objects.filter(
-            is_active=True,
-            deleted_at__isnull=True,
-            account_status=Member.AccountStatus.ACTIVE,
-        )
-        .exclude(pk=member.pk)
-        .iterator(chunk_size=500)
+    from apps.core.models import ChatMessage, Interest
+    from apps.matching.models import MemberShortlist
+
+    related_ids = set(
+        Interest.objects.filter(
+            Q(sender=member) | Q(receiver=member),
+            status__in=(Interest.Status.PENDING, Interest.Status.ACCEPTED),
+        ).values_list('sender_id', flat=True)
     )
+    related_ids.update(
+        Interest.objects.filter(
+            Q(sender=member) | Q(receiver=member),
+            status__in=(Interest.Status.PENDING, Interest.Status.ACCEPTED),
+        ).values_list('receiver_id', flat=True)
+    )
+    related_ids.update(MemberShortlist.objects.filter(profile__member=member).values_list('user_id', flat=True))
+    recent_cutoff = timezone.now() - timedelta(days=90)
+    related_ids.update(
+        ChatMessage.objects.filter(
+            Q(sender=member) | Q(receiver=member),
+            created_at__gte=recent_cutoff,
+        ).values_list('sender_id', flat=True)
+    )
+    related_ids.update(
+        ChatMessage.objects.filter(
+            Q(sender=member) | Q(receiver=member),
+            created_at__gte=recent_cutoff,
+        ).values_list('receiver_id', flat=True)
+    )
+    related_ids.discard(member.pk)
+    recipients = Member.objects.filter(
+        pk__in=related_ids,
+        is_active=True,
+        deleted_at__isnull=True,
+        account_status=Member.AccountStatus.ACTIVE,
+    ).iterator(chunk_size=500)
     for recipient in recipients:
         create_notification(
             recipient,
             type="MEMBER_ACCOUNT_UNAVAILABLE",
-            title="Member account unavailable",
-            body=(
-                "A member account is no longer available because it has been "
-                f"{action_label}."
-            ),
+            title="Member unavailable",
+            body="A member you recently interacted with is currently unavailable.",
             link_url="/notifications",
             priority="HIGH",
         )
@@ -1205,9 +1223,11 @@ class AdminUserActionView(ScopedAPIView):
         'reactivate': 'members.suspend',
         'deactivate': 'members.suspend',
         'suspend': 'members.suspend',
+        'delete': 'members.delete',
+        # Compatibility alias for older admin clients. The behavior is now a
+        # reversible 30-day deletion request, never an immediate delete.
         'soft_delete': 'members.delete',
         'restore': 'members.delete',
-        'permanent_delete': 'members.delete',
     }
 
     @staticmethod
@@ -1260,6 +1280,8 @@ class AdminUserActionView(ScopedAPIView):
         reason = str(request.data.get('reason', '')).strip()
         before = {
             'is_active': member.is_active,
+            'account_status': member.account_status,
+            'recovery_until': member.recovery_until,
             'profile_status': member.profile_status,
             'photo_status': member.photo_status,
             'document_status': member.document_status,
@@ -1346,10 +1368,27 @@ class AdminUserActionView(ScopedAPIView):
             document.reviewed_by_id = request.user.pk
             document.save(update_fields=('status', 'rejection_reason', 'reviewed_at', 'reviewed_by_id'))
             member.document_status = Member.VerificationStatus.REJECTED
-        elif action in {'activate', 'reactivate', 'restore'}:
-            member.is_active = True
-            member.deleted_at = None
-            member.account_status = Member.AccountStatus.ACTIVE
+        elif action == 'restore':
+            from apps.accounts.lifecycle import restore_member_account
+            try:
+                member = restore_member_account(member=member)
+            except ValueError as exc:
+                return bad_request(str(exc))
+        elif action in {'activate', 'reactivate'}:
+            if member.account_status == Member.AccountStatus.DELETION_PENDING:
+                from apps.accounts.lifecycle import restore_member_account
+                try:
+                    member = restore_member_account(member=member)
+                except ValueError as exc:
+                    return bad_request(str(exc))
+            else:
+                member.is_active = True
+                member.deleted_at = None
+                member.account_status = Member.AccountStatus.ACTIVE
+                member.recovery_until = None
+                member.deleted_by = ''
+                member.deleted_by_user_id = None
+                member.deletion_reason = ''
             if member.profile_status == 'SUSPENDED':
                 member.profile_status = Member.VerificationStatus.APPROVED
         elif action in {'deactivate', 'suspend'}:
@@ -1357,25 +1396,21 @@ class AdminUserActionView(ScopedAPIView):
             member.account_status = Member.AccountStatus.SUSPENDED
             member.profile_status = 'SUSPENDED'
             member.token_version += 1
-        elif action == 'soft_delete':
-            member.is_active = False
-            member.account_status = Member.AccountStatus.DELETED
-            member.deleted_at = timezone.now()
-            member.token_version += 1
-        elif action == 'permanent_delete':
-            if str(request.user.account_type) != AccountType.SUPER_ADMIN:
-                raise PermissionDenied('Only a Super Admin can permanently delete a member.')
-            target_id = member.pk
-            deletion_result = permanently_delete_member(member=member, actor=request.user)
-            audit(
-                request, request.user, action='MEMBER_PERMANENTLY_DELETED', module='members',
-                target_type='MEMBER', target_id=target_id,
-                old_data={**before, **deletion_result.audit_context()},
-            )
-            return ApiResponse(message='Member permanently deleted.')
+        elif action in {'delete', 'soft_delete'}:
+            from apps.accounts.lifecycle import request_member_deletion
+            try:
+                member = request_member_deletion(
+                    member=member,
+                    actor=request.user,
+                    reason=reason,
+                )
+            except ValueError as exc:
+                return bad_request(str(exc))
         member.save()
         after = {
             'is_active': member.is_active,
+            'account_status': member.account_status,
+            'recovery_until': member.recovery_until,
             'profile_status': member.profile_status,
             'photo_status': member.photo_status,
             'document_status': member.document_status,
@@ -1384,7 +1419,7 @@ class AdminUserActionView(ScopedAPIView):
             request, request.user, action=f'MEMBER_{str(action).upper()}', module='members',
             target_type='MEMBER', target_id=member.pk, old_data=before, new_data=after,
         )
-        if action in {'deactivate', 'suspend', 'soft_delete'}:
+        if action in {'deactivate', 'suspend', 'delete', 'soft_delete'}:
             notify_members_of_account_unavailability(member=member, action=action)
         return ApiResponse(data=MemberSerializer(member, context={'request': request}).data)
 
