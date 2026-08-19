@@ -149,10 +149,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           : {};
         const eventData: Record<string, unknown> = {
           ...rawData,
+          id: rawEvent.id ?? rawData.id ?? rawEvent.entity_id,
           notification_type: rawEvent.notification_type ?? rawData.notification_type,
           link_url: rawEvent.link_url ?? rawData.link_url,
           title: rawEvent.title ?? rawData.title,
           message: rawEvent.message ?? rawData.message,
+          is_read: rawEvent.is_read ?? rawData.is_read,
+          created_at: rawEvent.created_at ?? rawData.created_at,
+          priority: rawEvent.priority ?? rawData.priority,
         };
         for (const key of ['user_id', 'status', 'sender_id', 'partner_id', 'is_typing', 'statuses', 'last_seen_at']) {
           if (rawEvent[key] !== undefined) eventData[key] = rawEvent[key];
@@ -174,29 +178,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           new CustomEvent('realtime-event', { detail: realtimeEvent }),
         );
 
-        if (
-          realtimeEvent.type === 'notification.created'
-          && 'Notification' in window
-          && Notification.permission === 'granted'
           // Chat is E2EE — the raw body is ciphertext and chat notifications are
-          // handled separately with decryption in ChatNotificationNotifier,
-          // so skip the native alert here to avoid leaking the encrypted blob.
-          && realtimeEvent.notification_type !== 'CHAT_MESSAGE'
-        ) {
-          const notification = new Notification(realtimeEvent.title || 'My Dear Partner', {
-            body: realtimeEvent.message || 'You have a new update.',
-            icon: '/favicon.png',
-            tag: realtimeEvent.entity_id || realtimeEvent.timestamp,
-            data: { url: realtimeEvent.data?.link_url },
-          });
-          notification.onclick = () => {
-            window.focus();
-            const url = realtimeEvent.link_url || realtimeEvent.data?.link_url;
-            if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url);
-            notification.close();
-          };
-        }
-
+        // NotificationCenterProvider presents notification UI after this
+        // transport layer has normalized and delivered the event.
         const handlers = handlersRef.current;
         const wildcardHandlers = handlers.get('*');
         if (wildcardHandlers) {

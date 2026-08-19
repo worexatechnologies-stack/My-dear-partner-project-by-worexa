@@ -93,20 +93,6 @@ export function RealtimeRequestNotifier() {
     }
   }, []);
 
-  // Native Web Push Notification
-  const triggerBrowserPush = useCallback((senderName: string) => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification('New Match Request!', {
-          body: `${senderName} sent you a connection request on MyDearPartner.`,
-          icon: '/images/main-logo.png',
-        });
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission();
-      }
-    }
-  }, []);
-
   // Check incoming pending interests
   const checkForNewRequests = useCallback(async () => {
     try {
@@ -123,7 +109,6 @@ export function RealtimeRequestNotifier() {
         shownPopupCountRef.current += nextRequests.length;
         enqueueRequests(nextRequests);
         playChimeSound();
-        triggerBrowserPush(nextRequests[0].sender?.full_name || 'A member');
       }
 
       const queuedAfterUpdate = requestQueueRef.current.length + nextRequests.length;
@@ -131,27 +116,24 @@ export function RealtimeRequestNotifier() {
     } catch {
       /* Silently ignore if unauthenticated or locked */
     }
-  }, [enqueueRequests, playChimeSound, triggerBrowserPush]);
+  }, [enqueueRequests, playChimeSound]);
 
   // WebSocket realtime listener
   useEffect(() => {
     const unsubscribe = subscribe('*', (event) => {
-      if (
-        event.type === 'notification.created' ||
-        event.type === 'INTEREST_RECEIVED' ||
-        event.entity === 'interest'
-      ) {
-        checkForNewRequests();
-      }
+      const notificationType = String(event.notification_type || event.data.notification_type || '').toUpperCase();
+      const isInterestEvent = event.type.toUpperCase().includes('INTEREST')
+        || event.entity === 'interest'
+        || notificationType.includes('INTEREST');
+      if (isInterestEvent) checkForNewRequests();
     });
 
-    // Initial check & light polling interval (every 25 seconds)
-    checkForNewRequests();
-    const interval = setInterval(checkForNewRequests, 25000);
+    // The database snapshot handles requests that arrived while offline;
+    // subsequent changes come through the authenticated socket only.
+    void checkForNewRequests();
 
     return () => {
       unsubscribe();
-      clearInterval(interval);
     };
   }, [subscribe, checkForNewRequests]);
 

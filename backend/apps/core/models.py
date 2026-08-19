@@ -1348,6 +1348,10 @@ class Notification(models.Model):
     priority = models.CharField(max_length=12, choices=Priority.choices, default=Priority.NORMAL)
     is_read = models.BooleanField(default=False, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
+    # Clearing a member's inbox is intentionally reversible at the data layer:
+    # the notification remains available for retention/audit but is no longer
+    # returned by the member-facing feed or unread badge.
+    cleared_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -1362,6 +1366,47 @@ class Notification(models.Model):
                     | Q(member_recipient__isnull=True, super_admin_recipient__isnull=True, admin_recipient__isnull=True, staff_recipient__isnull=False)
                 ),
                 name='notification_exactly_one_recipient',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=('member_recipient', 'cleared_at', '-created_at'),
+                name='notif_member_feed_idx',
+            ),
+            models.Index(
+                fields=('member_recipient', 'cleared_at', 'is_read'),
+                name='notif_member_unread_idx',
+            ),
+        ]
+
+
+class WebPushSubscription(models.Model):
+    """A browser/device push subscription owned by one authenticated member."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='web_push_subscriptions',
+    )
+    endpoint = models.TextField()
+    # Hashing the endpoint keeps the unique database index compact while the
+    # full endpoint remains available to the Web Push provider at send time.
+    endpoint_hash = models.CharField(max_length=64, unique=True, editable=False)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    user_agent = models.CharField(max_length=1000, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'web_push_subscriptions'
+        indexes = [
+            models.Index(
+                fields=('member', 'is_active'),
+                name='webpush_member_active_idx',
             ),
         ]
 

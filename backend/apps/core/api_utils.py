@@ -225,40 +225,47 @@ def broadcast_notification(notification):
         from channels.layers import get_channel_layer
 
         channel_layer = get_channel_layer()
-        if not channel_layer:
-            return
+        if channel_layer:
+            payload = {
+                "type": "notification.created",
+                "id": str(notification.pk),
+                "notification_type": notification.notification_type,
+                "title": notification.title,
+                "message": notification.message,
+                "link_url": notification.link_url,
+                "is_read": notification.is_read,
+                "created_at": notification.created_at.isoformat(),
+                "priority": notification.priority,
+            }
 
-        payload = {
-            "type": "notification.created",
-            "id": str(notification.pk),
-            "notification_type": notification.notification_type,
-            "title": notification.title,
-            "message": notification.message,
-            "link_url": notification.link_url,
-            "is_read": notification.is_read,
-            "created_at": notification.created_at.isoformat(),
-            "priority": notification.priority,
-        }
+            # Unified group delivery for NotificationConsumer
+            async_to_sync(channel_layer.group_send)(
+                f"user_{recipient_id}",
+                {
+                    "type": "notification_message",
+                    "payload": payload,
+                },
+            )
 
-        # Unified group delivery for NotificationConsumer
-        async_to_sync(channel_layer.group_send)(
-            f"user_{recipient_id}",
-            {
-                "type": "notification_message",
-                "payload": payload,
-            },
-        )
-
-        # Legacy group delivery for legacy sockets
-        async_to_sync(channel_layer.group_send)(
-            f"notifications_{recipient_id}",
-            {
-                "type": "notification_created",
-                "notification": payload,
-            },
-        )
+            # Legacy group delivery for legacy sockets
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_{recipient_id}",
+                {
+                    "type": "notification_created",
+                    "notification": payload,
+                },
+            )
     except Exception:
         # Persistence is the delivery guarantee; a realtime outage is not.
+        pass
+
+    # Push delivery must not depend on Channels being available. It is queued
+    # after commit and remains supplementary to the in-app realtime event.
+    try:
+        from apps.notifications.push import queue_notification_push
+
+        queue_notification_push(notification)
+    except Exception:
         pass
 
 

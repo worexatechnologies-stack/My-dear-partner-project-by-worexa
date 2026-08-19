@@ -1,307 +1,344 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
+  BellRing,
   CheckCheck,
-  RefreshCw,
-  ShieldCheck,
-  Heart,
-  Crown,
-  HelpCircle,
+  ChevronDown,
   ChevronRight,
   Inbox,
-  AlertCircle,
-  ArrowUpRight,
-  Clock3,
-  SlidersHorizontal,
-  Trash2
+  LoaderCircle,
+  RefreshCw,
+  Trash2,
+  WifiOff,
 } from 'lucide-react';
-import { supportService, type Notification } from '../services/supportService';
-import { useAuth } from '../contexts/AuthContext';
-import { useRealtime } from '../../providers/RealtimeProvider';
-import { smartDecryptText } from '../utils/crypto';
 
-// Partner id for a CHAT_MESSAGE notification (from its /messages?user=... link).
-function chatPartnerId(row: Notification): string {
-  const data = (row as any).data;
-  const url = row.link_url || (data && typeof data?.link_url === 'string' ? data.link_url : '');
-  const m = url && /[?&]user=([^&]+)/.exec(url);
-  return m ? decodeURIComponent(m[1]) : '';
+import { Modal } from '@/components/ui/modal';
+import {
+  mergeNotifications,
+  notificationTime,
+  notificationVisual,
+  safeNotificationUrl,
+  useNotificationCenter,
+} from '@/components/member/notification-center';
+import {
+  supportService,
+  type Notification as MemberNotification,
+  type NotificationFilter,
+} from '../services/supportService';
+
+type NotificationGroup = {
+  label: string;
+  rows: MemberNotification[];
+};
+
+function isImportant(notification: MemberNotification) {
+  const priority = notification.priority.toUpperCase();
+  return priority === 'HIGH' || priority === 'URGENT';
 }
 
+function matchesFilter(notification: MemberNotification, filter: NotificationFilter) {
+  if (filter === 'unread') return !notification.is_read;
+  if (filter === 'important') return isImportant(notification);
+  return true;
+}
+
+function dateLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Earlier';
+
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const difference = Math.round((startOfToday - startOfDate) / 86400000);
+
+  if (difference === 0) return 'Today';
+  if (difference === 1) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+}
+
+function groupNotifications(rows: MemberNotification[]): NotificationGroup[] {
+  const groups = new Map<string, MemberNotification[]>();
+  for (const row of rows) {
+    const label = dateLabel(row.created_at);
+    groups.set(label, [...(groups.get(label) || []), row]);
+  }
+  return Array.from(groups, ([label, groupedRows]) => ({ label, rows: groupedRows }));
+}
+
+function visibleMessage(notification: MemberNotification) {
+  // Notification previews must never render an encrypted chat payload or expose
+  // message contents outside the private conversation screen.
+  if (notification.notification_type.toUpperCase() === 'CHAT_MESSAGE') return 'You have a new message.';
+  return notification.message;
+}
+
+function pushButtonLabel(status: ReturnType<typeof useNotificationCenter>['pushStatus']) {
+  if (status === 'enabled') return 'Browser alerts on';
+  if (status === 'granted') return 'Finish enabling alerts';
+  if (status === 'denied') return 'Browser alerts blocked';
+  if (status === 'unsupported') return 'Browser alerts unavailable';
+  if (status === 'unavailable') return 'Browser alerts unavailable';
+  if (status === 'checking') return 'Checking browser alerts';
+  return 'Enable browser alerts';
+}
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { subscribe } = useRealtime();
-  const userKey = String(user?.id || user?.email || 'member');
-  const [rows, setRows] = useState<Notification[]>([]);
-  const [page, setPage] = useState(1);
-  const [count, setCount] = useState(0);
+  const {
+    notifications: recentNotifications,
+    unreadCount,
+    initialized,
+    realtimeStatus,
+    pushStatus,
+    pushError,
+    lastChange,
+    refresh,
+    markRead,
+    markAllRead,
+    clearAll,
+    enableBrowserPush,
+  } = useNotificationCenter();
+  const [filter, setFilter] = useState<NotificationFilter>('all');
+  const [rows, setRows] = useState<MemberNotification[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'important'>('all');
-  const [clearBefore, setClearBefore] = useState<number | null>(null);
-  const [browserAlerts, setBrowserAlerts] = useState<NotificationPermission | 'unsupported'>('default');
-  const [decrypted, setDecrypted] = useState<Record<string, string>>({});
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const requestVersionRef = useRef(0);
 
-  const visibilityStorageKey = `my-dear-partner:notifications-cleared-before:${userKey}`;
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(visibilityStorageKey);
-    const timestamp = stored ? Number(stored) : 0;
-    setClearBefore(Number.isFinite(timestamp) ? timestamp : 0);
-  }, [visibilityStorageKey]);
-
-  useEffect(() => {
-    setBrowserAlerts('Notification' in window ? Notification.permission : 'unsupported');
-  }, []);
-
-  const enableBrowserAlerts = async () => {
-    if (!('Notification' in window)) return setBrowserAlerts('unsupported');
-    setBrowserAlerts(await Notification.requestPermission());
-  };
-
-  const load = useCallback(async () => {
+  const loadFirstPage = useCallback(async () => {
+    const requestVersion = ++requestVersionRef.current;
     setLoading(true);
     setError('');
     try {
-      const data = await supportService.getNotifications(page);
-      setRows(data.results);
-      setCount(data.count);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Notifications could not be loaded.');
+      const feed = await supportService.getNotifications({ filter, limit: 20 });
+      if (requestVersion !== requestVersionRef.current) return;
+      setRows(feed.results);
+      setNextCursor(feed.next_cursor);
+      setHasMore(Boolean(feed.next_cursor || feed.has_more));
+      setLoadMoreError(false);
+    } catch {
+      if (requestVersion !== requestVersionRef.current) return;
+      setError('Notifications could not be loaded. Please check your connection and try again.');
+      setRows([]);
+      setNextCursor(null);
+      setHasMore(false);
     } finally {
+      if (requestVersion === requestVersionRef.current) setLoading(false);
+    }
+  }, [filter]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loading || loadingMore) return;
+    const requestVersion = requestVersionRef.current;
+    setLoadingMore(true);
+    setLoadMoreError(false);
+    try {
+      const feed = await supportService.getNotifications({ cursor: nextCursor, filter, limit: 20 });
+      if (requestVersion !== requestVersionRef.current) return;
+      setRows((current) => mergeNotifications(current, feed.results));
+      setNextCursor(feed.next_cursor);
+      setHasMore(Boolean(feed.next_cursor || feed.has_more));
+    } catch {
+      if (requestVersion === requestVersionRef.current) {
+        setError('Older notifications could not be loaded. Please try again.');
+        setLoadMoreError(true);
+      }
+    } finally {
+      if (requestVersion === requestVersionRef.current) setLoadingMore(false);
+    }
+  }, [filter, loading, loadingMore, nextCursor]);
+
+  useEffect(() => {
+    void loadFirstPage();
+  }, [loadFirstPage]);
+
+  useEffect(() => {
+    if (!initialized || recentNotifications.length === 0) return;
+    const matchingRows = recentNotifications.filter((row) => matchesFilter(row, filter));
+    if (matchingRows.length) setRows((current) => mergeNotifications(current, matchingRows));
+  }, [filter, initialized, recentNotifications]);
+
+  useEffect(() => {
+    if (!lastChange) return;
+    if (lastChange.type === 'cleared') {
+      requestVersionRef.current += 1;
+      setRows([]);
+      setNextCursor(null);
+      setHasMore(false);
       setLoading(false);
+      return;
     }
-  }, [page]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Decrypt CHAT_MESSAGE notification bodies (end-to-end encrypted) for display.
-  useEffect(() => {
-    if (!user?.id || !rows.length) return;
-    const chatRows = rows.filter((r) => String(r.notification_type || '').toUpperCase() === 'CHAT_MESSAGE');
-    if (!chatRows.length) return;
-    let cancelled = false;
-    (async () => {
-      const map: Record<string, string> = {};
-      for (const r of chatRows) {
-        const msg = String(r.message || '');
-        if (msg.startsWith('__E2EE__:')) {
-          try {
-            map[r.id] = (await smartDecryptText(msg, String(user.id), chatPartnerId(r))) || 'New message';
-          } catch {
-            map[r.id] = 'New message';
-          }
-        }
+    if (lastChange.type === 'marked-all-read') {
+      setRows((current) => (
+        filter === 'unread' ? [] : current.map((row) => ({ ...row, is_read: true }))
+      ));
+      if (filter === 'unread') {
+        setNextCursor(null);
+        setHasMore(false);
       }
-      if (!cancelled && Object.keys(map).length) setDecrypted((prev) => ({ ...prev, ...map }));
-    })();
-    return () => { cancelled = true; };
-  }, [rows, user?.id]);
+      return;
+    }
+    if (lastChange.type === 'read' && lastChange.notificationId) {
+      setRows((current) => current
+        .map((row) => (
+          row.id === lastChange.notificationId ? { ...row, is_read: true } : row
+        ))
+        .filter((row) => filter !== 'unread' || !row.is_read));
+    }
+  }, [filter, lastChange]);
 
-  // WebSocket events update the page immediately. Polling is intentionally a
-  // quiet fallback for brief Wi-Fi or server reconnects.
   useEffect(() => {
-    const unsubscribe = subscribe('notification.created', () => { void load(); });
-    const refreshTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void load();
-    }, 30000);
-    return () => {
-      unsubscribe();
-      window.clearInterval(refreshTimer);
-    };
-  }, [load, subscribe]);
+    const target = sentinelRef.current;
+    if (!target || !hasMore || loadMoreError) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadMore();
+    }, { rootMargin: '260px 0px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore, loadMoreError]);
 
-  const markRead = async (row: Notification) => {
-    if (!row.is_read) {
-      try {
-        await supportService.markNotificationRead(row.id);
-        setRows((items) =>
-          items.map((item) => (item.id === row.id ? { ...item, is_read: true } : item))
-        );
-        // Let the member sidebar bell/nav badge refresh its unread count immediately.
-        window.dispatchEvent(new Event('notifications:read-changed'));
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
+  const handleOpen = async (notification: MemberNotification) => {
+    setError('');
+    if (!notification.is_read) {
+      const changed = await markRead(notification.id);
+      if (!changed) {
+        setError('We could not update this notification. Please try again.');
+        return;
       }
+      setRows((current) => current
+        .map((row) => (row.id === notification.id ? { ...row, is_read: true } : row))
+        .filter((row) => filter !== 'unread' || !row.is_read));
     }
-    if (row.link_url) {
-      router.push(row.link_url);
+    const destination = safeNotificationUrl(notification.link_url);
+    if (destination) router.push(destination);
+  };
+
+  const handleMarkAllRead = async () => {
+    if (actionBusy || unreadCount === 0) return;
+    setActionBusy(true);
+    setError('');
+    const changed = await markAllRead();
+    if (!changed) {
+      setError('We could not mark all notifications as read. Please try again.');
+      await loadFirstPage();
+    }
+    setActionBusy(false);
+  };
+
+  const handleClearAll = async () => {
+    if (actionBusy) return;
+    setActionBusy(true);
+    setError('');
+    const cleared = await clearAll();
+    setActionBusy(false);
+    setClearDialogOpen(false);
+    if (!cleared) {
+      setError('We could not clear notifications. Please try again.');
+      await loadFirstPage();
     }
   };
 
-  const markAll = async () => {
-    try {
-      await supportService.markAllNotificationsRead();
-      setRows((items) => items.map((item) => ({ ...item, is_read: true })));
-      // Let the member sidebar bell/nav badge refresh its unread count immediately.
-      window.dispatchEvent(new Event('notifications:read-changed'));
-    } catch (err) {
-      console.error('Failed to mark all as read:', err);
-    }
+  const handleRefresh = async () => {
+    await Promise.allSettled([loadFirstPage(), refresh()]);
   };
 
-  const clearAll = async () => {
-    try {
-      // Clear must be persisted. Local-only hiding made the bell count and
-      // chat alerts reappear after a refresh.
-      await supportService.markAllNotificationsRead();
-      const timestamp = Date.now();
-      window.localStorage.setItem(visibilityStorageKey, String(timestamp));
-      setClearBefore(timestamp);
-      setRows((items) => items.map((item) => ({ ...item, is_read: true })));
-      window.dispatchEvent(new Event('notifications:read-changed'));
-    } catch (err) {
-      console.error('Failed to clear notifications:', err);
-    }
+  const handleEnablePush = async () => {
+    setError('');
+    const result = await enableBrowserPush();
+    if (result === 'denied') setError('Browser alerts are blocked. You can enable them later in your browser site settings.');
   };
 
-  // Helper to resolve icon configuration based on notification properties
-  const getNotificationConfig = (type: string, title: string) => {
-    const t = (type || '').toLowerCase();
-    const text = (title || '').toLowerCase();
-
-    if (
-      t.includes('security') ||
-      t.includes('auth') ||
-      text.includes('security') ||
-      text.includes('password') ||
-      text.includes('verify') ||
-      text.includes('verification')
-    ) {
-      return {
-        icon: ShieldCheck,
-        iconBg: 'bg-rose-100 text-rose-700',
-        accentBorder: 'border-l-blue-500',
-      };
-    }
-    if (
-      t.includes('match') ||
-      t.includes('interest') ||
-      text.includes('match') ||
-      text.includes('like') ||
-      text.includes('partner') ||
-      text.includes('request') ||
-      text.includes('shortlist')
-    ) {
-      return {
-        icon: Heart,
-        iconBg: 'bg-rose-100 text-rose-700',
-        accentBorder: 'border-l-rose-500',
-      };
-    }
-    if (
-      t.includes('membership') ||
-      t.includes('payment') ||
-      t.includes('billing') ||
-      text.includes('premium') ||
-      text.includes('membership') ||
-      text.includes('payment') ||
-      text.includes('subscribe') ||
-      text.includes('invoice')
-    ) {
-      return {
-        icon: Crown,
-        iconBg: 'bg-amber-100 text-amber-700',
-        accentBorder: 'border-l-amber-500',
-      };
-    }
-    if (
-      t.includes('support') ||
-      t.includes('ticket') ||
-      t.includes('help') ||
-      text.includes('support') ||
-      text.includes('ticket') ||
-      text.includes('reply')
-    ) {
-      return {
-        icon: HelpCircle,
-        iconBg: 'bg-purple-100 text-purple-700',
-        accentBorder: 'border-l-purple-500',
-      };
-    }
-
-    return {
-      icon: Bell,
-      iconBg: 'bg-gray-100 text-gray-700',
-      accentBorder: 'border-l-rose-500',
-    };
-  };
-
-  // Filter notifications locally based on active tab
-  const visibleRows = clearBefore === null
-    ? []
-    : rows.filter((row) => new Date(row.created_at).getTime() > clearBefore);
-  const filteredRows = visibleRows.filter((row) => {
-    if (activeTab === 'unread') return !row.is_read;
-    if (activeTab === 'important') return row.priority === 'HIGH';
-    return true;
-  });
-
-  const unreadCount = visibleRows.filter((row) => !row.is_read).length;
-  const importantCount = visibleRows.filter((row) => row.priority === 'HIGH').length;
-  const displayCount = clearBefore ? visibleRows.length : count;
+  const canEnablePush = pushStatus === 'default' || pushStatus === 'granted';
+  const notificationGroups = groupNotifications(rows);
 
   return (
-    <main className="min-h-screen bg-[#f8f5f2] pt-24 pb-24">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header Block */}
-        <div className="relative mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#2b101d] via-[#743047] to-[#8e3d58] p-6 text-white shadow-[0_20px_55px_rgba(43,16,29,0.15)] md:p-8">
-          <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full bg-[#f1d18f]/15 blur-3xl" />
-          <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/20">
-                <Bell className="h-5 w-5 text-[#f1d18f]" />
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#f1d18f]">Your activity centre</p>
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">Notifications</h1>
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70">Stay close to new connections, account updates, and moments that need your attention.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:min-w-[360px]">
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm"><p className="text-2xl font-extrabold">{displayCount}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/60">Total</p></div>
-              <div className="rounded-2xl border border-[#f1d18f]/25 bg-[#f1d18f]/10 p-4 backdrop-blur-sm"><p className="text-2xl font-extrabold text-[#f5dca8]">{unreadCount}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/60">Unread</p></div>
-              <div className="hidden rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm sm:block"><p className="text-2xl font-extrabold">{importantCount}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/60">Important</p></div>
-            </div>
+    <main className="min-h-full bg-[#fbf7f4] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+      <section className="mx-auto max-w-4xl">
+        <header className="flex flex-col gap-4 border-b border-[#eadfd9] pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#aa687d]">Member portal</p>
+            <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[#302328]">Notifications</h1>
+            <p className="mt-1 text-sm text-[#78676d]">Connection updates, account activity, and messages in one private place.</p>
           </div>
-          <div className="relative mt-7 flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {realtimeStatus !== 'connected' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ead9d4] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#8a737a]">
+                <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
+                {realtimeStatus === 'reconnecting' ? 'Reconnecting' : 'Syncing'}
+              </span>
+            )}
             <button
               type="button"
-              onClick={load}
+              onClick={() => void handleRefresh()}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#e3d4cd] bg-white px-3 text-xs font-bold text-[#6d545d] transition hover:border-[#d4b8c0] hover:bg-[#fffaf8] disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-[#b64a68]"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
               Refresh
             </button>
+          </div>
+        </header>
+
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-white/90 p-2.5 shadow-[0_8px_26px_rgba(69,35,47,0.04)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-h-10 items-center gap-1 rounded-xl bg-[#f9f3f0] p-1" role="tablist" aria-label="Notification filters">
+            {(['all', 'unread', 'important'] as NotificationFilter[]).map((item) => {
+              const active = filter === item;
+              const label = item === 'all' ? 'All' : item === 'unread' ? 'Unread' : 'Important';
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setFilter(item)}
+                  className={`min-h-8 rounded-lg px-3 text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-[#b64a68] ${
+                    active ? 'bg-white text-[#8e3d58] shadow-sm' : 'text-[#88747b] hover:text-[#5f454e]'
+                  }`}
+                >
+                  {label}
+                  {item === 'unread' && unreadCount > 0 && (
+                    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-[#f8e9ee]' : 'bg-white'}`}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-1.5 self-end sm:self-auto">
             <button
               type="button"
-              onClick={() => void enableBrowserAlerts()}
-              disabled={browserAlerts === 'granted' || browserAlerts === 'unsupported'}
-              title={browserAlerts === 'denied' ? 'Notifications are blocked. Enable them in your browser site settings.' : undefined}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-70"
+              onClick={() => void handleEnablePush()}
+              disabled={!canEnablePush}
+              title={pushStatus === 'denied' ? 'Enable alerts from your browser site settings.' : undefined}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-[#8e3d58] transition hover:bg-[#f8e9ee] disabled:cursor-default disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#b64a68]"
             >
-              <Bell className="h-3.5 w-3.5" /> {browserAlerts === 'granted' ? 'Push alerts enabled' : browserAlerts === 'denied' ? 'Push alerts blocked' : browserAlerts === 'unsupported' ? 'Push alerts unavailable' : 'Enable push alerts'}
+              {pushStatus === 'checking' ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+              {pushButtonLabel(pushStatus)}
             </button>
+            <span className="h-4 w-px bg-[#eadfd9]" aria-hidden="true" />
             <button
               type="button"
-              onClick={markAll}
-              disabled={loading || unreadCount === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#f1d18f] px-4 py-2.5 text-xs font-bold text-[#2b101d] shadow-sm transition hover:bg-[#f7dfaa] disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void handleMarkAllRead()}
+              disabled={actionBusy || unreadCount === 0}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-[#8e3d58] transition hover:bg-[#f8e9ee] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-[#b64a68]"
             >
-              <CheckCheck className="w-3.5 h-3.5" />
+              {actionBusy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
               Mark all read
             </button>
             <button
               type="button"
-              onClick={() => void clearAll()}
-              disabled={loading || clearBefore === null || visibleRows.length === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => setClearDialogOpen(true)}
+              disabled={actionBusy || (rows.length === 0 && !loading)}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-[#8e3d58] transition hover:bg-[#f8e9ee] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-[#b64a68]"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Clear all
@@ -309,200 +346,120 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* Tab Filters */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#eadfd8] bg-white p-2 shadow-[0_8px_24px_rgba(43,16,29,0.04)]">
-          <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all relative cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-[#f8edf0] text-[#743047]'
-                : 'text-[#77656d] hover:bg-[#f8f5f2] hover:text-[#24151c]'
-            }`}
-          >
-            All
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeTab === 'all' ? 'bg-white text-[#743047]' : 'bg-[#f8f5f2] text-[#77656d]'}`}>
-              {displayCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('unread')}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all relative cursor-pointer ${
-              activeTab === 'unread'
-                ? 'bg-[#f8edf0] text-[#743047]'
-                : 'text-[#77656d] hover:bg-[#f8f5f2] hover:text-[#24151c]'
-            }`}
-          >
-            Unread
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-              </span>
+        {(error || pushError) && (
+          <div className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-[#ecd5d8] bg-[#fff7f7] px-4 py-3 text-sm text-[#7f4355]" role="alert">
+            <p>{error || pushError}</p>
+            {error && (
+              <button type="button" onClick={() => void handleRefresh()} className="shrink-0 text-xs font-bold underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[#b64a68]">Try again</button>
             )}
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeTab === 'unread' ? 'bg-white text-[#743047]' : 'bg-[#f8f5f2] text-[#77656d]'}`}>
-              {unreadCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('important')}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all relative cursor-pointer ${
-              activeTab === 'important'
-                ? 'bg-[#f8edf0] text-[#743047]'
-                : 'text-[#77656d] hover:bg-[#f8f5f2] hover:text-[#24151c]'
-            }`}
-          >
-            Important
-            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeTab === 'important' ? 'bg-white text-[#743047]' : 'bg-[#f8f5f2] text-[#77656d]'}`}>
-              {importantCount}
-            </span>
-          </button>
           </div>
-          <div className="hidden items-center gap-2 px-3 text-xs font-semibold text-[#a29198] sm:flex"><SlidersHorizontal className="h-3.5 w-3.5" /> Curated for you</div>
+        )}
+
+        <div className="mt-4 overflow-hidden rounded-2xl border border-[#eadfd9] bg-white shadow-[0_10px_30px_rgba(69,35,47,0.05)]">
+          {loading && rows.length === 0 ? (
+            <div className="divide-y divide-[#f1e7e2]" aria-label="Loading notifications">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="flex animate-pulse items-start gap-3 px-4 py-4 sm:px-5">
+                  <span className="h-10 w-10 shrink-0 rounded-xl bg-[#f4e8e4]" />
+                  <span className="min-w-0 flex-1 space-y-2 pt-1"><span className="block h-3 w-2/5 rounded bg-[#f1e6e1]" /><span className="block h-2.5 w-4/5 rounded bg-[#f8f3f0]" /></span>
+                </div>
+              ))}
+            </div>
+          ) : notificationGroups.length === 0 ? (
+            <div className="px-5 py-14 text-center sm:py-16">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f8e9ee] text-[#8e3d58]">
+                {filter === 'all' ? <Inbox className="h-6 w-6" aria-hidden="true" /> : <BellRing className="h-6 w-6" aria-hidden="true" />}
+              </span>
+              <h2 className="mt-4 font-display text-lg font-extrabold text-[#302328]">
+                {filter === 'unread' ? 'No unread notifications' : filter === 'important' ? 'No important notifications' : 'Notifications cleared'}
+              </h2>
+              <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-[#78676d]">
+                {filter === 'all'
+                  ? 'New connection and account updates will appear here as they arrive.'
+                  : 'There is nothing under this filter right now.'}
+              </p>
+              {filter !== 'all' && (
+                <button type="button" onClick={() => setFilter('all')} className="mt-4 rounded-lg px-3 py-2 text-xs font-bold text-[#8e3d58] transition hover:bg-[#f8e9ee] focus-visible:outline-2 focus-visible:outline-[#b64a68]">
+                  View all notifications
+                </button>
+              )}
+            </div>
+          ) : (
+            <div>
+              {notificationGroups.map((group) => (
+                <section key={group.label} aria-label={group.label}>
+                  <h2 className="border-b border-[#f1e7e2] bg-[#fffdfa] px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#9b858b] sm:px-5">{group.label}</h2>
+                  <div className="divide-y divide-[#f1e7e2]">
+                    {group.rows.map((notification) => {
+                      const visual = notificationVisual(notification);
+                      const Icon = visual.icon;
+                      const hasDestination = Boolean(safeNotificationUrl(notification.link_url));
+                      return (
+                        <button
+                          key={notification.id}
+                          type="button"
+                          onClick={() => void handleOpen(notification)}
+                          className={`group flex w-full items-start gap-3 px-4 py-4 text-left transition hover:bg-[#fffaf8] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#b64a68] sm:px-5 ${
+                            notification.is_read ? '' : 'bg-[#fffafa]'
+                          }`}
+                          aria-label={`${notification.title}${notification.is_read ? '' : ', unread'}`}
+                        >
+                          <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${visual.iconClassName}`}>
+                            <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-start gap-2">
+                              <strong className="line-clamp-1 flex-1 text-sm font-bold text-[#302328] group-hover:text-[#8e3d58]">{notification.title}</strong>
+                              {!notification.is_read && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#b64a68]" aria-label="Unread" />}
+                            </span>
+                            <span className="mt-1 line-clamp-2 block text-sm leading-5 text-[#78676d]">{visibleMessage(notification)}</span>
+                            <span className="mt-2 flex items-center gap-2 text-[11px] font-semibold text-[#a08c93]">
+                              {notificationTime(notification.created_at)}
+                              {isImportant(notification) && <span className="rounded-full bg-[#f8e9ee] px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-[#8e3d58]">Important</span>}
+                            </span>
+                          </span>
+                          {hasDestination && <ChevronRight className="mt-3 h-4 w-4 shrink-0 text-[#b5a1a7] transition group-hover:translate-x-0.5 group-hover:text-[#8e3d58]" aria-hidden="true" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-[#edcbd4] bg-[#fff4f5] p-4 text-[#743047]">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#8e3d58]" />
-            <div>
-              <p className="text-sm font-bold">Loading error</p>
-              <p className="mt-0.5 text-xs opacity-80">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Loading Skeleton */}
-        {(loading && !rows.length) || clearBefore === null ? (
-          <div className="space-y-4">
-            {[1, 2, 3, 4].map((n) => (
-              <div
-                key={n}
-                className="flex gap-4 rounded-2xl border border-[#eadfd8] bg-white p-5 animate-pulse"
-              >
-                <div className="h-11 w-11 shrink-0 rounded-2xl bg-[#f0e6df]" />
-                <div className="flex-1 space-y-3 py-1">
-                  <div className="h-4 w-1/4 rounded bg-[#f0e6df]" />
-                  <div className="h-3 w-3/4 rounded bg-[#f8f5f2]" />
-                  <div className="mt-2 h-2.5 w-16 rounded bg-[#f8f5f2]" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Notifications Feed List */
-          <div className="space-y-4">
-            {filteredRows.map((row) => {
-              const config = getNotificationConfig(row.notification_type, row.title);
-              const IconComp = config.icon;
-
-              return (
-                <div
-                  key={row.id}
-                  onClick={() => markRead(row)}
-                  className={`group relative text-left rounded-2xl border p-5 flex gap-4 transition-all duration-300 cursor-pointer overflow-hidden ${
-                    row.is_read
-                    ? 'bg-white border-[#eadfd8] hover:border-[#d7c5be] hover:shadow-[0_12px_30px_rgba(43,16,29,0.07)]'
-                      : `bg-[#fffdfa] border-[#eadfd8] border-l-4 ${config.accentBorder} hover:shadow-[0_12px_30px_rgba(43,16,29,0.07)]`
-                  }`}
-                >
-                  {/* Unread indicator dot */}
-                  {!row.is_read && (
-                    <span className="absolute top-5 right-5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                  )}
-
-                  {/* Icon Area */}
-                  <div
-                    className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${config.iconBg}`}
-                  >
-                    <IconComp className="w-5 h-5" />
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="flex-1 min-w-0 pr-4">
-                    <strong className="block text-sm font-bold text-[#24151c] group-hover:text-[#743047] transition-colors">
-                      {row.title}
-                    </strong>
-                    <p className="mt-1 text-sm leading-relaxed text-[#77656d] break-words">
-                      {decrypted[row.id] || row.message}
-                    </p>
-                    <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#a29198]">
-                      <Clock3 className="h-3 w-3" />
-                      {new Date(row.created_at).toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-
-                  {/* Arrow Indicator if has link */}
-                  {row.link_url && (
-                    <div className="flex items-center shrink-0">
-                      <ArrowUpRight className="h-4 w-4 text-[#c4b2b5] transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#8e3d58]" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Empty State */}
-            {filteredRows.length === 0 && (
-              <div className="rounded-[1.75rem] border border-[#eadfd8] bg-white p-10 text-center shadow-[0_10px_30px_rgba(43,16,29,0.05)]">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-[#f8edf0] text-[#8e3d58]">
-                  <Inbox className="w-8 h-8" />
-                </div>
-                <h3 className="mb-1 text-lg font-extrabold text-[#24151c]">
-                  {clearBefore ? 'Notifications cleared' : activeTab === 'unread' ? 'No unread notifications' : 'All caught up!'}
-                </h3>
-                <p className="mx-auto mb-6 max-w-sm text-sm leading-relaxed text-[#77656d]">
-                  {clearBefore
-                    ? 'New notifications will appear here as they arrive.'
-                    : activeTab === 'unread'
-                    ? "You don't have any unread notifications at the moment."
-                    : "You don't have any notifications under this filter."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => router.push('/dashboard')}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#743047] px-5 py-2.5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(116,48,71,0.2)] transition-all hover:bg-[#541e37] active:scale-95"
-                >
-                  Go to Dashboard
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Pagination Block */}
-        {count > 15 && (
-          <div className="mt-8 flex items-center justify-between rounded-2xl border border-[#eadfd8] bg-white px-5 py-4 shadow-[0_8px_24px_rgba(43,16,29,0.04)]">
+        <div ref={sentinelRef} aria-hidden="true" />
+        {hasMore && (
+          <div className="mt-4 flex justify-center">
             <button
               type="button"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="inline-flex items-center gap-1 rounded-lg border border-[#dfd2cb] bg-white px-4 py-2 text-xs font-bold text-[#58444d] transition-all hover:bg-[#f8f5f2] disabled:opacity-40"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#e3d4cd] bg-white px-4 text-xs font-bold text-[#765c65] transition hover:bg-[#fffaf8] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#b64a68]"
             >
-              Previous
-            </button>
-            <span className="text-xs font-bold tracking-wider text-[#77656d]">
-              Page {page} of {Math.ceil(count / 15)}
-            </span>
-            <button
-              type="button"
-              disabled={page * 15 >= count}
-              onClick={() => setPage((p) => p + 1)}
-              className="inline-flex items-center gap-1 rounded-lg border border-[#dfd2cb] bg-white px-4 py-2 text-xs font-bold text-[#58444d] transition-all hover:bg-[#f8f5f2] disabled:opacity-40"
-            >
-              Next
+              {loadingMore ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {loadingMore ? 'Loading older notifications' : loadMoreError ? 'Retry loading older notifications' : 'Load older notifications'}
             </button>
           </div>
         )}
-      </div>
+      </section>
+
+      <Modal open={clearDialogOpen} onClose={() => !actionBusy && setClearDialogOpen(false)} title="Clear notifications" size="sm">
+        <div className="space-y-5">
+          <div className="flex gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f8e9ee] text-[#8e3d58]"><Trash2 className="h-4 w-4" /></span>
+            <p className="text-sm leading-6 text-[#78676d]">This removes every notification from your inbox on all of your signed-in devices. It does not affect your matches, messages, or account activity.</p>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setClearDialogOpen(false)} disabled={actionBusy} className="min-h-10 rounded-xl border border-[#e3d4cd] px-4 text-xs font-bold text-[#6d545d] transition hover:bg-[#fffaf8] disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-[#b64a68]">Cancel</button>
+            <button type="button" onClick={() => void handleClearAll()} disabled={actionBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#8e3d58] px-4 text-xs font-bold text-white transition hover:bg-[#743047] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#b64a68]">
+              {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+              Clear notifications
+            </button>
+          </div>
+        </div>
+      </Modal>
     </main>
   );
 }

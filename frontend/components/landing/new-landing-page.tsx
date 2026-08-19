@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   ArrowRight,
-  Heart,
   ShieldCheck,
   LockKeyhole,
   MessageSquare,
   Headphones,
   CheckCircle2,
   Crown,
-  Search,
-  UsersRound,
-  Sparkles,
-  Award,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 
@@ -100,8 +94,8 @@ export default function NewLandingPage() {
   return (
     <div className="overflow-hidden bg-[#fffefd] text-[#2c2928]">
       {/* ── HERO SECTION ────────────────────────────────────────── */}
-      <section className="relative isolate min-h-[680px] overflow-hidden bg-[#f4eee8] pt-28 pb-20 sm:min-h-[740px]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_30%,rgba(184,207,175,.48),transparent_24%),radial-gradient(circle_at_86%_18%,rgba(255,255,255,.9),transparent_31%),linear-gradient(105deg,#fbf8f4_8%,#f5eee8_50%,#dce4d5_100%)]" />
+      <section className="relative isolate min-h-[680px] overflow-hidden bg-[#f7eeea] pb-20 pt-28 sm:min-h-[740px]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_30%,rgba(240,196,197,.56),transparent_25%),radial-gradient(circle_at_86%_18%,rgba(255,255,255,.92),transparent_32%),linear-gradient(105deg,#fffdfb_8%,#f8eee9_52%,#f2dfe1_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-28 bg-[#fffefd] [clip-path:polygon(0_64%,100%_0,100%_100%,0_100%)]" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
@@ -121,24 +115,33 @@ export default function NewLandingPage() {
               {isLoggedIn ? (
                 <Link
                   href="/dashboard"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#8e3d58] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(142,61,88,.25)] transition hover:-translate-y-0.5 hover:bg-[#702d45]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#8e3d58] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(142,61,88,.22)] transition hover:-translate-y-0.5 hover:bg-[#702d45]"
                 >
                   Go to Dashboard <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : (
                 <Link
                   href="/register"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#8e3d58] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(142,61,88,.25)] transition hover:-translate-y-0.5 hover:bg-[#702d45]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#8e3d58] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(142,61,88,.22)] transition hover:-translate-y-0.5 hover:bg-[#702d45]"
                 >
                   Create Free Profile <ArrowRight className="h-4 w-4" />
                 </Link>
               )}
               <Link
                 href={isLoggedIn ? '/search' : '/register'}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#3b1425]/12 bg-white/80 px-7 text-sm font-extrabold text-[#633447] transition hover:bg-white"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#3b1425]/12 bg-white/80 px-7 text-sm font-extrabold text-[#633447] shadow-[0_8px_18px_rgba(67,37,50,.05)] transition hover:-translate-y-0.5 hover:bg-white"
               >
                 Explore Matches
               </Link>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-2.5 text-xs font-bold text-[#68585e]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/58 px-3 py-2 shadow-[0_6px_16px_rgba(67,37,50,.05)] backdrop-blur-sm">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#8e3d58]" /> Thoughtful verification
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/58 px-3 py-2 shadow-[0_6px_16px_rgba(67,37,50,.05)] backdrop-blur-sm">
+                <LockKeyhole className="h-3.5 w-3.5 text-[#8e3d58]" /> Privacy in your control
+              </span>
             </div>
 
             {/* Statistics Bar */}
@@ -157,15 +160,15 @@ export default function NewLandingPage() {
           </div>
 
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-            <div className="absolute -inset-5 rounded-[3rem] bg-gradient-to-br from-rose-200/60 to-amber-100/70 blur-2xl" />
-            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/80 bg-white p-3 shadow-[0_24px_70px_rgba(62,22,39,.16)]">
+            <div className="absolute -inset-5 rounded-[2.5rem] bg-[linear-gradient(135deg,rgba(235,181,191,.58),rgba(255,244,239,.84))] blur-2xl" />
+            <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white p-3 shadow-[0_24px_70px_rgba(62,22,39,.16)]">
               <SmartImage
                 src="/images/landing-hero-couple-v3.png"
                 alt="A couple beginning their journey together"
-                className="aspect-[4/5] w-full rounded-[1.9rem] object-cover"
+                className="aspect-[4/5] w-full rounded-[1.35rem] object-cover"
                 priority
               />
-              <div className="absolute inset-x-3 bottom-3 rounded-b-[1.9rem] bg-gradient-to-t from-[#20111a]/85 via-[#20111a]/20 to-transparent px-6 pb-6 pt-20 text-white">
+              <div className="absolute inset-x-3 bottom-3 rounded-b-[1.35rem] bg-gradient-to-t from-[#20111a]/85 via-[#20111a]/20 to-transparent px-6 pb-6 pt-20 text-white">
                 <p className="text-xs font-bold uppercase tracking-[.16em] text-rose-200">
                   MyDearPartner
                 </p>
@@ -212,7 +215,7 @@ export default function NewLandingPage() {
             {journeySteps.map((step) => (
               <div
                 key={step.step}
-                className="group relative flex flex-col justify-between rounded-[2rem] border border-[#3b1425]/10 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className="group relative flex flex-col justify-between rounded-2xl border border-[#3b1425]/10 bg-white p-7 shadow-[0_8px_22px_rgba(67,37,50,.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(67,37,50,.10)]"
               >
                 <div>
                   <span className="font-display text-5xl font-black text-[#8e3d58]/20 group-hover:text-[#8e3d58] transition">
@@ -252,7 +255,7 @@ export default function NewLandingPage() {
               return (
                 <div
                   key={feat.title}
-                  className="rounded-[2rem] border border-[#3b1425]/10 bg-[#fffaf7] p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-lg"
+                  className="rounded-2xl border border-[#3b1425]/10 bg-[#fffaf7] p-8 shadow-[0_8px_22px_rgba(67,37,50,.05)] transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_16px_32px_rgba(67,37,50,.10)]"
                 >
                   <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-[#b64a68]">
                     <IconComponent className="h-6 w-6" />
@@ -276,7 +279,7 @@ export default function NewLandingPage() {
           <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
             <div>
               <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[.16em] text-rose-300">
-                <Crown className="h-4 w-4 text-amber-400" /> PREMIUM EXPERIENCE
+                <Crown className="h-4 w-4 text-[#f0c4c5]" /> PREMIUM EXPERIENCE
               </p>
               <h2 className="mt-4 font-display text-3xl font-black tracking-[-.04em] sm:text-4xl lg:text-5xl">
                 Unlock More Meaningful Opportunities
@@ -287,14 +290,14 @@ export default function NewLandingPage() {
               <div className="mt-8">
                 <Link
                   href="/membership"
-                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-[#8e3d58] px-8 text-sm font-extrabold text-white shadow-lg transition hover:bg-[#a64a69]"
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#8e3d58] px-8 text-sm font-extrabold text-white shadow-lg transition hover:bg-[#a64a69]"
                 >
                   Explore Premium Plans <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>
 
-            <div className="rounded-[2.5rem] border border-white/10 bg-white/[.06] p-8 sm:p-10 backdrop-blur-md">
+            <div className="rounded-3xl border border-white/10 bg-white/[.06] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-md sm:p-10">
               <h3 className="text-xl font-extrabold text-white mb-6">
                 Included with Premium:
               </h3>
@@ -304,7 +307,7 @@ export default function NewLandingPage() {
                     key={benefit}
                     className="flex items-center gap-3 rounded-xl bg-white/5 p-3 text-sm font-bold text-slate-200"
                   >
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-amber-400" />
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-[#f0c4c5]" />
                     <span>{benefit}</span>
                   </div>
                 ))}
@@ -316,7 +319,7 @@ export default function NewLandingPage() {
 
       {/* ── FINAL CTA ──────────────────────────────────────────── */}
       <section className="px-5 py-20 sm:px-8 lg:py-28">
-        <div className="mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#8e3d58] to-[#b64a68] px-7 py-14 text-center text-white shadow-[0_24px_60px_rgba(142,61,88,.22)] sm:px-12">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-gradient-to-br from-[#8e3d58] to-[#b64a68] px-7 py-14 text-center text-white shadow-[0_24px_60px_rgba(142,61,88,.22)] sm:px-12">
           <p className="text-xs font-extrabold uppercase tracking-[.16em] text-rose-200">
             YOUR STORY STARTS HERE
           </p>
@@ -329,13 +332,13 @@ export default function NewLandingPage() {
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
               href="/register"
-              className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-8 text-sm font-extrabold text-[#8e3d58] transition hover:-translate-y-0.5 hover:shadow-xl"
+              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-8 text-sm font-extrabold text-[#8e3d58] transition hover:-translate-y-0.5 hover:shadow-xl"
             >
               Create Free Profile <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={isLoggedIn ? '/search' : '/register'}
-              className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/40 bg-white/10 px-8 text-sm font-extrabold text-white transition hover:bg-white/20"
+              className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/40 bg-white/10 px-8 text-sm font-extrabold text-white transition hover:bg-white/20"
             >
               Browse Matches
             </Link>

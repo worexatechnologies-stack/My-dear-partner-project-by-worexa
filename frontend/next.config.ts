@@ -127,7 +127,22 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store, private" }],
+        headers: [
+          { key: "Cache-Control", value: "no-store, private" },
+          // Server-level robots enforcement: API responses are never meant to
+          // appear in search results, even if a robots meta tag is missing.
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+      {
+        // Defense-in-depth for checkout and root-level account pages that sit
+        // outside the (member) route group's noindex metadata.
+        source: "/payment/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        source: "/settings/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
       {
         // Files in public/ are not fingerprinted by Next.  A modest cache

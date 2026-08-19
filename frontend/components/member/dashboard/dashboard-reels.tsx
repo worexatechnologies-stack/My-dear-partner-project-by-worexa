@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle,
   BadgeCheck,
   Bookmark,
   Check,
@@ -12,9 +11,7 @@ import {
   Crown,
   Eye,
   Heart,
-  LoaderCircle,
   MapPin,
-  MessageCircle,
   MoreHorizontal,
   Search,
   ShieldCheck,
@@ -109,12 +106,12 @@ function ProfileFeedCard({
     : '';
 
   return (
-    <article className="min-h-full snap-start scroll-mt-2 overflow-hidden rounded-[1.45rem] border border-[#e8dcd7] bg-[#fffefd] shadow-[0_12px_36px_rgba(64,36,47,.07)] transition-shadow duration-300 hover:shadow-[0_18px_46px_rgba(64,36,47,.11)]">
+    <article className="min-h-full snap-start scroll-mt-2 overflow-hidden rounded-[1.45rem] border border-[#e8dcd7] bg-[#fffefd] shadow-[0_12px_36px_rgba(64,36,47,.07)] transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(64,36,47,.12)]">
       <div className="relative isolate overflow-hidden">
         <Link
           href={`/profile/${profile.id}`}
           aria-label={`View ${profile.name || 'member'} profile`}
-          className="block aspect-[4/3] sm:aspect-[16/9]"
+          className="block aspect-[4/3] sm:aspect-[5/4]"
         >
           <SmartImage
             src={visiblePhoto}
@@ -124,7 +121,7 @@ function ProfileFeedCard({
             className="dashboard-match-photo h-full w-full rounded-none object-cover object-top"
           />
         </Link>
-        <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-b from-black/45 via-black/5 to-black/80" />
+        <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-b from-[#20111a]/58 via-[#20111a]/6 to-[#20111a]/86" />
 
         <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 p-4">
           <Link href={`/profile/${profile.id}`} className="flex min-w-0 items-center gap-2.5 text-white">
@@ -134,7 +131,7 @@ function ProfileFeedCard({
             <span className="min-w-0">
               <span className="flex items-center gap-1.5 truncate text-sm font-extrabold">
                 {profile.name || 'Member'}
-                {profile.verified && <BadgeCheck className="h-4 w-4 shrink-0 text-[#bcebd8]" />}
+                {profile.verified && <BadgeCheck className="h-4 w-4 shrink-0 text-[#f0c4c5]" />}
               </span>
               <span className="block text-[11px] font-medium text-white/75">{profile.age ? `${profile.age} years` : 'Member profile'}</span>
             </span>
@@ -144,16 +141,16 @@ function ProfileFeedCard({
             <button
               type="button"
               onClick={() => onPass(profile.id)}
-              aria-label={`Hide ${profile.name || 'this profile'}`}
-              title="Not for me"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-md transition hover:bg-white hover:text-[#8e3d58]"
+              aria-label={`Hide ${profile.name || 'this profile'} for this visit`}
+              title="Hide for this visit"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-[#20111a]/35 text-white shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#8e3d58]"
             >
               <X className="h-4 w-4" />
             </button>
             <Link
               href={`/profile/${profile.id}`}
               aria-label="Open full profile"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-md transition hover:bg-white hover:text-[#8e3d58]"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-[#20111a]/35 text-white shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#8e3d58]"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Link>
@@ -166,13 +163,18 @@ function ProfileFeedCard({
               {profile.name || 'Member'}{profile.age ? `, ${profile.age}` : ''}
             </Link>
             {profile.premium && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#f2cc72] px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-[#4b3810]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-[#f0c4c5]/95 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-[#702d45] shadow-sm backdrop-blur-md">
                 <Crown className="h-3 w-3" /> Premium
               </span>
             )}
           </div>
           {occupation && <p className="mt-1 text-xs font-semibold text-white/85 sm:text-sm">{occupation}</p>}
           <div className="mt-2 flex flex-wrap gap-1.5">
+            {profile.compatibility > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/16 px-2.5 py-1 text-[10px] font-extrabold text-white shadow-sm backdrop-blur-md">
+                <Heart className="h-3 w-3 fill-current text-[#f0c4c5]" /> {profile.compatibility}% preference match
+              </span>
+            )}
             {interests.length > 0 ? interests.map((interest) => (
               <span key={interest} className="rounded-full border border-white/25 bg-white/85 px-2.5 py-1 text-[10px] font-bold text-[#473b3f] backdrop-blur-md">{interest}</span>
             )) : (
@@ -191,11 +193,7 @@ function ProfileFeedCard({
             <p className="text-[10px] font-extrabold uppercase tracking-[.16em] text-[#9f6f7c]">About</p>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5f5558] sm:text-[13px]">{about}</p>
           </div>
-          {profile.compatibility > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#edf6f1] px-2.5 py-1 text-[10px] font-extrabold text-[#24664f]">
-              <Heart className="h-3 w-3" /> {profile.compatibility}%
-            </span>
-          )}
+          {profile.compatibility > 0 && <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[.12em] text-[#a06172]">Preference match</span>}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-semibold text-[#796a6f]">
@@ -205,7 +203,7 @@ function ProfileFeedCard({
             </span>
           )}
           {profile.verified && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#edf6f1] px-2.5 py-1.5 text-[#24664f]">
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#edcbd3] bg-[#fff5f6] px-2.5 py-1.5 text-[#8e3d58]">
               <ShieldCheck className="h-3 w-3" /> Identity verified
             </span>
           )}
@@ -218,8 +216,8 @@ function ProfileFeedCard({
             disabled={interested}
             className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl text-xs font-extrabold transition active:scale-[.98] ${
               interested
-                ? 'cursor-default bg-[#e9f5ef] text-[#24664f]'
-                : 'bg-gradient-to-r from-[#a63f58] to-[#c55268] text-white shadow-[0_8px_18px_rgba(166,63,88,.22)] hover:brightness-95'
+                ? 'cursor-default bg-[#f8e9ee] text-[#8e3d58]'
+                : 'bg-[#8e3d58] text-white shadow-[0_8px_18px_rgba(142,61,88,.22)] hover:bg-[#702d45]'
             }`}
           >
             {interested ? <Check className="h-4 w-4" /> : <Heart className="h-4 w-4" />}
@@ -229,7 +227,7 @@ function ProfileFeedCard({
             href={`/profile/${profile.id}`}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfd2cd] bg-white text-xs font-extrabold text-[#4e4347] transition hover:border-[#bd8c99] hover:text-[#8e3d58]"
           >
-            <MessageCircle className="h-4 w-4" /> View profile
+            <Eye className="h-4 w-4" /> View profile
           </Link>
           <button
             type="button"
@@ -504,7 +502,18 @@ export default function DashboardReels() {
           </div>
         </header>
 
-        <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,42rem)_17rem] lg:justify-center">
+        <header className="hidden items-end justify-between gap-6 border-b border-[#eaded8] pb-5 pt-7 lg:flex">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-[#a06172]">Discover</p>
+            <h1 className="mt-2 font-display text-3xl font-extrabold tracking-[-.045em] text-[#2c2928]">Find someone who fits your life.</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[#776a6f]">Explore member profiles, review shared preferences, and connect at your own pace.</p>
+          </div>
+          <Link href="/search" className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#8e3d58] px-4 text-xs font-extrabold text-white shadow-[0_8px_18px_rgba(142,61,88,.18)] transition hover:-translate-y-0.5 hover:bg-[#702d45]">
+            <Search className="h-4 w-4" /> Search profiles
+          </Link>
+        </header>
+
+        <div className="mt-4 grid items-start gap-5 lg:mt-5 lg:grid-cols-[minmax(0,42rem)_17rem] lg:justify-center">
           <main className="min-w-0">
             <div
               ref={feedRef}
@@ -570,7 +579,7 @@ export default function DashboardReels() {
                   <h2 className="text-sm font-extrabold text-[#342c2f]">Matches to review ({incoming.length})</h2>
                   <p className="mt-1 text-[10px] leading-4 text-[#8f7f84]">Members who are waiting for your response.</p>
                 </div>
-                <UserRoundCheck className="h-4 w-4 shrink-0 text-[#2d8062]" />
+                <UserRoundCheck className="h-4 w-4 shrink-0 text-[#8e3d58]" />
               </div>
 
               {firstPending ? (
@@ -582,7 +591,7 @@ export default function DashboardReels() {
                   </Link>
                   <div className="mt-2.5 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => void handleInterestAction(firstPending.id, 'DECLINED')} className="h-8 rounded-lg border border-[#e3d7d2] text-[10px] font-bold text-[#716167] hover:bg-[#faf6f3]">Decline</button>
-                    <button type="button" onClick={() => void handleInterestAction(firstPending.id, 'ACCEPTED')} className="h-8 rounded-lg bg-[#2d8062] text-[10px] font-bold text-white hover:bg-[#236b51]">Accept</button>
+                    <button type="button" onClick={() => void handleInterestAction(firstPending.id, 'ACCEPTED')} className="h-8 rounded-lg bg-[#8e3d58] text-[10px] font-bold text-white hover:bg-[#702d45]">Accept</button>
                   </div>
                 </div>
               ) : (
@@ -596,20 +605,20 @@ export default function DashboardReels() {
                   <p className="text-[9px] font-extrabold uppercase tracking-[.14em] text-[#9f6f7c]">Profile readiness</p>
                   <h2 className="mt-1 text-sm font-extrabold text-[#342c2f]">Stand out to better matches</h2>
                 </div>
-                <span className="text-xl font-extrabold text-[#2d8062]">{completion}%</span>
+                <span className="text-xl font-extrabold text-[#8e3d58]">{completion}%</span>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#eee7e3]">
-                <div className="h-full rounded-full bg-[#2d8062] transition-[width] duration-700" style={{ width: `${completion}%` }} />
+                <div className="h-full rounded-full bg-[#b64a68] transition-[width] duration-700" style={{ width: `${completion}%` }} />
               </div>
               <Link href="/profile/edit" className="mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#8e3d58]">Complete profile <ChevronRight className="h-3 w-3" /></Link>
             </section>
 
-            <section className="rounded-2xl border border-[#e8dcc4] bg-[#fffaf0] p-4">
+            <section className="rounded-2xl border border-[#edcbd3] bg-[#fff6f7] p-4">
               <div className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#8a6c28]" />
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#8e3d58]" />
                 <div>
-                  <h2 className="text-[11px] font-extrabold text-[#493d26]">Connect safely</h2>
-                  <p className="mt-1 text-[9px] leading-4 text-[#796d55]">Keep early conversations on My Dear Partner and report suspicious behavior.</p>
+                  <h2 className="text-[11px] font-extrabold text-[#4e4347]">Connect safely</h2>
+                  <p className="mt-1 text-[9px] leading-4 text-[#776a6f]">Keep early conversations on My Dear Partner and report suspicious behavior.</p>
                 </div>
               </div>
             </section>

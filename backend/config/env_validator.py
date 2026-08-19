@@ -219,6 +219,10 @@ config = {
     'OTP_PROVIDER': optional_env('OTP_PROVIDER', 'renflair'),
     'RENFLAIR_API_KEY': optional_env('RENFLAIR_API_KEY', ''),
     'FIREBASE_CREDENTIALS_PATH': optional_env('FIREBASE_CREDENTIALS_PATH', ''),
+    # Browser Web Push is opt-in. The private key never leaves the backend.
+    'WEB_PUSH_VAPID_PUBLIC_KEY': optional_env('WEB_PUSH_VAPID_PUBLIC_KEY', ''),
+    'WEB_PUSH_VAPID_PRIVATE_KEY': optional_env('WEB_PUSH_VAPID_PRIVATE_KEY', ''),
+    'WEB_PUSH_VAPID_SUBJECT': optional_env('WEB_PUSH_VAPID_SUBJECT', 'mailto:support@mydearpartner.com'),
     
     # Payments
     'PAYMENT_MODE': PAYMENT_MODE,

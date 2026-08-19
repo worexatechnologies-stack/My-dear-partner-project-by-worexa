@@ -11,9 +11,7 @@ from apps.accounts.models import (
 )
 from apps.accounts.security import issue_account_tokens
 
-
 PASSWORD = 'TestPassword!742'
-
 
 @pytest.fixture
 def member(db):

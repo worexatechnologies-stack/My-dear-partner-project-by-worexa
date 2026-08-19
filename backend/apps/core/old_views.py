@@ -4,9 +4,11 @@ import hmac
 import mimetypes
 import uuid
 import logging
+import hashlib
 from html import escape
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from apps.core.entitlements import get_active_entitlements, usage_for
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -24,6 +26,8 @@ from rest_framework.response import Response
 
 from apps.accounts.models import AccountType, Member, MemberDocument
 from apps.accounts.permissions import IsMember, IsVerifiedMember
+from apps.notifications.push import push_is_configured
+from apps.notifications.services import send_event_after_commit, user_personal_group
 from apps.profiles.models import ProfilePhoto
 
 from .api_utils import audit, bad_request, create_ticket_attachment, notify, paginated_response
@@ -48,6 +52,7 @@ from .models import (
     SupportTicketReply,
     TicketFeedback,
     TicketStatusHistory,
+    WebPushSubscription,
 )
 from .responses import ApiResponse
 from .services.match_closure_service import MatchClosureService
@@ -66,6 +71,7 @@ from .serializers import (
     SupportTicketSerializer,
     TicketFeedbackSerializer,
     TicketReplyInputSerializer,
+    WebPushSubscriptionInputSerializer,
     MemberComplaintSerializer,
     MemberProfileReportSerializer,
 )
@@ -1068,14 +1074,70 @@ class SupportAttachmentDownloadView(APIView):
         return response
 
 
+class MemberNotificationCursorPagination(CursorPagination):
+    """Stable cursor pagination for a long-lived notification inbox."""
+
+    page_size = 20
+    page_size_query_param = 'limit'
+    max_page_size = 50
+    ordering = '-created_at'
+    cursor_query_param = 'cursor'
+
+    def _cursor_from_link(self, link):
+        if not link:
+            return None
+        return parse_qs(urlparse(link).query).get(self.cursor_query_param, [None])[0]
+
+    def get_paginated_response(self, data):
+        next_link = self.get_next_link()
+        previous_link = self.get_previous_link()
+        return ApiResponse(data={
+            'results': data,
+            'next_cursor': self._cursor_from_link(next_link),
+            'previous_cursor': self._cursor_from_link(previous_link),
+            'has_more': bool(next_link),
+        })
+
+
+def _visible_member_notifications(member):
+    return Notification.objects.filter(
+        member_recipient=member,
+        cleared_at__isnull=True,
+    )
+
+
+def _publish_member_notification_state(member, event_type, *, notification_id='', data=None):
+    """Synchronize read/clear mutations across every authenticated browser tab."""
+
+    send_event_after_commit(
+        groups=[user_personal_group(member.pk)],
+        event_type=event_type,
+        entity='notification',
+        entity_id=notification_id,
+        message='',
+        data=data or {},
+    )
+
+
 class MemberNotificationListView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
+    pagination_class = MemberNotificationCursorPagination
 
     def get(self, request):
-        return paginated_response(
-            request,
-            Notification.objects.filter(member_recipient=request.user),
-            NotificationSerializer,
+        notification_filter = str(request.query_params.get('filter', 'all')).lower()
+        rows = _visible_member_notifications(request.user)
+
+        if notification_filter == 'unread':
+            rows = rows.filter(is_read=False)
+        elif notification_filter == 'important':
+            rows = rows.filter(priority__in=(Notification.Priority.HIGH, Notification.Priority.URGENT))
+        elif notification_filter != 'all':
+            return bad_request('filter must be one of: all, unread, important.')
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(rows.order_by('-created_at'), request, view=self)
+        return paginator.get_paginated_response(
+            NotificationSerializer(page, many=True, context={'request': request}).data
         )
 
 
@@ -1083,7 +1145,7 @@ class MemberNotificationUnreadCountView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def get(self, request):
-        count = Notification.objects.filter(member_recipient=request.user, is_read=False).count()
+        count = _visible_member_notifications(request.user).filter(is_read=False).count()
         return ApiResponse(data={'unread_count': count})
 
 
@@ -1091,20 +1153,117 @@ class MemberNotificationReadView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def patch(self, request, pk):
-        notification = get_object_or_404(Notification, pk=pk, member_recipient=request.user)
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save(update_fields=('is_read', 'read_at'))
-        return ApiResponse(data=NotificationSerializer(notification).data)
+        notification = get_object_or_404(
+            _visible_member_notifications(request.user),
+            pk=pk,
+        )
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=('is_read', 'read_at'))
+            unread_count = _visible_member_notifications(request.user).filter(is_read=False).count()
+            _publish_member_notification_state(
+                request.user,
+                'notification.read',
+                notification_id=str(notification.pk),
+                data={'notification_id': str(notification.pk), 'is_read': True, 'unread_count': unread_count},
+            )
+        else:
+            unread_count = _visible_member_notifications(request.user).filter(is_read=False).count()
+
+        data = NotificationSerializer(notification, context={'request': request}).data
+        data['unread_count'] = unread_count
+        return ApiResponse(data=data)
 
     def post(self, request, pk=None):
         if pk:
             return self.patch(request, pk)
-        Notification.objects.filter(member_recipient=request.user, is_read=False).update(
+        now = timezone.now()
+        updated = _visible_member_notifications(request.user).filter(is_read=False).update(
             is_read=True,
-            read_at=timezone.now(),
+            read_at=now,
         )
-        return ApiResponse(message='All notifications marked as read.')
+        _publish_member_notification_state(
+            request.user,
+            'notification.marked_all_read',
+            data={'unread_count': 0, 'updated_count': updated},
+        )
+        return ApiResponse(data={'unread_count': 0, 'updated_count': updated}, message='All notifications marked as read.')
+
+
+class MemberNotificationClearView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def post(self, request):
+        now = timezone.now()
+        rows = _visible_member_notifications(request.user)
+        cleared_count = rows.count()
+        rows.filter(is_read=False).update(is_read=True, read_at=now)
+        rows.update(cleared_at=now)
+        _publish_member_notification_state(
+            request.user,
+            'notification.cleared',
+            data={
+                'unread_count': 0,
+                'cleared_count': cleared_count,
+                'cleared_at': now.isoformat(),
+            },
+        )
+        return ApiResponse(
+            data={'unread_count': 0, 'cleared_count': cleared_count, 'cleared_at': now.isoformat()},
+            message='Notifications cleared.',
+        )
+
+
+class MemberWebPushConfigView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def get(self, request):
+        enabled = push_is_configured()
+        return ApiResponse(data={
+            'enabled': enabled,
+            'public_key': getattr(settings, 'WEB_PUSH_VAPID_PUBLIC_KEY', '') if enabled else '',
+        })
+
+
+class MemberWebPushSubscriptionView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def post(self, request):
+        if not push_is_configured():
+            return ApiResponse(
+                success=False,
+                message='Browser push is not configured yet.',
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        serializer = WebPushSubscriptionInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        endpoint = serializer.validated_data['endpoint']
+        endpoint_hash = hashlib.sha256(endpoint.encode('utf-8')).hexdigest()
+        WebPushSubscription.objects.update_or_create(
+            endpoint_hash=endpoint_hash,
+            defaults={
+                'member': request.user,
+                'endpoint': endpoint,
+                'p256dh': serializer.validated_data['p256dh'],
+                'auth': serializer.validated_data['auth'],
+                'user_agent': request.META.get('HTTP_USER_AGENT', '')[:1000],
+                'is_active': True,
+            },
+        )
+        return ApiResponse(data={'enabled': True, 'subscribed': True}, message='Push notifications enabled.')
+
+    def delete(self, request):
+        endpoint = str(request.data.get('endpoint', '')).strip()
+        if not endpoint:
+            return bad_request('endpoint is required.')
+        endpoint_hash = hashlib.sha256(endpoint.encode('utf-8')).hexdigest()
+        WebPushSubscription.objects.filter(
+            member=request.user,
+            endpoint_hash=endpoint_hash,
+        ).update(is_active=False)
+        return ApiResponse(data={'enabled': push_is_configured(), 'subscribed': False}, message='Push notifications disabled.')
 
 
 class SecurePaymentCreateOrderView(APIView):

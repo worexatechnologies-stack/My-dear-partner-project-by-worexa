@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
@@ -63,7 +64,9 @@ def make_admin(**kwargs):
 
 
 def make_staff(**kwargs):
-    role, _ = AdminRole.objects.get_or_create(code=AccountType.STAFF, defaults={'name': 'Staff', 'permissions': []})
+    # Operational staff share the ADMIN authentication scope; STAFF is not a
+    # standalone AccountType in the current account model.
+    role, _ = AdminRole.objects.get_or_create(code=AccountType.ADMIN, defaults={'name': 'Admin', 'permissions': []})
     defaults = dict(
         email="staff@example.com",
         first_name="Test",
@@ -118,12 +121,14 @@ class NotificationConsumerTests(TestCase):
 
     async def test_authenticated_staff_connects(self):
         staff = await database_sync_to_async(make_staff)()
-        comm, connected = await self._connect(staff)
-        self.assertTrue(connected)
-        response = await comm.receive_json_from()
-        self.assertEqual(response["type"], "connection.established")
-        self.assertEqual(response["data"]["role"], "STAFF")
-        await comm.disconnect()
+        with patch('apps.notifications.consumers.logger.exception') as log_exception:
+            comm, connected = await self._connect(staff)
+            self.assertTrue(connected)
+            response = await comm.receive_json_from()
+            self.assertEqual(response["type"], "connection.established")
+            self.assertEqual(response["data"]["role"], "ADMIN")
+            await comm.disconnect()
+        log_exception.assert_not_called()
 
     async def test_anonymous_user_rejected(self):
         comm, connected = await self._connect(AnonymousUser())

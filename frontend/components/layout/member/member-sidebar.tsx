@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Search, Heart, Bookmark, Eye,
-  MessageSquareMore, Bell, ShieldCheck, CreditCard,
+  MessageSquareMore, ShieldCheck, CreditCard,
   Settings, LogOut, Menu, X, User,
   LifeBuoy, PanelLeftClose, PanelLeftOpen, SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/legacy/contexts/AuthContext';
-import { fetchApi } from '@/legacy/services/apiClient';
-import { useRealtime } from '@/providers/RealtimeProvider';
 import ProfileImage from '@/components/profile/ProfileImage';
 import SiteLogo from '@/components/branding/site-logo';
+import { NotificationBell } from '@/components/member/notification-bell';
 import MobileBottomNav from './mobile-bottom-nav';
 
 /* ─── Nav definitions ─── */
@@ -92,33 +91,13 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   /* ─── Unread notification count ─── */
-  const { subscribe } = useRealtime();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const refreshUnread = useCallback(async () => {
-    try {
-      const res = await fetchApi<{ unread_count: number }>('/notifications/unread-count/');
-      setUnreadCount(Math.max(0, Number(res.unread_count) || 0));
-    } catch { /* keep last count */ }
-  }, []);
-
-  useEffect(() => {
-    const onReadChanged = () => void refreshUnread();
-    window.addEventListener('notifications:read-changed', onReadChanged);
-    void refreshUnread();
-    const timer = window.setInterval(() => void refreshUnread(), 30_000);
-    const unsub  = subscribe('notification.created', () => void refreshUnread());
-    return () => { window.clearInterval(timer); unsub(); window.removeEventListener('notifications:read-changed', onReadChanged); };
-  }, [refreshUnread, subscribe]);
-
-  useEffect(() => { void refreshUnread(); }, [pathname, refreshUnread]);
-
   const displayName = user?.full_name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Member';
   const sidebarWidth = collapsed ? 'lg:w-[4.5rem]' : 'lg:w-56';
   const mainPad      = collapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-56';
   const currentPage = [
     ...mainNav,
     ...accountNav,
+    { label: 'Notifications', href: '/notifications' },
     { label: 'My Profile', href: '/profile' },
     { label: 'Matches', href: '/compare' },
     { label: 'Verification', href: '/verification' },
@@ -176,13 +155,11 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
             const isActive = item.href === '/interests/received'
               ? pathname.startsWith('/interests')
               : pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const badge = item.href === '/notifications' ? unreadCount : 0;
             return (
               <NavLink
                 key={item.label}
                 item={item}
                 isActive={isActive}
-                badge={badge}
                 collapsed={collapsed && !isMobile}
               />
             );
@@ -333,19 +310,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
           {/* Right: notifications bell + account button */}
           <div className="flex shrink-0 items-center gap-2">
 
-            {/* Notifications */}
-            <Link
-              href="/notifications"
-              className="relative rounded-xl p-2 text-[#8a747d] transition-colors hover:bg-[#f8e9ee] hover:text-[#8e3d58]"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#b64a68] px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
-                  {unreadCount >= 4 ? '4+' : unreadCount}
-                </span>
-              )}
-            </Link>
+            <NotificationBell />
 
             {/* Account button — links directly to /profile/me (no dropdown needed — profile is in sidebar) */}
             <Link

@@ -108,7 +108,7 @@ export default function LoginPage() {
         width: '100%',
         display: 'flex',
         flexDirection: 'row',
-        fontFamily: "'Inter', 'Outfit', system-ui, sans-serif",
+        fontFamily: 'var(--font-body)',
         background: '#fdf8f5',
         overflow: 'hidden',
       }}
@@ -132,7 +132,7 @@ export default function LoginPage() {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
         />
         {/* Right-to-left dark gradient */}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(35,9,20,0.15) 0%, rgba(35,9,20,0.52) 55%, rgba(35,9,20,0.82) 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(32,17,26,0.18) 0%, rgba(32,17,26,0.52) 52%, rgba(32,17,26,0.84) 100%)' }} />
         {/* Bottom fade */}
         <div style={{ position: 'absolute', inset: '0 0 0 0', background: 'linear-gradient(to top, rgba(35,9,20,0.75) 0%, transparent 50%)', bottom: 0 }} />
 
@@ -140,7 +140,7 @@ export default function LoginPage() {
         <Link to="/" style={{ position: 'absolute', top: 40, left: 40, display: 'flex', alignItems: 'center', gap: 12, zIndex: 10, textDecoration: 'none', cursor: 'pointer' }}>
           <img src="/images/main-logo.png" alt="My Dear Partner Logo" style={{ width: 42, height: 42, objectFit: 'contain' }} />
           <span style={{ color: 'white', fontWeight: 900, fontSize: 20, letterSpacing: '-0.5px' }}>
-            My Dear <span style={{ color: '#ec4899' }}>Partner</span>
+            My Dear <span style={{ color: '#f0c4c5' }}>Partner</span>
           </span>
         </Link>
 
@@ -150,9 +150,9 @@ export default function LoginPage() {
             { Icon: Users, val: '10K+', sub: 'Happy Couples' },
             { Icon: ShieldCheck, val: '100%', sub: 'ID Verified' },
           ].map(({ Icon, val, sub }) => (
-            <div key={sub} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 16, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', backdropFilter: 'blur(12px)' }}>
-              <div style={{ width: 30, height: 30, borderRadius: 10, background: 'rgba(244,114,182,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon style={{ width: 14, height: 14, color: '#f9a8c4' }} />
+            <div key={sub} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', backdropFilter: 'blur(12px)' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 10, background: 'rgba(240,196,197,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon style={{ width: 14, height: 14, color: '#f0c4c5' }} />
               </div>
               <div>
                 <div style={{ color: 'white', fontWeight: 900, fontSize: 14, lineHeight: 1 }}>{val}</div>
@@ -179,9 +179,9 @@ export default function LoginPage() {
             Join thousands of families who have found their perfect match on India&apos;s most trusted matrimony platform.
           </p>
           {/* Stars strip */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
             <div style={{ display: 'flex', gap: 2 }}>
-              {[1,2,3,4,5].map((s) => <Star key={s} style={{ width: 14, height: 14, fill: '#fbbf24', color: '#fbbf24' }} />)}
+              {[1,2,3,4,5].map((s) => <Star key={s} style={{ width: 14, height: 14, fill: '#f0c4c5', color: '#f0c4c5' }} />)}
             </div>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 700 }}>Rated 4.9 by 8,000+ members</span>
           </div>
@@ -197,7 +197,7 @@ export default function LoginPage() {
             <img src="/images/main-logo.png" alt="My Dear Partner Logo" style={{ width: 34, height: 34, objectFit: 'contain' }} />
           
             <span style={{ fontWeight: 900, fontSize: 16, color: '#230914' }}>
-              My Dear <span style={{ color: '#ec4899' }}>Partner</span>
+              My Dear <span style={{ color: '#b64a68' }}>Partner</span>
             </span>
           </Link>
           <Link to="/register" style={{ fontSize: 12, fontWeight: 800, color: '#8e3d58', border: '1px solid #f3b8cb', borderRadius: 12, padding: '6px 14px', background: '#fdf1f5', textDecoration: 'none' }}>
@@ -228,16 +228,16 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', borderRadius: 16, background: '#fef2f2', border: '1px solid #fecaca' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', borderRadius: 14, background: '#fef2f2', border: '1px solid #fecaca' }}>
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, flexShrink: 0, marginTop: 1 }}>!</div>
                 <span style={{ color: '#b91c1c', fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>{error}</span>
               </div>
             )}
 
             {recoveryOpen && (
-              <div style={{ padding: '16px', borderRadius: 16, background: '#fff8ed', border: '1px solid #f5d6a0' }}>
-                <div style={{ color: '#8a5313', fontSize: 13, fontWeight: 800 }}>Recover your account</div>
-                <p style={{ margin: '6px 0 12px', color: '#8a6b3b', fontSize: 12, lineHeight: 1.5 }}>Your password has been confirmed. No OTP or recovery code is needed. Select Recover account within 30 days to restore it.</p>
+              <div style={{ padding: '16px', borderRadius: 14, background: '#fff6f7', border: '1px solid #edcbd3' }}>
+                <div style={{ color: '#702d45', fontSize: 13, fontWeight: 800 }}>Recover your account</div>
+                <p style={{ margin: '6px 0 12px', color: '#776a6f', fontSize: 12, lineHeight: 1.5 }}>Your password has been confirmed. No OTP or recovery code is needed. Select Recover account within 30 days to restore it.</p>
                 <button type="button" onClick={() => void verifyRecovery()} disabled={recoveryBusy} style={{ width: '100%', border: 0, borderRadius: 12, padding: '11px 14px', background: '#8e3d58', color: 'white', fontWeight: 800, cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.6 : 1 }}>
                   {recoveryBusy ? 'Recovering account...' : 'Recover account'}
                 </button>
@@ -252,7 +252,7 @@ export default function LoginPage() {
                 <label htmlFor="member-identifier" style={{ fontSize: 11, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Email or Mobile Number
                 </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 16, transition: 'all 0.18s', background: focused === 'id' ? '#fff' : '#f9f1f4', border: focused === 'id' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'id' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'id' ? '#fff' : '#f9f1f4', border: focused === 'id' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'id' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
                   <Mail style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'id' ? '#8e3d58' : '#c4a0ad', pointerEvents: 'none' }} />
                   <input
                     id="member-identifier"
@@ -264,7 +264,7 @@ export default function LoginPage() {
                     onBlur={() => setFocused(null)}
                     placeholder="you@example.com or 9876543210"
                     required
-                    style={{ width: '100%', paddingLeft: 42, paddingRight: 14, paddingTop: 15, paddingBottom: 15, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#111827', borderRadius: 16 }}
+                    style={{ width: '100%', paddingLeft: 42, paddingRight: 14, paddingTop: 15, paddingBottom: 15, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#2c2928', borderRadius: 12 }}
                   />
                 </div>
               </div>
@@ -279,7 +279,7 @@ export default function LoginPage() {
                     Forgot Password?
                   </Link>
                 </div>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 16, transition: 'all 0.18s', background: focused === 'pw' ? '#fff' : '#f9f1f4', border: focused === 'pw' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'pw' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'pw' ? '#fff' : '#f9f1f4', border: focused === 'pw' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'pw' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
                   <Lock style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'pw' ? '#8e3d58' : '#c4a0ad', pointerEvents: 'none' }} />
                   <input
                     id="member-password"
@@ -291,7 +291,7 @@ export default function LoginPage() {
                     onBlur={() => setFocused(null)}
                     placeholder="Enter your password"
                     required
-                    style={{ width: '100%', paddingLeft: 42, paddingRight: 48, paddingTop: 15, paddingBottom: 15, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#111827', borderRadius: 16 }}
+                    style={{ width: '100%', paddingLeft: 42, paddingRight: 48, paddingTop: 15, paddingBottom: 15, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#2c2928', borderRadius: 12 }}
                   />
                   <button
                     type="button"
@@ -313,8 +313,8 @@ export default function LoginPage() {
                 style={{
                   width: '100%',
                   padding: '16px 24px',
-                  borderRadius: 16,
-                  background: submitting ? '#b0607a' : 'linear-gradient(135deg, #8e3d58 0%, #5c1f35 100%)',
+                  borderRadius: 12,
+                  background: submitting ? '#b0607a' : '#8e3d58',
                   boxShadow: submitting ? 'none' : '0 6px 24px rgba(142,61,88,0.32)',
                   border: 'none',
                   color: 'white',
@@ -372,7 +372,7 @@ export default function LoginPage() {
                 { Icon: LockKeyhole, label: 'End-to-End Secure' },
                 { Icon: CheckCircle2, label: 'Govt ID Checked' },
               ].map(({ Icon, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 16, background: '#fdf1f5', border: '1px solid #f3d5de', textAlign: 'center' }}>
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 14, background: '#fdf1f5', border: '1px solid #f3d5de', textAlign: 'center' }}>
                   <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fce7ef', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon style={{ width: 15, height: 15, color: '#8e3d58' }} />
                   </div>
@@ -392,8 +392,8 @@ export default function LoginPage() {
       {/* Responsive styles via a style tag */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .login-redesign { background: #fffefd !important; font-family: var(--font-manrope), system-ui, sans-serif !important; }
-        .login-redesign .login-hero-panel { width: 48% !important; }
+        .login-redesign { background: #fffefd !important; font-family: var(--font-body), system-ui, sans-serif !important; }
+        .login-redesign .login-hero-panel { width: 50% !important; }
         .login-redesign .login-hero-panel > div:nth-of-type(1) { background: linear-gradient(to top, rgba(44,41,40,.74), rgba(44,41,40,.08) 62%) !important; }
         .login-redesign .login-hero-panel > div:nth-of-type(2) { background: linear-gradient(to top, rgba(44,41,40,.45), transparent 55%) !important; }
         .login-redesign .login-hero-panel h2 { font-family: var(--font-display), Georgia, serif !important; font-weight: 400 !important; font-size: 46px !important; letter-spacing: -.05em !important; }
@@ -402,13 +402,13 @@ export default function LoginPage() {
         .login-redesign .login-hero-panel > a span span { color: #f0c4c5 !important; }
         .login-redesign > div:last-of-type { background: #fffefd !important; }
         .login-redesign .login-mobile-topbar { border-bottom: 1px solid #eaded8; background: #fffefd !important; }
-        .login-redesign input { border-radius: 0 !important; }
-        .login-redesign button[type="submit"] { border-radius: 0 !important; background: #bd6970 !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .12em; font-size: 12px !important; }
-        .login-redesign button[type="submit"]:hover { background: #a8525c !important; }
-        .login-redesign [style*="borderRadius: 16"] { border-radius: 0 !important; }
+        .login-redesign input { border-radius: 12px !important; }
+        .login-redesign button[type="submit"] { min-height: 3.25rem; border-radius: 12px !important; background: #8e3d58 !important; box-shadow: 0 12px 24px rgba(142,61,88,.22) !important; text-transform: uppercase; letter-spacing: .11em; font-size: 12px !important; }
+        .login-redesign button[type="submit"]:hover { background: #702d45 !important; transform: translateY(-1px); }
         .login-redesign [style*="background: '#f9f1f4'"] { background: #fffaf7 !important; border-color: #eaded8 !important; }
         .login-redesign [style*="background: '#fdf1f5'"] { background: #fffaf7 !important; border-color: #eaded8 !important; }
-        .login-redesign [style*="color: '#8e3d58'"] { color: #a8525c !important; }
+        .login-redesign [style*="color: '#8e3d58'"] { color: #8e3d58 !important; }
+        .login-redesign a:focus-visible, .login-redesign button:focus-visible { outline: 2px solid #b64a68; outline-offset: 3px; }
         @media (min-width: 1024px) {
           .login-hero-panel { display: block !important; }
           .login-mobile-topbar { display: none !important; }
@@ -416,6 +416,8 @@ export default function LoginPage() {
         @media (max-width: 1023px) {
           .login-hero-panel { display: none !important; }
           .login-mobile-topbar { display: flex !important; }
+          .login-redesign > div:last-of-type > div:last-of-type { padding: 28px 20px 36px !important; }
+          .login-redesign > div:last-of-type > div:last-of-type > div { gap: 22px !important; }
         }
       `}</style>
     </div>

@@ -746,6 +746,19 @@ class NotificationSerializer(serializers.ModelSerializer):
         )
 
 
+class WebPushSubscriptionInputSerializer(serializers.Serializer):
+    """Validate browser Push API data without exposing stored device keys."""
+
+    endpoint = serializers.URLField(max_length=2048)
+    p256dh = serializers.CharField(max_length=255, write_only=True)
+    auth = serializers.CharField(max_length=255, write_only=True)
+
+    def validate_endpoint(self, value):
+        if not value.startswith('https://'):
+            raise serializers.ValidationError('Push subscriptions must use an HTTPS endpoint.')
+        return value
+
+
 class PaymentSerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(source='payment_order.membership_plan.name', read_only=True)
     client_reference = serializers.CharField(source='payment_order.internal_order_number', read_only=True)

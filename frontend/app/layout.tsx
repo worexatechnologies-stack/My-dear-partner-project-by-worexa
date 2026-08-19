@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   icons: { icon: '/images/main-logo.png' },
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#0f172a' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#8e3d58' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${dmSans.variable} ${manrope.variable}`}>

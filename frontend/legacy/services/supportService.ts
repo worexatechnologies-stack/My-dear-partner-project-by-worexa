@@ -59,6 +59,7 @@ export interface Notification {
   related_object_id?: string | null;
   priority: string;
   created_at: string;
+  read_at?: string | null;
 }
 
 export interface PaginatedResult<T> {
@@ -66,6 +67,20 @@ export interface PaginatedResult<T> {
   page: number;
   page_size: number;
   results: T[];
+}
+
+export type NotificationFilter = 'all' | 'unread' | 'important';
+
+export interface NotificationFeedResult {
+  results: Notification[];
+  next_cursor: string | null;
+  previous_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface WebPushConfig {
+  enabled: boolean;
+  public_key: string;
 }
 
 export const supportService = {
@@ -148,10 +163,18 @@ export const supportService = {
     });
   },
 
-  async getNotifications(page = 1): Promise<PaginatedResult<Notification>> {
-    return fetchApi<PaginatedResult<Notification>>('/notifications/', {
+  async getNotifications(options: {
+    cursor?: string | null;
+    limit?: number;
+    filter?: NotificationFilter;
+  } = {}): Promise<NotificationFeedResult> {
+    return fetchApi<NotificationFeedResult>('/notifications/', {
       method: 'GET',
-      params: { page: String(page) }
+      params: {
+        cursor: options.cursor ?? undefined,
+        limit: String(options.limit ?? 20),
+        filter: options.filter ?? 'all',
+      },
     });
   },
 
@@ -170,6 +193,32 @@ export const supportService = {
   async markAllNotificationsRead(): Promise<any> {
     return fetchApi<any>('/notifications/mark-all-read/', {
       method: 'POST'
+    });
+  },
+
+  async clearAllNotifications(): Promise<{ unread_count: number; cleared_count: number; cleared_at: string }> {
+    return fetchApi<{ unread_count: number; cleared_count: number; cleared_at: string }>('/notifications/clear/', {
+      method: 'POST',
+    });
+  },
+
+  async getWebPushConfig(): Promise<WebPushConfig> {
+    return fetchApi<WebPushConfig>('/notifications/push/config/', {
+      method: 'GET',
+    });
+  },
+
+  async subscribeToWebPush(subscription: { endpoint: string; p256dh: string; auth: string }): Promise<{ enabled: boolean; subscribed: boolean }> {
+    return fetchApi<{ enabled: boolean; subscribed: boolean }>('/notifications/push/subscriptions/', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    });
+  },
+
+  async unsubscribeFromWebPush(endpoint: string): Promise<{ enabled: boolean; subscribed: boolean }> {
+    return fetchApi<{ enabled: boolean; subscribed: boolean }>('/notifications/push/subscriptions/', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
     });
   }
 };

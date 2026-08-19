@@ -18,11 +18,9 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     """
     Unified WebSocket consumer for real-time notifications.
 
-    Supports all user types:
-      - Member
-      - SuperAdmin
-      - Admin
-      - Staff
+    Supports members and administrative accounts. Operational staff use the
+    ADMIN authentication scope, which keeps staff events permission-gated by
+    their assigned administrative role.
 
     Channels are registered in role-based groups for permission-aware
     event delivery and a personal group (user_{id}) for private events.
@@ -192,17 +190,24 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             AccountType,
             Admin,
             Member,
+            Staff,
             SuperAdmin,
         )
 
-        # BaseAccount is abstract, so persist on the concrete model for this
-        # connection's account type.
+        # BaseAccount is abstract, so persist on the concrete account model.
+        # Operational staff share ADMIN's token scope but live in their own
+        # table, which must be used for durable last-seen updates.
+        scoped_user = self.scope.get("user")
+        if isinstance(scoped_user, (Member, SuperAdmin, Admin, Staff)):
+            model = scoped_user.__class__
+        else:
+            model = None
         model_for_type = {
             AccountType.MEMBER: Member,
             AccountType.SUPER_ADMIN: SuperAdmin,
             AccountType.ADMIN: Admin,
         }
-        model = model_for_type.get(self.account_type)
+        model = model or model_for_type.get(self.account_type)
         if model is None:
             return
 

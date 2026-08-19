@@ -3,54 +3,54 @@
 
 @theme {
   /* Dark neutrals — clean charcoal/slate */
-  --color-plum-900: #0f172a;
-  --color-plum-800: #1e293b;
-  --color-plum-700: #334155;
-  --color-plum-600: #475569;
+  --color-plum-900: #20111a;
+  --color-plum-800: #2c2928;
+  --color-plum-700: #4e4347;
+  --color-plum-600: #67595e;
 
   /* Primary accent — Rose/Pink */
-  --color-rose-600: #e11d48;
-  --color-rose-500: #f43f5e;
-  --color-rose-400: #fb7185;
-  --color-rose-300: #fda4af;
+  --color-rose-600: #702d45;
+  --color-rose-500: #8e3d58;
+  --color-rose-400: #b64a68;
+  --color-rose-300: #e5afb9;
 
   /* Secondary accent — amber warmth */
-  --color-gold-600: #d97706;
-  --color-gold-500: #f59e0b;
-  --color-gold-400: #fbbf24;
-  --color-gold-300: #fcd34d;
-  --color-gold-100: #fef3c7;
+  --color-gold-600: #8e3d58;
+  --color-gold-500: #b64a68;
+  --color-gold-400: #cf7d8d;
+  --color-gold-300: #e9bac3;
+  --color-gold-100: #fbe8ec;
 
   /* Backgrounds — clean cool neutrals */
-  --color-cream-900: #1e293b;
-  --color-cream-200: #e2e8f0;
-  --color-cream-100: #f1f5f9;
-  --color-cream-50: #f8fafc;
+  --color-cream-900: #2c2928;
+  --color-cream-200: #eaded8;
+  --color-cream-100: #f4ece7;
+  --color-cream-50: #fbf7f2;
 
   /* Text */
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-soft-muted: #94a3b8;
+  --color-ink: #2c2928;
+  --color-muted: #776a6f;
+  --color-soft-muted: #9a898f;
 
   /* Borders */
-  --color-line: rgba(15, 23, 42, 0.08);
+  --color-line: rgba(67, 37, 50, 0.11);
 
   /* Surfaces */
-  --color-surface: #ffffff;
-  --color-surface-alt: #f8fafc;
-  --color-app-bg: #f1f5f9;
+  --color-surface: #fffefd;
+  --color-surface-alt: #fbf7f2;
+  --color-app-bg: #fbf7f2;
 
   /* Feedback */
-  --color-error: #ef4444;
-  --color-success: #16a34a;
-  --color-warning: #f59e0b;
+  --color-error: #a63f58;
+  --color-success: #8e3d58;
+  --color-warning: #b64a68;
 
   /* Shadows — clean minimalist */
-  --shadow-brand-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-brand-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-brand-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
-  --shadow-rose: 0 4px 12px rgba(59, 130, 246, 0.2);
-  --shadow-gold: 0 4px 12px rgba(245, 158, 11, 0.2);
+  --shadow-brand-sm: 0 2px 8px rgba(67, 37, 50, 0.05);
+  --shadow-brand-md: 0 8px 22px rgba(67, 37, 50, 0.08);
+  --shadow-brand-lg: 0 18px 42px rgba(67, 37, 50, 0.12);
+  --shadow-rose: 0 8px 20px rgba(142, 61, 88, 0.2);
+  --shadow-gold: 0 8px 20px rgba(182, 74, 104, 0.16);
 
   --font-display: "Manrope", system-ui, sans-serif;
 }
@@ -73,12 +73,12 @@
 :root {
   --font-body: "DM Sans", system-ui, sans-serif;
   --font-heading: "Manrope", system-ui, sans-serif;
-  --night: #0f172a;
-  --forest: #1e293b;
-  --coral: #e11d48;
-  --sand: #f1f5f9;
-  --paper: #ffffff;
-  --slate: #64748b;
+  --night: #20111a;
+  --forest: #2c2928;
+  --coral: #b64a68;
+  --sand: #fbf7f2;
+  --paper: #fffefd;
+  --slate: #776a6f;
   --brand-ink: #20111a;
   --brand-wine: #8e3d58;
   --brand-rose: #e11d48;
@@ -87,6 +87,9 @@
   --brand-card: #ffffff;
   --brand-border: rgba(43, 16, 29, 0.09);
   --brand-shadow: 0 10px 28px rgba(43, 16, 29, 0.08);
+  --mdp-radius-control: .75rem;
+  --mdp-radius-card: 1rem;
+  --mdp-radius-feature: 1.5rem;
 }
 
 html { min-width: 0; overflow-x: clip; background: var(--brand-canvas); scroll-behavior: smooth; }
@@ -203,6 +206,14 @@ input, textarea, select, button { max-width: 100%; }
 .brand-button-primary:hover { background: #702d45; transform: translateY(-1px); box-shadow: 0 14px 28px rgba(142, 61, 88, .30); }
 .brand-button-secondary { border: 1px solid var(--brand-border); background: rgba(255,255,255,.82); color: var(--brand-ink); }
 .brand-button-secondary:hover { border-color: rgba(142,61,88,.28); background: #fff; transform: translateY(-1px); }
+
+.mdp-glass-surface {
+  border: 1px solid rgba(255, 255, 255, .54);
+  background: rgba(255, 254, 253, .68);
+  box-shadow: 0 14px 32px rgba(67, 37, 50, .10);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
 
 /* Shared motion stays subtle and supports reduced-motion preferences. */
 @keyframes mdp-page-enter {
