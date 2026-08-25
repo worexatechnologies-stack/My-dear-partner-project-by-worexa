@@ -8,6 +8,8 @@ Handles profile-related business logic:
 - Contact and photo access rules
 """
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 from django.utils import timezone
@@ -118,27 +120,163 @@ class ProfileService:
             if value:
                 queryset = queryset.filter(**{lookup: value})
         
-        # Rank profiles with an approved photo first, then boosted members
-        # (active membership with profile boost enabled), then premium, then
-        # newest first. This surfaces approved-photo profiles ahead of
-        # not-approved ones and makes a purchased "profile boost" plan actually
-        # improve search visibility instead of being an unused entitlement flag.
-        boosted = MemberMembership.objects.filter(
+        # ── Professional matrimonial ranking (server-side, single query) ──
+        # Eligibility has already been fully enforced above. This blocks only
+        # re-orders the *eligible* pool. The score deliberately interleaves
+        # premium/boost with compatibility & profile quality so the feed feels
+        # organic, never a stiff "premium section".
+        now = timezone.now()
+
+        # Active membership with a boost entitlement, that has NOT expired.
+        boosted_active = MemberMembership.objects.filter(
             member=OuterRef('pk'),
             is_active=True,
             status=MemberMembership.MembershipStatus.ACTIVE,
             plan__can_use_profile_boost=True,
+        ).exclude(
+            Q(end_date__isnull=False, end_date__lt=now)
+            | Q(expires_at__isnull=False, expires_at__lt=now)
         ).values('pk')[:1]
 
+        # Active premium (any non-expired membership on a paid plan) — used for
+        # the premium advantage independent of an explicit boost entitlement.
+        premium_active = MemberMembership.objects.filter(
+            member=OuterRef('pk'),
+            is_active=True,
+            status=MemberMembership.MembershipStatus.ACTIVE,
+            plan__is_active=True,
+        ).exclude(
+            Q(end_date__isnull=False, end_date__lt=now)
+            | Q(expires_at__isnull=False, expires_at__lt=now)
+        ).values('pk')[:1]
+
+        # The viewer's own stated preferences drive a compatibility bump.
+        # Everything here uses real data (no invented completeness values).
+        viewer_prefs = None
+        try:
+            viewer_prefs = viewer.preferences
+        except Exception:
+            viewer_prefs = None
+
+        pref_age_min = getattr(viewer_prefs, 'preferred_age_min', None)
+        pref_age_max = getattr(viewer_prefs, 'preferred_age_max', None)
+        pref_religion = (getattr(viewer_prefs, 'preferred_religion', '') or '').strip()
+        pref_caste = (getattr(viewer_prefs, 'preferred_caste', '') or '').strip()
+        pref_location = (getattr(viewer_prefs, 'preferred_location', '') or '').strip()
+        pref_education = (getattr(viewer_prefs, 'preferred_education', '') or '').strip()
+        pref_occupation = (getattr(viewer_prefs, 'preferred_occupation', '') or '').strip()
+        pref_marital = (getattr(viewer_prefs, 'preferred_marital_status', '') or '').strip()
+        today = timezone.now().date()
+
+        def pref_cutoff(years):
+            try:
+                return today.replace(year=today.year - years)
+            except ValueError:
+                return today.replace(year=today.year - years, day=28)
+
+        # Age compatibility: candidate falls inside the viewer's preferred band.
+        compat_age = Case(default=Value(0), output_field=IntegerField())
+        if pref_age_min and pref_age_max:
+            dob_min = pref_cutoff(pref_age_max + 1)   # age <= max  ->  dob > dob_min
+            dob_max = pref_cutoff(pref_age_min)        # age >= min  ->  dob <= dob_max
+            compat_age = Case(
+                When(
+                    Q(date_of_birth__gt=dob_min) & Q(date_of_birth__lte=dob_max),
+                    then=Value(1),
+                ),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+
+        # Each compatibility bump is a real Case expression stored in a local
+        # variable. (annotate(alias=...) does NOT create a Python name, so the
+        # score below must reference these variables, never the ``_compat_*``
+        # alias strings.)
+        compat_religion = Case(
+            When(profile__religion__iexact=pref_religion, then=Value(1)) if pref_religion else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        compat_caste = Case(
+            When(profile__caste__iexact=pref_caste, then=Value(1)) if pref_caste else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        compat_location = Case(
+            When(profile__work_location__icontains=pref_location, then=Value(1)) if pref_location else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        compat_education = Case(
+            When(profile__highest_education__iexact=pref_education, then=Value(1)) if pref_education else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        compat_occupation = Case(
+            When(profile__occupation__iexact=pref_occupation, then=Value(1)) if pref_occupation else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+        compat_marital = Case(
+            When(profile__marital_status__iexact=pref_marital, then=Value(1)) if pref_marital else When(pk__isnull=False, then=Value(0)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+
+        # Single combined quality score is computed in SQL (no N+1).
         queryset = queryset.annotate(
-            _photo_rank=Case(
-                When(photo_status=Member.VerificationStatus.APPROVED, then=Value(0)),
-                default=Value(1),
+            _boosted=Exists(boosted_active),
+            _active_premium=Exists(premium_active),
+            _verified_flag=Case(
+                When(is_mobile_verified=True, then=Value(1)),
+                default=Value(0),
                 output_field=IntegerField(),
             ),
-            _boosted=Exists(boosted),
+            _photo_ok=Case(
+                When(photo_status=Member.VerificationStatus.APPROVED, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+            _about_ok=Case(
+                When(~Q(profile__about='') & ~Q(profile__about__isnull=True), then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+            _recent_ok=Case(
+                When(Q(last_seen_at__gte=now - timedelta(days=14)) | Q(created_at__gte=now - timedelta(days=30)), then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+            _compat_age=compat_age,
+            _compat_religion=compat_religion,
+            _compat_caste=compat_caste,
+            _compat_location=compat_location,
+            _compat_education=compat_education,
+            _compat_occupation=compat_occupation,
+            _compat_marital=compat_marital,
         )
-        return queryset.order_by('_photo_rank', '-_boosted', '-is_premium', '-created_at', 'pk').distinct()
+
+        # Weighted score. High-compatible, verified, complete, recently-active
+        # free profiles can still outrank a bare low-quality premium profile.
+        queryset = queryset.annotate(
+            _rank_score=(
+                Case(When(_boosted=True, then=Value(800)), default=Value(0))
+                + Case(When(_active_premium=True, then=Value(700)), default=Value(0))
+                + Case(When(_boosted=True, _active_premium=True, then=Value(600)), default=Value(0))
+                + Case(When(_verified_flag=1, then=Value(300)), default=Value(0))
+                + Case(When(_photo_ok=1, then=Value(400)), default=Value(0))
+                + Case(When(_about_ok=1, then=Value(150)), default=Value(0))
+                + Case(When(_recent_ok=1, then=Value(250)), default=Value(0))
+                + compat_age * Value(400, output_field=IntegerField())
+                + compat_religion * Value(450, output_field=IntegerField())
+                + compat_caste * Value(400, output_field=IntegerField())
+                + compat_location * Value(350, output_field=IntegerField())
+                + compat_education * Value(450, output_field=IntegerField())
+                + compat_occupation * Value(400, output_field=IntegerField())
+                + compat_marital * Value(400, output_field=IntegerField())
+            )
+        )
+        return queryset.order_by('-_rank_score', '-_photo_ok', '-_recent_ok', '-created_at', 'pk').distinct()
     
     @staticmethod
     def get_full_profile(viewer, profile_id, source='search'):
@@ -160,17 +298,44 @@ class ProfileService:
                 'Use the member-auth me endpoint for your own profile.',
                 None
             )
-        
+
+        # Instagram-style block handling. If the target has blocked the viewer,
+        # refuse the view regardless of anything else so the UI can present a
+        # clear "You have been blocked by this user" state instead of a generic
+        # 404. If the viewer blocked the target, allow the view (the blocker
+        # may still unblock), and flag the relationship for the UI.
+        target_blocked_viewer = ProfileBlock.objects.filter(
+            blocker_id=profile_id, blocked=viewer
+        ).exists()
+        if target_blocked_viewer:
+            return (
+                False,
+                'You have been blocked by this user.',
+                {'code': 'blocked_by_user'}
+            )
+        viewer_blocked_target = ProfileBlock.objects.filter(
+            blocker=viewer, blocked_id=profile_id
+        ).exists()
+
         # Get eligible profile
         eligible_profiles = get_eligible_profiles_for(viewer).select_related(
             'profile', 'preferences'
         ).prefetch_related(
             Prefetch('profile_photos', queryset=ProfilePhoto.objects.active().without_binary())
         )
-        
+
         try:
             member = eligible_profiles.get(pk=profile_id)
         except Member.DoesNotExist:
+            # The viewer is blocked by someone they never blocked: the only
+            # way to hit this branch is a hard URL / history reference, so
+            # prefer the friendly blocked notice when applicable.
+            if viewer_blocked_target:
+                return (
+                    False,
+                    'You have blocked this user.',
+                    {'code': 'you_blocked', 'blocked_profile_locked': True}
+                )
             return (
                 False,
                 'This profile is not available.',
@@ -227,6 +392,8 @@ class ProfileService:
             'Profile retrieved successfully',
             {
                 'profile': member,  # Serialized by view
+                'blocked_by_me': viewer_blocked_target,
+                'blocked_by_user': False,
                 'compatibility': {
                     'score': compatibility['score'],
                     'explanations': compatibility['explanations'],

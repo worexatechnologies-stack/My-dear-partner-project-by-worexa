@@ -84,7 +84,7 @@ export function NotificationBell() {
       {open && (
         <section
           id={panelId}
-          className="absolute right-0 top-full z-[70] mt-2 w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-[#e5d5d0] bg-white/95 shadow-[0_18px_46px_rgba(69,35,47,.16)] backdrop-blur-md"
+          className="fixed left-2 right-2 top-16 z-[70] mx-auto w-auto max-w-[24rem] overflow-hidden rounded-2xl border border-[#e5d5d0] bg-white/95 shadow-[0_18px_46px_rgba(69,35,47,.16)] backdrop-blur-md sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[24rem]"
           role="dialog"
           aria-label="Recent notifications"
         >

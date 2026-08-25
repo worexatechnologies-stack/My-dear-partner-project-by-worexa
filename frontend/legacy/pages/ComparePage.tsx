@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from '@/lib/router-compat';
+import { profileHref } from '@/lib/profile-url';
 import { motion } from 'framer-motion';
 import { 
   Heart, Check, Star, Scale, User, ChevronDown, ShieldCheck, 
@@ -426,7 +427,7 @@ export default function ComparePage() {
             {/* Bottom Action Footer */}
             <div className="text-center pt-2 pb-6">
               <Link
-                to={`/profile/${profileB.id}`}
+                to={profileHref(profileB)}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#e11d48] hover:bg-[#743047] text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
               >
                 View Full Profile of {profileB.name}

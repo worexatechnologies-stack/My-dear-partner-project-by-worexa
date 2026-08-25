@@ -86,7 +86,7 @@ const faqs = [
     id: 10,
     category: 'features',
     question: 'What is Kundli Matching?',
-    answer: 'For families who value astrological compatibility, we provide detailed kundli matching. Our system calculates compatibility based on traditional criteria (Guna Milan, Manglik status, etc.) and presents you with a compatibility score.',
+    answer: 'For families who value astrological compatibility, we provide detailed kundli matching. Our system calculates compatibility based on traditional criteria (Guna Milan, etc.) and presents you with a compatibility score.',
   },
   {
     id: 11,

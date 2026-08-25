@@ -339,3 +339,92 @@ export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}):
   }
   return unwrapPayload(payload) as T;
 }
+
+export interface ApiResponseWithHeaders<T> {
+  data: T;
+  headers: Headers;
+}
+
+/**
+ * Same request/refresh path as ``fetchApi`` but also returns the raw response
+ * headers. Used by callers that need an authoritative signal (e.g. the
+ * conversation list's ``X-Has-More`` pagination header) without changing the
+ * API envelope contract.
+ */
+export async function fetchApiWithHeaders<T>(
+  endpoint: string,
+  options: FetchOptions = {},
+): Promise<ApiResponseWithHeaders<T>> {
+  const method = (options.method || 'GET').toUpperCase();
+
+  const headers = new Headers(options.headers);
+  headers.set('Accept', 'application/json');
+  if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers.set('X-CSRFToken', csrfToken);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(proxyUrl(endpoint, options.params), {
+      ...options,
+      headers,
+      credentials: 'include',
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ApiError(
+      networkErrorMessage(typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' ? !navigator.onLine : false),
+      0,
+      null,
+      null,
+      'NETWORK_ERROR',
+      null,
+      undefined,
+    );
+  }
+  const payload = await parseResponse(response);
+
+  if (response.status === 401 && !options.skipAuthRefresh && !options._retried && getStoredAccountType()) {
+    try {
+      await refreshAccessToken();
+      const retried = await fetchApiWithHeaders<T>(endpoint, { ...options, _retried: true });
+      return retried;
+    } catch {
+      clearClientAuthState();
+      window.dispatchEvent(new Event('auth:session-expired'));
+      throw new ApiError('Your session has expired. Please sign in again.', 401);
+    }
+  }
+
+  const envelope = payload as Record<string, unknown> | null;
+  if (!response.ok || (envelope && envelope.success === false)) {
+    const retryAfter = response.headers.get('Retry-After');
+    const retryAfterNum = retryAfter ? Number.parseInt(retryAfter, 10) : undefined;
+    if (response.status === 429 && retryAfterNum) {
+      applyRetryAfter(endpoint, retryAfterNum);
+    }
+    const meta = envelope && typeof envelope.meta === 'object' && envelope.meta
+      ? (envelope.meta as Record<string, unknown>)
+      : null;
+    const requestId =
+      (typeof meta?.request_id === 'string' ? meta.request_id : null) ??
+      response.headers.get('X-Request-ID') ??
+      null;
+    const code = envelope && typeof envelope.code === 'string' ? envelope.code : undefined;
+    throw new ApiError(
+      extractErrorMessage(payload, response.status, retryAfterNum),
+      response.status,
+      envelope?.errors ?? payload,
+      envelope?.data ?? null,
+      code,
+      requestId,
+      Number.isFinite(retryAfterNum) ? retryAfterNum : undefined,
+    );
+  }
+
+  return { data: unwrapPayload(payload) as T, headers: response.headers };
+}

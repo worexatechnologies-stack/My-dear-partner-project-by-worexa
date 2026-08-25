@@ -15,6 +15,7 @@ import { getInterests, getConversations, getProfiles, updateInterestStatus } fro
 import { fetchApi } from '../services/apiClient';
 import { DashboardSkeleton } from '../components/SkeletonLoader';
 import DailyUsageWidget from '@/components/member/daily-usage-widget';
+import { profileHref } from '@/lib/profile-url';
 
 const fieldLabels: Record<string, string> = {
   mobile_number: 'Mobile Number',
@@ -292,7 +293,6 @@ export default function DashboardPage() {
                     {incomingInterests.slice(0, 4).map((interest, i) => {
                       const sender = interest.sender || {};
                       const senderPhoto = sender.photo || '';
-                      const senderId = sender.id || sender.user_id || interest.sender_id;
                       
                       return (
                         <motion.div
@@ -304,12 +304,12 @@ export default function DashboardPage() {
                           className="group bg-slate-50 rounded-[2rem] p-3 flex flex-col gap-3 border border-slate-100 hover:bg-white hover:shadow-lg hover:shadow-slate-100 hover:border-slate-200 transition-all"
                         >
                           <div className="flex gap-4">
-                            <Link to={`/profile/${senderId}`} className="relative shrink-0 overflow-hidden rounded-2xl w-20 h-20 shadow-sm">
+                            <Link to={profileHref(sender)} className="relative shrink-0 overflow-hidden rounded-2xl w-20 h-20 shadow-sm">
                               <SmartImage src={senderPhoto} alt={sender.full_name || 'Member'} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                             </Link>
                             <div className="py-2 flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <Link to={`/profile/${senderId}`} className="text-sm font-bold text-slate-800 hover:text-rose-600 truncate">
+                                <Link to={profileHref(sender)} className="text-sm font-bold text-slate-800 hover:text-rose-600 truncate">
                                   {sender.first_name || sender.full_name || 'Member'}{sender.age ? `, ${sender.age}` : ''}
                                 </Link>
                                 {sender.is_verified && <BadgeCheck className="w-4 h-4 text-emerald-500 shrink-0" />}
@@ -365,7 +365,7 @@ export default function DashboardPage() {
                   {suggestedProfiles.map((profile) => (
                     <Link
                       key={profile.id}
-                      to={`/profile/${profile.id}`}
+                      to={profileHref(profile)}
                       className="group relative aspect-[4/5] overflow-hidden rounded-3xl bg-slate-100 shadow-sm border border-slate-100/50 block"
                     >
                       <SmartImage src={profile.photo} alt={profile.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -430,7 +430,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={visitor.id}
-                      to={`/profile/${targetProfileId}`}
+                      to={profileHref(visitor.profile)}
                       className="group flex items-center p-3 rounded-2xl border border-transparent hover:border-slate-100 hover:bg-slate-50 hover:shadow-sm transition-all"
                     >
                       <SmartImage

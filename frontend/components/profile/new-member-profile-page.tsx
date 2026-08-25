@@ -442,10 +442,7 @@ export default function NewMemberProfilePage() {
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Star / Nakshatra</span>
                     <DisplayValue value={p.star_nakshatra} />
                   </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Manglik Status</span>
-                    <DisplayValue value={p.manglik_status} />
-                  </div>
+
                 </div>
               </div>
             )}

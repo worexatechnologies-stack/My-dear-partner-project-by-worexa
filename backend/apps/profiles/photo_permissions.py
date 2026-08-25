@@ -111,7 +111,9 @@ def can_view_profile_photo(user, photo: ProfilePhoto) -> bool:
     if not is_active_member(user) or not is_active_member(photo.user):
         return False
 
-    return not ProfileBlock.objects.filter(
-        Q(blocker_id=user.pk, blocked_id=photo.user_id)
-        | Q(blocker_id=photo.user_id, blocked_id=user.pk)
-    ).exists()
+    # A member who blocked another profile may still view that profile's
+    # approved photos (for example from their own "Blocked & Rejected" list).
+    # The reciprocal direction (I am blocked by them) stays denied.
+    if ProfileBlock.objects.filter(blocker_id=user.pk, blocked_id=photo.user_id).exists():
+        return True
+    return not ProfileBlock.objects.filter(blocker_id=photo.user_id, blocked_id=user.pk).exists()

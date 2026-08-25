@@ -94,7 +94,7 @@ class InterestService:
                 notification_type='INTEREST_RECEIVED',
                 title='New interest received',
                 message=f'{sender.get_full_name()} sent you an interest.',
-                link_url=f'/profile/{sender.pk}',
+                link_url=f'/profile/{sender.profile_slug or sender.pk}',
                 related_object=interest,
             )
         except ImportError:
@@ -134,7 +134,7 @@ class InterestService:
                 notification_type='INTEREST_ACCEPTED',
                 title='Interest accepted',
                 message=f'{user.get_full_name()} accepted your interest.',
-                link_url=f'/profile/{user.pk}',
+                link_url=f'/profile/{user.profile_slug or user.pk}',
                 related_object=interest,
             )
         except ImportError:
@@ -179,7 +179,7 @@ class InterestService:
                 notification_type='INTEREST_DECLINED',
                 title='Interest declined',
                 message=f'{user.get_full_name()} declined your interest.',
-                link_url=f'/profile/{user.pk}',
+                link_url=f'/profile/{user.profile_slug or user.pk}',
                 related_object=interest,
             )
         except ImportError:

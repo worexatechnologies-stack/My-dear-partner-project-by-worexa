@@ -12,6 +12,7 @@ import { getInterests, getProfiles, updateInterestStatus, toggleShortlist, getSh
 import { fetchApi } from '@/legacy/services/apiClient';
 import { DashboardSkeleton } from '@/legacy/components/SkeletonLoader';
 import { useGetUnlockUsageQuery } from '@/legacy/services/profileApi';
+import { profileHref } from '@/lib/profile-url';
 
 function relativeTime(value: string | undefined | null) {
   if (!value) return 'Recently';
@@ -40,7 +41,7 @@ function FeedMatchCard({ profile, onInterest, onPass, onShortlist, isShortlisted
       className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100/60 hover:shadow-xl transition-shadow duration-300"
     >
       <div className="relative aspect-[4/5] sm:aspect-[16/10] w-full group">
-        <Link to={`/profile/${profile.id}`} className="absolute inset-0 z-10" aria-label={`View ${profile.name}'s profile`} />
+        <Link to={profileHref(profile)} className="absolute inset-0 z-10" aria-label={`View ${profile.name}'s profile`} />
         
         <SmartImage 
           src={profile.photo} 
@@ -292,11 +293,11 @@ export default function DashboardDiscovery() {
                     const senderId = sender.id || sender.user_id || interest.sender_id;
                     return (
                       <div key={interest.id} className="flex gap-3 p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <Link to={`/profile/${senderId}`} className="shrink-0 block">
+                        <Link to={profileHref(sender)} className="shrink-0 block">
                           <SmartImage src={sender.photo} alt="Profile" className="w-12 h-12 rounded-xl object-cover" />
                         </Link>
                         <div className="flex-1 min-w-0 py-0.5">
-                          <Link to={`/profile/${senderId}`} className="text-xs font-bold text-slate-800 truncate block hover:text-rose-600">{sender.first_name || 'Member'}</Link>
+                          <Link to={profileHref(sender)} className="text-xs font-bold text-slate-800 truncate block hover:text-rose-600">{sender.first_name || 'Member'}</Link>
                           <p className="text-[10px] text-slate-400 truncate">{sender.age} yrs • {sender.work_location || 'India'}</p>
                           <div className="flex gap-1.5 mt-1.5">
                             <button onClick={() => handleInterestAction(interest.id, 'ACCEPTED')} className="flex-1 py-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-lg hover:bg-rose-600 transition-colors">Accept</button>
@@ -323,7 +324,7 @@ export default function DashboardDiscovery() {
                   const pid = v.profile?.id || v.profile?.user_id || v.id;
                   const name = v.profile?.full_name || v.profile?.first_name || 'Member';
                   return (
-                    <Link key={v.id} to={`/profile/${pid}`} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-colors group">
+                    <Link key={v.id} to={profileHref(v.profile)} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 transition-colors group">
                       <SmartImage src={v.profile?.photo} alt={name} className="w-10 h-10 rounded-full object-cover shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-600">{name}</p>

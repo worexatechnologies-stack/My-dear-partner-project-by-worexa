@@ -156,10 +156,9 @@ class MembershipEntitlementService:
             return False, "target_ineligible"
 
         # Check blocker relationship
-        is_blocked = ProfileBlock.objects.filter(
-            Q(blocker=user, blocked=target_user) | Q(blocker=target_user, blocked=user)
-        ).exists()
-        if is_blocked:
+        if ProfileBlock.objects.filter(blocker_id=target_user.pk, blocked=user).exists():
+            return False, "blocked_by_user"
+        if ProfileBlock.objects.filter(blocker=user, blocked_id=target_user.pk).exists():
             return False, "messaging_blocked"
 
         if MatchClosureService.has_closed_match(user, target_user):
@@ -205,10 +204,9 @@ class MembershipEntitlementService:
         ):
             return False, "target_ineligible"
 
-        is_blocked = ProfileBlock.objects.filter(
-            Q(blocker=user, blocked=target_user) | Q(blocker=target_user, blocked=user)
-        ).exists()
-        if is_blocked:
+        if ProfileBlock.objects.filter(blocker_id=target_user.pk, blocked=user).exists():
+            return False, "blocked_by_user"
+        if ProfileBlock.objects.filter(blocker=user, blocked_id=target_user.pk).exists():
             return False, "messaging_blocked"
 
         if MatchClosureService.has_closed_match(user, target_user):

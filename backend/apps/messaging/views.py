@@ -63,99 +63,84 @@ class ConversationListView(APIView):
     """
     
     permission_classes = (permissions.IsAuthenticated, IsMember)
-    
+
+    DEFAULT_PAGE_SIZE = 50
+    MAX_PAGE_SIZE = 100
+
+    def _page_params(self, request):
+        try:
+            page_size = max(1, min(int(request.query_params.get('page_size', self.DEFAULT_PAGE_SIZE)), self.MAX_PAGE_SIZE))
+        except (TypeError, ValueError):
+            page_size = self.DEFAULT_PAGE_SIZE
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (TypeError, ValueError):
+            page = 1
+        return page, page_size
+
     def get(self, request):
         member = request.user
-        
-        # Get all members user has exchanged messages with
-        # Using subquery to get last message per conversation
-        conversations = []
-        
-        # Get unique conversation partners
-        sent_to = ChatMessage.objects.filter(sender=member).exclude(
-            user_visibility__user_id_snapshot=member.pk,
-            user_visibility__hidden=True,
-        ).values_list('receiver_id', flat=True).distinct()
-        received_from = ChatMessage.objects.filter(receiver=member).exclude(
-            user_visibility__user_id_snapshot=member.pk,
-            user_visibility__hidden=True,
-        ).values_list('sender_id', flat=True).distinct()
-        partner_ids = set(sent_to) | set(received_from)
+        page, page_size = self._page_params(request)
+
         blocked_ids = set(ProfileBlock.objects.filter(blocker=member).values_list('blocked_id', flat=True))
         blocked_ids.update(ProfileBlock.objects.filter(blocked=member).values_list('blocker_id', flat=True))
-        partner_ids.difference_update(blocked_ids)
-        
-        for partner_id in partner_ids:
-            # Get last message in this conversation
-            last_message = ChatMessage.objects.filter(
-                Q(sender=member, receiver_id=partner_id) |
-                Q(sender_id=partner_id, receiver=member)
-            ).exclude(
-                user_visibility__user_id_snapshot=member.pk,
-                user_visibility__hidden=True,
-            ).order_by('-created_at').first()
-            
-            if not last_message:
+        blocked_ids.discard(member.pk)
+
+        from apps.core.message_service import conversation_summary_rows
+
+        page_rows, total = conversation_summary_rows(
+            member=member,
+            excluded_partner_ids=blocked_ids,
+            page=page,
+            page_size=page_size,
+        )
+
+        latest_ids = [str(row['latest_message_id']) for row in page_rows if row.get('latest_message_id')]
+        latest_messages = {}
+        if latest_ids:
+            latest_messages = {str(msg.pk): msg for msg in ChatMessage.objects.filter(pk__in=latest_ids).select_related('sender', 'receiver')}
+
+        partner_ids = {str(row['partner_id']) for row in page_rows if row.get('partner_id')}
+        partners_map = {str(p.pk): p for p in Member.objects.filter(pk__in=partner_ids).select_related('profile')}
+
+        conversations = []
+        for row in page_rows:
+            partner = partners_map.get(str(row['partner_id']))
+            message = latest_messages.get(str(row['latest_message_id']))
+            if partner is None or message is None:
                 continue
-            
-            # Count unread messages from partner
-            unread_count = ChatMessage.objects.filter(
-                sender_id=partner_id,
-                receiver=member,
-                is_read=False
-            ).count()
-            
-            # Get partner details
-            try:
-                wire_message = serialize_message(last_message, viewer=member)
-                if wire_message is None:
-                    continue
-                partner = Member.objects.select_related('profile').get(pk=partner_id)
-                primary_photo = (
-                    ProfilePhoto.objects.without_binary()
-                    .select_related('user')
-                    .filter(
-                        user=partner,
-                        is_primary=True,
-                        status=ProfilePhoto.Status.APPROVED,
-                    )
-                    .first()
-                )
-                
-                conversations.append({
-                    'other_member': {
-                        'id': str(partner.id),
-                        'full_name': partner.get_full_name(),
-                        'photo': (
-                            photo_endpoint_urls(primary_photo)['thumbnail_url']
-                            if primary_photo and can_view_profile_photo(request.user, primary_photo)
-                            else None
-                        ),
-                        'gender': partner.gender,
-                        'chat_public_key': getattr(partner, 'chat_public_key', None) or '',
-                    },
-                    'last_message': {
-                        'id': str(last_message.id),
-                        'text': wire_message['text'],
-                        'status': wire_message['status'],
-                        'sender_id': str(last_message.sender_id),
-                        'created_at': last_message.created_at.isoformat(),
-                        'is_read': last_message.is_read,
-                    },
-                    'unread_count': unread_count,
-                })
-            except Member.DoesNotExist:
+            wire = serialize_message(message, viewer=member)
+            if wire is None:
                 continue
-        
-        # Sort by last message time
-        conversations.sort(key=lambda x: x['last_message']['created_at'], reverse=True)
-        
+            primary_photo = (
+                ProfilePhoto.objects.without_binary()
+                .filter(user=partner, is_primary=True, status=ProfilePhoto.Status.APPROVED).first()
+            )
+            conversations.append({
+                'other_member': {
+                    'id': str(partner.id),
+                    'full_name': partner.get_full_name(),
+                    'photo': (photo_endpoint_urls(primary_photo)['thumbnail_url'] if primary_photo and can_view_profile_photo(request.user, primary_photo) else None),
+                    'gender': partner.gender,
+                    'chat_public_key': getattr(partner, 'chat_public_key', None) or '',
+                },
+                'last_message': {
+                    'id': str(message.id),
+                    'text': wire['text'],
+                    'status': wire['status'],
+                    'sender_id': str(message.sender_id),
+                    'created_at': message.created_at.isoformat(),
+                    'is_read': message.is_read,
+                },
+                'unread_count': row['unread_count'] or 0,
+            })
+
         return ApiResponse(
             success=True,
             data=conversations,
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
+            headers={'X-Page': str(page), 'X-Page-Size': str(page_size), 'X-Has-More': 'true' if page * page_size < total else 'false', 'X-Total': str(total)},
         )
-
 
 class MessageHistoryView(APIView):
     """

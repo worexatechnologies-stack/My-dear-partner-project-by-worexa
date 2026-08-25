@@ -16,6 +16,7 @@ import {
 import { fetchApi } from '@/legacy/services/apiClient';
 import { useToast } from '@/components/ui';
 import { interestFeedback } from '../interest-feedback';
+import { profileHref } from '@/lib/profile-url';
 
 /* ─── helpers ─── */
 
@@ -130,7 +131,7 @@ function MatchCard({ profile, onLike, onShortlist, likedIds, shortlistedIds }: {
       transition={{ type: 'spring', stiffness: 280, damping: 22 }}
       className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-shadow hover:shadow-xl"
     >
-      <Link href={`/profile/${profile.id}`} className="relative block overflow-hidden" style={{ aspectRatio: '4/5' }}>
+      <Link href={profileHref(profile)} className="relative block overflow-hidden" style={{ aspectRatio: '4/5' }}>
         <SmartImage
           src={profile.photo}
           alt={profile.name || 'Profile'}
@@ -158,7 +159,7 @@ function MatchCard({ profile, onLike, onShortlist, likedIds, shortlistedIds }: {
       </Link>
 
       <div className="flex flex-1 flex-col p-3">
-        <Link href={`/profile/${profile.id}`}>
+        <Link href={profileHref(profile)}>
           <h3 className="truncate text-sm font-bold text-plum-800 transition-colors hover:text-rose-600">
             {profile.name || 'Member'}{profile.age ? `, ${profile.age}` : ''}
           </h3>
@@ -188,7 +189,7 @@ function MatchCard({ profile, onLike, onShortlist, likedIds, shortlistedIds }: {
             {liked ? 'Liked' : 'Like'}
           </button>
           <Link
-            href={`/profile/${profile.id}`}
+            href={profileHref(profile)}
             className="flex flex-1 items-center justify-center rounded-xl bg-rose-500 py-2 text-[11px] font-bold text-white transition-colors hover:bg-rose-600"
           >
             View
@@ -213,16 +214,15 @@ function PendingInterestCard({ interest, onAccept, onDecline }: {
   interest: any; onAccept: () => void; onDecline: () => void;
 }) {
   const sender = interest.sender || {};
-  const senderId = sender.id || sender.user_id || interest.sender_id;
 
   return (
     <motion.div
       whileHover={{ x: 3 }}
       className="flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 p-3 transition-colors hover:bg-rose-50"
     >
-      <Link href={`/profile/${senderId}`} className="shrink-0">
-        <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-rose-100 ring-2 ring-white">
-          <SmartImage src={sender.photo} alt={sender.first_name || 'Member'} className="h-full w-full object-cover" />
+      <Link href={profileHref(sender)} className="shrink-0">
+        <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-slate-100 ring-2 ring-white flex items-center justify-center">
+          <SmartImage src={sender.photo} alt={sender.first_name || 'Member'} className="h-full w-full object-contain p-0.5" />
         </div>
       </Link>
       <div className="min-w-0 flex-1">
@@ -491,7 +491,7 @@ export default function HomePage() {
                   const name = visitor.profile?.full_name || visitor.profile?.first_name || 'Someone';
                   const pid = visitor.profile?.id || visitor.profile?.user_id || visitor.id;
                   return (
-                    <Link key={visitor.id} href={`/profile/${pid}`} className="flex items-center gap-3 py-2.5 transition-colors hover:bg-rose-50/50">
+                    <Link key={visitor.id} href={profileHref(visitor.profile)} className="flex items-center gap-3 py-2.5 transition-colors hover:bg-rose-50/50">
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-rose-50">
                         <SmartImage src={visitor.profile?.photo} alt={name} className="h-full w-full object-cover" />
                       </div>

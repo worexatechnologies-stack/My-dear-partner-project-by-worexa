@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Heart, CheckCircle2, XCircle, RotateCcw, MessageSquare, 
-  User, MapPin, Briefcase, Lock, ShieldCheck, ArrowRight, Clock
+  Heart, CheckCircle2, XCircle, RotateCcw, MessageSquare, X, 
+  User, MapPin, Briefcase, Lock, ShieldCheck, ArrowRight, Clock, Maximize2
 } from 'lucide-react';
 import { getInterests, updateInterestStatus, withdrawInterest } from '@/legacy/services/dataService';
 import { ApiError } from '@/legacy/services/apiClient';
 import SmartImage from '@/components/shared/smart-image';
+import { profileHref } from '@/lib/profile-url';
 
 type InterestMode = 'received' | 'sent' | 'accepted' | 'declined';
 type InterestDirection = 'incoming' | 'outgoing';
@@ -32,6 +34,20 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
   const [withdrawConfirmingId, setWithdrawConfirmingId] = useState<string | null>(null);
   const [matchRemovalConfirmingId, setMatchRemovalConfirmingId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [mounted, setMounted] = useState(false);
+  const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeLightbox(); };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+  }, [lightbox, closeLightbox]);
 
   // Tab counts
   const [counts, setCounts] = useState({ received: 0, accepted: 0, declined: 0, sent: 0 });
@@ -342,14 +358,33 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
                     {/* Member Info */}
                     <div className="flex items-center gap-4 mb-5">
-                      <Link href={`/profile/${profileId}`} className="shrink-0 relative">
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-100 group-hover:border-rose-300 transition-colors relative">
-                          <SmartImage src={photo} alt={name} fill className="object-cover" />
-                        </div>
-                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const primary = Array.isArray(profile?.photos)
+                            ? (profile.photos.find((p: any) => p?.is_primary) ?? profile.photos[0])
+                            : null;
+                          const full = primary?.image_url || primary?.url || photo || '';
+                          setLightbox({ src: full, name });
+                        }}
+                        className="shrink-0 relative cursor-zoom-in rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-100 group-hover:border-rose-300 transition-colors w-16 aspect-[4/5]"
+                        aria-label={`Open ${name}'s profile photo`}
+                        title="View full photo"
+                      >
+                        <SmartImage
+                          src={photo}
+                          alt={name}
+                          aspectRatio="4:5"
+                          shape="none"
+                          className="w-full h-full object-contain bg-slate-100 p-1"
+                        />
+                        <span className="absolute inset-0 z-10 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/25">
+                          <Maximize2 className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100 drop-shadow" />
+                        </span>
+                      </button>
 
                       <div className="min-w-0 flex-1">
-                        <Link href={`/profile/${profileId}`} className="font-black text-base truncate block bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent hover:opacity-80 transition-opacity font-display">
+                        <Link href={profileHref(profile)} className="font-black text-base truncate block bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent hover:opacity-80 transition-opacity font-display">
                           {name}
                         </Link>
                         <p className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1.5 mt-1">
@@ -480,7 +515,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
                       {/* View Profile Link */}
                       <Link
-                        href={`/profile/${profileId}`}
+                        href={profileHref(profile)}
                         className="w-full text-center py-2 text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors block"
                       >
                         View Full Profile →
@@ -511,6 +546,63 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
               Discover Matches
             </Link>
           </div>
+        )}
+{/* ── Full-clarity photo lightbox (portaled to body so it always
+          overlays the viewport, even when opened from a scrolled position) ── */}
+        {mounted && createPortal(
+          <AnimatePresence>
+            {lightbox && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-3 sm:p-8"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${lightbox.name}'s profile photo`}
+                onClick={closeLightbox}
+              >
+                {/* Top bar */}
+                <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-3 sm:px-6">
+                  <span className="flex min-w-0 items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
+                    <Maximize2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{lightbox.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={closeLightbox}
+                    aria-label="Close photo viewer"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/25"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Image stage */}
+                <div
+                  className="member-photo-protected relative flex h-full w-full items-center justify-center"
+                  onContextMenu={(event) => event.preventDefault()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <img
+                    src={lightbox.src.replace(/^\/api\/profile-photos\//, '/api/proxy/profile-photos/')}
+                    alt={`${lightbox.name} high-resolution profile photo`}
+                    data-protected-photo="true"
+                    draggable={false}
+                    className="max-h-[84dvh] max-w-full rounded-xl object-contain shadow-2xl"
+                    style={{ width: 'auto', height: 'auto' }}
+                  />
+                  <span className="member-photo-watermark" aria-hidden="true">Protected &bull; My Dear Partner</span>
+                </div>
+
+                {/* Bottom hint */}
+                <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold text-white/90">
+                  Click outside or press Esc to close
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
       </div>
     </div>

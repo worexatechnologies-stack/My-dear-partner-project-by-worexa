@@ -4,7 +4,7 @@ import Image, { type ImageProps } from 'next/image';
 import { useEffect, useState } from 'react';
 
 import ProfileImage from '@/components/profile/ProfileImage';
-import type { ProfileImageFallback } from '@/components/profile/ProfileImage';
+import type { ProfileImageAspectRatio, ProfileImageFallback, ProfileImageShape } from '@/components/profile/ProfileImage';
 
 type SmartImageProps = Omit<ImageProps, 'src' | 'width' | 'height'> & {
   userId?: string | null;
@@ -14,6 +14,8 @@ type SmartImageProps = Omit<ImageProps, 'src' | 'width' | 'height'> & {
   fallbackSrc?: string;
   fallback?: ProfileImageFallback;
   fallbackMessage?: string;
+  aspectRatio?: ProfileImageAspectRatio;
+  shape?: ProfileImageShape;
 };
 
 function isPrivateProfilePhotoUrl(source: string): boolean {
@@ -26,6 +28,21 @@ function isPrivateProfilePhotoUrl(source: string): boolean {
   }
 }
 
+function resolveAspectRatio(className?: string, explicit?: ProfileImageAspectRatio): ProfileImageAspectRatio {
+  if (explicit) return explicit;
+  if (className?.includes('aspect-[4/5]')) return '4:5';
+  if (className?.includes('aspect-square') || className?.includes('aspect-[1/1]')) return '1:1';
+  if (className?.includes('pc-img') || className?.includes('d-peek-img') || (className?.includes('h-full') && className?.includes('w-full'))) return 'none';
+  return '1:1';
+}
+
+function resolveShape(className?: string, explicit?: ProfileImageShape): ProfileImageShape {
+  if (explicit) return explicit;
+  if (className?.includes('rounded-full')) return 'circle';
+  if (className?.includes('rounded-none') || className?.includes('pc-img') || className?.includes('d-peek-img')) return 'none';
+  return 'rounded';
+}
+
 export default function SmartImage({
   userId,
   src,
@@ -35,6 +52,8 @@ export default function SmartImage({
   fallbackSrc,
   fallback = 'neutral',
   fallbackMessage,
+  aspectRatio,
+  shape,
   unoptimized,
   onError,
   className,
@@ -47,6 +66,8 @@ export default function SmartImage({
   useEffect(() => setCurrent(initial), [initial]);
 
   const hasLayoutClasses = Boolean(className?.match(/(?:^|\s)[wh]-/));
+  const finalAspectRatio = resolveAspectRatio(className, aspectRatio);
+  const finalShape = resolveShape(className, shape);
 
   if (userId) {
     return (
@@ -54,8 +75,8 @@ export default function SmartImage({
         userId={userId}
         alt={alt || 'Profile photo'}
         size="auto"
-        aspectRatio={className?.includes('aspect-[4/5]') ? '4:5' : '1:1'}
-        shape={className?.includes('rounded-full') ? 'circle' : 'rounded'}
+        aspectRatio={finalAspectRatio}
+        shape={finalShape}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}
@@ -72,8 +93,8 @@ export default function SmartImage({
       <ProfileImage
         alt={alt || 'Profile photo'}
         size="auto"
-        aspectRatio={className?.includes('aspect-[4/5]') ? '4:5' : '1:1'}
-        shape={className?.includes('rounded-full') ? 'circle' : 'rounded'}
+        aspectRatio={finalAspectRatio}
+        shape={finalShape}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}
@@ -87,14 +108,13 @@ export default function SmartImage({
   // cannot attach the in-memory bearer token, so route every existing card,
   // dashboard, shortlist, and chat use through the authenticated Blob loader.
   if (isPrivateProfilePhotoUrl(current)) {
-    const hasLayoutClasses = Boolean(className?.match(/(?:^|\s)[wh]-/));
     return (
       <ProfileImage
         src={current}
         alt={alt || 'Profile photo'}
         size="auto"
-        aspectRatio={className?.includes('aspect-[4/5]') ? '4:5' : '1:1'}
-        shape={className?.includes('rounded-full') ? 'circle' : 'rounded'}
+        aspectRatio={finalAspectRatio}
+        shape={finalShape}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}

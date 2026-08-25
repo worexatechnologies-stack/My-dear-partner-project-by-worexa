@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Eye, Lock, Crown, ShieldCheck, MapPin, Heart, ArrowRight,
-  RefreshCw, User
+  RefreshCw, User, Check, X
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import { fetchApi } from '@/legacy/services/apiClient';
-import { sendInterest, getInterests, getShortlists } from '@/legacy/services/dataService';
+import { sendInterest, getInterests, getShortlists, updateInterestStatus } from '@/legacy/services/dataService';
 import { useToast } from '@/components/ui';
 import { interestFeedback } from '@/components/member/interest-feedback';
+import { profileHref } from '@/lib/profile-url';
 
 interface ProfileVisitor {
   id: string;
@@ -68,6 +69,10 @@ export default function VisitorsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  // visitor id -> interestId for PENDING requests they sent to me
+  const [incomingBySender, setIncomingBySender] = useState<Record<string, string>>({});
+  // visitor ids I've accepted (mutual connections)
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
 
   const loadVisitors = useCallback(async () => {
     setLoading(true);
@@ -84,6 +89,25 @@ export default function VisitorsPage() {
         if (rid) liked.add(rid);
       });
       setLikedIds(liked);
+
+      // Also load incoming requests so we can surface "X sent you a connection"
+      // on visitor cards instead of a generic Like button.
+      const incoming = await getInterests('incoming').catch(() => []);
+      const requestMap: Record<string, string> = {};
+      const accepted = new Set<string>();
+      (incoming || []).forEach((i: any) => {
+        const sid = i?.sender?.id || i?.sender?.user_id;
+        if (!sid) return;
+        if (i.status === 'PENDING') requestMap[sid] = i.id;
+        if (i.status === 'ACCEPTED') accepted.add(sid);
+      });
+      // An ACCEPTED outgoing interest is also a mutual connection.
+      (outgoing || []).forEach((i: any) => {
+        const rid = i?.receiver?.id || i?.receiver?.user_id;
+        if (rid && i.status === 'ACCEPTED') accepted.add(rid);
+      });
+      setIncomingBySender(requestMap);
+      setAcceptedIds(accepted);
     } catch {
       setVisitors([]);
       setCanView(false);
@@ -101,6 +125,23 @@ export default function VisitorsPage() {
     try {
       await sendInterest(profileId);
       setLikedIds((prev) => new Set([...prev, profileId]));
+    } catch (error) {
+      const fb = interestFeedback(error);
+      showToast(fb.message, fb.tone);
+    }
+  };
+
+  const handleAcceptRequest = async (interestId: string, pid: string) => {
+    if (acceptedIds.has(pid)) return;
+    try {
+      await updateInterestStatus(interestId, 'ACCEPTED');
+      setAcceptedIds((prev) => new Set([...prev, pid]));
+      setIncomingBySender((prev) => {
+        const next = { ...prev };
+        delete next[pid];
+        return next;
+      });
+      showToast('You accepted their connection request! 💕', 'success');
     } catch (error) {
       const fb = interestFeedback(error);
       showToast(fb.message, fb.tone);
@@ -224,7 +265,7 @@ export default function VisitorsPage() {
                   className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all duration-300"
                 >
                   {/* Photo area */}
-                  <Link href={`/profile/${pid}`} className="block relative overflow-hidden bg-rose-50" style={{ aspectRatio: '4/5' }}>
+                  <Link href={profileHref(profile)} className="block relative overflow-hidden bg-rose-50" style={{ aspectRatio: '4/5' }}>
                     <SmartImage
                       src={profile.photo}
                       alt={name}
@@ -235,12 +276,22 @@ export default function VisitorsPage() {
                     <span className="absolute top-2.5 right-2.5 bg-slate-900/75 backdrop-blur-md text-white text-[9.5px] font-semibold px-2 py-0.5 rounded-full shadow">
                       {relativeTime(item.viewed_at)}
                     </span>
+                    {incomingBySender[pid] && (
+                      <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-rose-500 text-white text-[9.5px] font-bold px-2 py-0.5 shadow-md">
+                        <Heart className="w-3 h-3 fill-current" /> Sent you a connection
+                      </span>
+                    )}
+                    {acceptedIds.has(pid) && (
+                      <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-emerald-500 text-white text-[9.5px] font-bold px-2 py-0.5 shadow-md">
+                        <Check className="w-3 h-3" /> Connected
+                      </span>
+                    )}
                   </Link>
 
                   {/* Info area */}
                   <div className="p-3 flex-1 flex flex-col justify-between">
                     <div>
-                      <Link href={`/profile/${pid}`}>
+                      <Link href={profileHref(profile)}>
                         <h3 className="font-bold text-slate-800 text-sm truncate hover:text-rose-600 transition-colors">
                           {name}{profile.age ? `, ${profile.age}` : ''}
                         </h3>
@@ -257,20 +308,40 @@ export default function VisitorsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => handleLike(pid)}
-                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                          liked
-                            ? 'bg-rose-50 border-rose-200 text-rose-600'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
-                        }`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                        {liked ? 'Liked' : 'Like'}
-                      </button>
+                      {incomingBySender[pid] ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleAcceptRequest(incomingBySender[pid], pid)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold border border-emerald-500 transition-all hover:bg-emerald-600 active:scale-[0.98] shadow-sm"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Accept
+                        </button>
+                      ) : acceptedIds.has(pid) ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold cursor-default"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Connected
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleLike(pid)}
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                            liked
+                              ? 'bg-rose-50 border-rose-200 text-rose-600'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
+                          }`}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                          {liked ? 'Liked' : 'Like'}
+                        </button>
+                      )}
                       <Link
-                        href={`/profile/${pid}`}
+                        href={profileHref(profile)}
                         className="flex-1 text-center py-1.5 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition-colors"
                       >
                         View Profile

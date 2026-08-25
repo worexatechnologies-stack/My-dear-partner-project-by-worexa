@@ -112,6 +112,7 @@ class MemberProfileSummarySerializer(serializers.Serializer):
     user_id = serializers.UUIDField(source="pk", read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
+    profile_slug = serializers.CharField(read_only=True)
     gender = serializers.CharField(read_only=True)
     date_of_birth = serializers.DateField(read_only=True)
     age = serializers.SerializerMethodField()

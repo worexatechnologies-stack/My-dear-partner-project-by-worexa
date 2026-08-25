@@ -1,5 +1,5 @@
-import DashboardReels from '@/components/member/dashboard/dashboard-reels';
+import { PremiumDiscover } from '@/components/member/discover/premium-discover';
 
 export default function Page() {
-  return <DashboardReels />;
+  return <PremiumDiscover />;
 }

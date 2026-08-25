@@ -3,12 +3,12 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 const variants = {
-  primary: 'bg-rose-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.3)] hover:bg-rose-600 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] active:scale-[0.97]',
-  secondary: 'bg-plum-800 text-white hover:bg-plum-700 active:scale-[0.97]',
-  outline: 'border border-line text-plum-700 bg-transparent hover:border-rose-500 hover:text-rose-500 hover:bg-rose-500/5 active:scale-[0.97]',
-  ghost: 'text-muted hover:text-ink hover:bg-rose-500/5 active:scale-[0.97]',
-  danger: 'bg-error text-white hover:bg-red-700 active:scale-[0.97]',
-  gold: 'bg-gold-400 text-plum-800 shadow-[0_4px_14px_rgba(251,191,36,0.3)] hover:bg-gold-500 hover:shadow-[0_8px_24px_rgba(245,158,11,0.35)] active:scale-[0.97]',
+  primary: 'bg-[linear-gradient(135deg,#b64a68_0%,#8e3d58_100%)] text-white shadow-[0_10px_24px_rgba(142,61,88,0.30),inset_0_1px_0_rgba(255,255,255,0.18)] hover:shadow-[0_16px_32px_rgba(142,61,88,0.38),inset_0_1px_0_rgba(255,255,255,0.18)] hover:brightness-[1.06] hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0',
+  secondary: 'bg-[linear-gradient(135deg,#4e4347_0%,#2c2928_100%)] text-white shadow-[0_10px_24px_rgba(32,17,26,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] hover:brightness-[1.08] hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0',
+  outline: 'border-[1.5px] border-rose-500/25 text-rose-500 bg-white shadow-[0_2px_10px_rgba(67,22,39,0.05)] hover:border-rose-500/60 hover:bg-[#fdf3f6] hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0',
+  ghost: 'text-muted hover:text-rose-500 hover:bg-rose-500/8 active:scale-[0.97]',
+  danger: 'bg-[linear-gradient(135deg,#f87171_0%,#dc2626_100%)] text-white shadow-[0_10px_24px_rgba(220,38,38,0.26),inset_0_1px_0_rgba(255,255,255,0.18)] hover:brightness-[1.06] hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0',
+  gold: 'bg-[linear-gradient(135deg,#e9bac3_0%,#cf7d8d_100%)] text-plum-800 shadow-[0_10px_24px_rgba(207,125,141,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-[1.04] hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0',
 };
 
 const sizes = {

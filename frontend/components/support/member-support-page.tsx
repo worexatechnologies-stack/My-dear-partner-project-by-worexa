@@ -453,11 +453,11 @@ export default function MemberSupportPage() {
   ];
 
   return (
-    <main className="min-h-[100svh] bg-[#fcfaf9] pt-24 pb-16">
+    <main className="min-h-[100svh] bg-[var(--color-app-bg)] pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col items-start justify-between gap-5 rounded-[1.75rem] border border-rose-100 bg-white p-6 shadow-[0_16px_40px_-32px_rgba(91,23,53,.42)] sm:flex-row sm:items-center sm:p-8">
+        <div className="flex flex-col items-start justify-between gap-5 mdp-glass-surface p-6 sm:flex-row sm:items-center sm:p-8">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-bold text-[#9b3655]">
               <Headphones className="w-3.5 h-3.5" />
@@ -488,7 +488,7 @@ export default function MemberSupportPage() {
                 type="button"
                 key={category.value}
                 onClick={() => openCreateModal(category.value)}
-                className="group flex cursor-pointer items-start justify-between rounded-2xl border border-rose-100 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-md"
+                className="group flex cursor-pointer items-start justify-between mdp-glass-card p-5 text-left"
               >
                 <div className="flex items-start gap-3.5">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-[#a13a59] transition-colors group-hover:bg-[#8e3d58] group-hover:text-white">
@@ -521,7 +521,7 @@ export default function MemberSupportPage() {
         )}
 
         {/* Search & Filter Bar */}
-        <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
+        <div className="flex flex-col items-start justify-between gap-4 mdp-glass-surface p-4 lg:flex-row lg:items-center">
           <div className="relative w-full lg:w-72">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -548,8 +548,8 @@ export default function MemberSupportPage() {
                 type="button"
                 className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                   statusFilter === tab.value
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                    ? 'bg-[#8e3d58] text-white shadow-sm'
+                    : 'bg-white/40 text-gray-700 hover:bg-white/60 border border-white/50'
                 }`}
                 onClick={() => setStatusFilter(tab.value)}
               >
@@ -575,8 +575,8 @@ export default function MemberSupportPage() {
 
           {/* Left: Ticket List */}
           <div className={`lg:col-span-5 ${activeMobileTab === 'detail' ? 'hidden lg:block' : 'block'}`}>
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div className="mdp-glass-surface overflow-hidden">
+              <div className="px-5 py-3.5 bg-white/40 border-b border-white/20 flex items-center justify-between">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-gray-700">Your Inquiries</h2>
                 <span className="px-2.5 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600 text-xs font-semibold">
                   {filteredTickets.length}
@@ -616,8 +616,8 @@ export default function MemberSupportPage() {
                       onClick={() => handleSelectTicket(ticket)}
                       className={`w-full p-4 sm:p-5 text-left transition-colors cursor-pointer border-l-4 ${
                         selectedTicket?.id === ticket.id
-                          ? 'bg-indigo-50/60 border-l-indigo-600'
-                          : 'hover:bg-gray-50 border-l-transparent'
+                          ? 'bg-white/80 border-l-[#8e3d58]'
+                          : 'hover:bg-white/40 border-l-transparent'
                       }`}
                     >
                       <div className="flex justify-between items-center mb-1">
@@ -667,7 +667,7 @@ export default function MemberSupportPage() {
                 </div>
               </div>
             ) : selectedTicket ? (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+              <div className="mdp-glass-surface overflow-hidden flex flex-col min-h-[500px]">
 
                 {/* Mobile Back */}
                 <div className="p-3 bg-gray-50 border-b border-gray-200 lg:hidden">
@@ -884,7 +884,7 @@ export default function MemberSupportPage() {
         </div>
 
         {/* FAQ Section */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-5">
+        <div className="mdp-glass-surface p-6 sm:p-8 space-y-5">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-indigo-600" />
             <h2 className="text-lg font-bold text-gray-900">Frequently Asked Questions</h2>
@@ -912,8 +912,8 @@ export default function MemberSupportPage() {
 
         {/* Create Ticket Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xl w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="mdp-glass-surface p-6 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-gray-200 pb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -942,8 +942,8 @@ export default function MemberSupportPage() {
                         type="button"
                         className={`p-3 rounded-lg text-sm font-semibold text-left border transition-all cursor-pointer ${
                           newCategory === cat.value
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                            ? 'bg-[#8e3d58] text-white border-[#8e3d58]'
+                            : 'bg-white/40 text-gray-700 border-white/50 hover:bg-white/70'
                         }`}
                         onClick={() => { setNewCategory(cat.value); setNewSubject(cat.subjectHint); }}
                       >

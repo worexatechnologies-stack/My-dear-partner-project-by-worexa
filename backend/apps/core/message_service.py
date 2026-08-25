@@ -11,6 +11,17 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from django.conf import settings
 from django.db import IntegrityError, transaction
+from django.db.models import (
+    Case,
+    Count,
+    Exists,
+    F,
+    OuterRef,
+    Q,
+    Subquery,
+    UUIDField,
+    When,
+)
 from django.utils import timezone
 
 from .models import (
@@ -106,7 +117,7 @@ def create_message(*, sender, receiver, text, message_type=ChatMessage.MessageTy
 def visible_messages_for_user(conversation, member):
     return (
         ChatMessage.objects.filter(conversation=conversation)
-        .exclude(user_visibility__user_id_snapshot=member.pk, user_visibility__hidden=True)
+        .exclude(_message_hidden_for_user_query(member.pk))
         .order_by('created_at')
     )
 
@@ -218,3 +229,84 @@ def conversation_contains_member(conversation, member):
         member_id_snapshot=member.pk,
         left_at__isnull=True,
     ).exists()
+
+
+def _message_hidden_for_user_query(user_id):
+    """``Exists`` subquery: is the current ChatMessage hidden *for this user*?
+
+    Uses a correlated EXISTS so one user's per-message visibility row never
+    hides a message from a different participant (the multi-valued JOIN
+    ``.exclude(user_visibility__user_id_snapshot=..., hidden=True)`` bug is
+    avoided entirely).
+    """
+    return Exists(
+        ChatMessageUserVisibility.objects.filter(
+            message_id=OuterRef("pk"),
+            user_id_snapshot=user_id,
+            hidden=True,
+        )
+    )
+
+
+def conversation_summary_rows(*, member, excluded_partner_ids, page=1, page_size=50):
+    """Return a page of conversation summary rows for a member.
+
+    Performs a *constant* number of queries regardless of conversation count:
+
+    *  1 query for the paginated conversation list (annotated with the latest
+       visible message id, its time, and the *per-conversation* unread count)
+    *  1 query to fetch the latest visible message per conversation
+    *  1 query to fetch the partner members/serialized profiles
+
+    This replaces the previous ``for conversation in conversations:
+    ChatMessage.objects.filter(...).count()`` N+1 pattern.
+    """
+    # ChatMessage's conversation FK is nullable (message rows may outlive the
+    # conversation row). We only surface conversations that actually exist.
+    hidden_for_viewer = _message_hidden_for_user_query(member.pk)
+    latest_message = (
+        ChatMessage.objects.filter(conversation_id=OuterRef("pk"))
+        .exclude(hidden_for_viewer)
+        .order_by("-created_at", "-pk")
+    )
+    unread_count_sub = Subquery(
+        ChatMessage.objects.filter(
+            conversation_id=OuterRef("pk"),
+            receiver_id_snapshot=member.pk,
+            is_read=False,
+        )
+        .exclude(hidden_for_viewer)
+        .order_by()
+        .values("conversation_id")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+
+    base = (
+        ChatConversation.objects.filter(
+            Q(member_one_id_snapshot=member.pk) | Q(member_two_id_snapshot=member.pk)
+        )
+        .annotate(
+            partner_id=Case(
+                When(member_one_id_snapshot=member.pk, then=F("member_two_id_snapshot")),
+                default=F("member_one_id_snapshot"),
+                output_field=UUIDField(),
+            ),
+            latest_message_id=Subquery(latest_message.values("pk")[:1]),
+            latest_message_at=Subquery(latest_message.values("created_at")[:1]),
+            unread_count=unread_count_sub,
+        )
+        .exclude(partner_id__in=excluded_partner_ids)
+        .order_by("-latest_message_at", "-pk")
+        .values(
+            "pk",
+            "partner_id",
+            "latest_message_id",
+            "latest_message_at",
+            "unread_count",
+        )
+    )
+
+    total = base.count()
+    page_rows = list(base[(page - 1) * page_size : page * page_size])
+    return page_rows, total

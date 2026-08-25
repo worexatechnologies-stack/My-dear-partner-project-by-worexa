@@ -7,6 +7,7 @@ import { Heart, MapPin, BookmarkX, Search, Star, Loader2, Crown, X } from 'lucid
 import { getShortlists, toggleShortlist, sendInterest } from '@/legacy/services/dataService';
 import SmartImage from '@/components/shared/smart-image';
 import type { Profile } from '@/legacy/types/domain';
+import { profileHref } from '@/lib/profile-url';
 import { useToast } from '@/components/ui';
 import { interestFeedback } from './interest-feedback';
 
@@ -175,7 +176,7 @@ export function ShortlistClient() {
 
                       <div className="flex gap-2 pt-3 mt-3 border-t border-slate-50">
                         <Link
-                          href={`/profile/${profile.id}`}
+                          href={profileHref(profile)}
                           className="flex-1 text-center py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-extrabold border border-slate-100 transition-all"
                         >
                           View

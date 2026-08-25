@@ -203,7 +203,7 @@ class MemberPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
         fields = (
-            'id', 'full_name', 'age', 'gender', 'is_demo', 'photo', 'photo_visibility', 'photos', 'is_verified', 'is_premium',
+            'id', 'profile_slug', 'full_name', 'age', 'gender', 'is_demo', 'photo', 'photo_visibility', 'photos', 'is_verified', 'is_premium',
             'height', 'religion', 'mother_tongue', 'caste', 'highest_education',
             'occupation', 'annual_income', 'work_location', 'about', 'family_type',
             'marital_status', 'hobbies', 'compatibility', 'pref_about',

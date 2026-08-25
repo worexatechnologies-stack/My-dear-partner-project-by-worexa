@@ -3,6 +3,7 @@ import SmartImage from '@/components/shared/smart-image';
 import { Link } from '@/lib/router-compat';
 import { motion } from 'framer-motion';
 import { Heart, Bookmark, X, MapPin, BadgeCheck, ShieldCheck } from 'lucide-react';
+import { profileHref } from '@/lib/profile-url';
 
 interface FeedMatchCardProps {
   profile: any;
@@ -39,7 +40,7 @@ export default function FeedMatchCard({
         {isLiking && <motion.div initial={{ opacity: 0, scale: 0.35 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.5 }} className="absolute inset-0 z-20 flex items-center justify-center bg-rose-950/20 backdrop-blur-[2px]"><div className="flex h-28 w-28 items-center justify-center rounded-full bg-rose-500 text-white shadow-2xl shadow-rose-950/50"><Heart className="h-14 w-14" fill="currentColor" /></div></motion.div>}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-5"><span className="rounded-full border border-white/25 bg-black/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-white backdrop-blur">Today&apos;s match</span><span className="rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur">Private photo</span></div>
         <div className="absolute inset-0 flex items-center justify-center"><div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/35 bg-white/15 text-5xl font-black text-white shadow-2xl backdrop-blur-md">{initial}</div></div>
-        <div className="absolute bottom-0 left-0 right-16 p-6 text-white sm:p-8"><Link to={`/profile/${profile.id}`} className="text-3xl font-black tracking-tight hover:text-rose-200">{name}</Link><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/85">{profile.age ? <span>{profile.age} yrs</span> : null}{profile.occupation && profile.occupation !== 'Not specified' ? <span>{profile.occupation}</span> : null}</div><div className="mt-2 flex items-center gap-1.5 text-sm text-white/75"><MapPin className="h-4 w-4" /><span>{profile.location && profile.location !== 'Not specified' ? profile.location : 'Location private'}</span></div></div>
+        <div className="absolute bottom-0 left-0 right-16 p-6 text-white sm:p-8"><Link to={profileHref(profile)} className="text-3xl font-black tracking-tight hover:text-rose-200">{name}</Link><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/85">{profile.age ? <span>{profile.age} yrs</span> : null}{profile.occupation && profile.occupation !== 'Not specified' ? <span>{profile.occupation}</span> : null}</div><div className="mt-2 flex items-center gap-1.5 text-sm text-white/75"><MapPin className="h-4 w-4" /><span>{profile.location && profile.location !== 'Not specified' ? profile.location : 'Location private'}</span></div></div>
         {showActions && <div className="absolute bottom-5 right-4 flex flex-col items-center gap-3">
           {onInterest && <button onClick={() => onInterest(profile.id)} className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500 text-white shadow-lg shadow-black/20 transition hover:scale-105 hover:bg-rose-600" aria-label="Send Interest"><Heart className="h-5 w-5" fill="currentColor" /></button>}
           {onShortlist && <button onClick={() => onShortlist(profile.id)} className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/30 backdrop-blur transition hover:scale-105 ${isShortlisted ? 'bg-indigo-500 text-white' : 'bg-white/20 text-white'}`} aria-label="Shortlist"><Bookmark className="h-5 w-5" fill={isShortlisted ? 'currentColor' : 'none'} /></button>}
@@ -80,7 +81,7 @@ export default function FeedMatchCard({
 
         {/* Bottom Info - Rendered cleanly over the gradient */}
         <div className={`absolute bottom-0 left-0 right-0 z-20 p-4 sm:p-6 ${profile.photo ? '' : 'border-t border-rose-100/80 bg-white/85 backdrop-blur-sm'}`}>
-          <Link to={`/profile/${profile.id}`} className="block w-fit">
+          <Link to={profileHref(profile)} className="block w-fit">
             <h2 className={`text-2xl font-black transition-colors sm:text-3xl ${profile.photo ? 'bg-gradient-to-r from-white via-rose-100 to-amber-100 bg-clip-text text-transparent drop-shadow-md hover:text-rose-200' : 'bg-gradient-to-r from-[#7a1537] via-[#a91d4c] to-[#e11d48] bg-clip-text text-transparent'}`}>
               {profile.name || profile.full_name || 'Member'}
             </h2>

@@ -516,7 +516,6 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
                 <EditField label="Sub Caste" name="sub_caste" value={editData.sub_caste as string} onChange={v => setEditData(p => ({ ...p, sub_caste: v }))} />
                 <EditField label="Gothra" name="gothra" value={editData.gothra as string} onChange={v => setEditData(p => ({ ...p, gothra: v }))} />
                 <EditField label="Star Nakshatra" name="star_nakshatra" value={editData.star_nakshatra as string} onChange={v => setEditData(p => ({ ...p, star_nakshatra: v }))} />
-                <EditField label="Manglik Status" name="manglik_status" value={editData.manglik_status as string} onChange={v => setEditData(p => ({ ...p, manglik_status: v }))} />
                 <EditField label="Highest Education" name="highest_education" value={editData.highest_education as string} onChange={v => setEditData(p => ({ ...p, highest_education: v }))} />
                 <EditField label="Education Detail" name="education_detail" value={editData.education_detail as string} onChange={v => setEditData(p => ({ ...p, education_detail: v }))} />
                 <EditField label="Occupation" name="occupation" value={editData.occupation as string} onChange={v => setEditData(p => ({ ...p, occupation: v }))} />

@@ -16,6 +16,7 @@ import { getInterests, getConversations, getProfiles, updateInterestStatus, getS
 import { fetchApi } from '@/legacy/services/apiClient';
 import { DashboardSkeleton } from '@/legacy/components/SkeletonLoader';
 import { useGetUnlockUsageQuery } from '@/legacy/services/profileApi';
+import { profileHref } from '@/lib/profile-url';
 
 /* ─────────────────────────── helpers & types ─────────────────────────── */
 
@@ -180,7 +181,7 @@ function MatchCard({ profile, onInterest, onPass, shortlisted, onShortlist }: an
       }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     >
-      <Link to={`/profile/${profile.id}`} className="block aspect-[3/4] overflow-hidden" tabIndex={-1}>
+      <Link to={profileHref(profile)} className="block aspect-[3/4] overflow-hidden" tabIndex={-1}>
         <SmartImage src={profile.photo} alt={profile.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
       </Link>
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/25 to-transparent pointer-events-none" />
@@ -196,7 +197,7 @@ function MatchCard({ profile, onInterest, onPass, shortlisted, onShortlist }: an
         <div className="absolute top-3 right-12 w-7 h-7 rounded-full bg-rose-500 flex items-center justify-center border-2 border-white shadow-md"><BadgeCheck className="w-3.5 h-3.5 text-white" /></div>
       )}
       <div className="absolute inset-x-0 bottom-0 px-3 pb-3 pt-8">
-        <Link to={`/profile/${profile.id}`}>
+        <Link to={profileHref(profile)}>
           <p className="font-black text-sm text-white truncate">{profile.name}{profile.age ? `, ${profile.age}` : ''}</p>
           <p className="text-[11px] font-medium text-white/60 mt-0.5 truncate flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" />{profile.location || 'India'}</p>
         </Link>
@@ -400,7 +401,7 @@ function OverviewZone({ user, visitors, canViewVisitors, visitorCount }: any) {
               const pid = v.profile?.id || v.profile?.user_id || v.id;
               const name = v.profile?.full_name || v.profile?.first_name || 'Member';
               return (
-                <Link key={v.id} to={`/profile/${pid}`} className="group flex items-center gap-3 p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-emerald-200 hover:shadow-md transition-all">
+                <Link key={v.id} to={profileHref(v.profile)} className="group flex items-center gap-3 p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-emerald-200 hover:shadow-md transition-all">
                   <SmartImage src={v.profile?.photo} alt={name} className="w-12 h-12 rounded-[1rem] object-cover group-hover:scale-105 transition-transform shrink-0 shadow-sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-slate-800 truncate group-hover:text-emerald-600 transition-colors">{name}{v.profile?.age ? `, ${v.profile.age}` : ''}</p>
@@ -476,9 +477,9 @@ function MatchesZone({ incomingInterests, suggestedProfiles, shortlistIds, onSho
                 return (
                   <motion.div key={interest.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-[2rem] p-4 flex flex-col gap-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex gap-4">
-                      <Link to={`/profile/${senderId}`} className="relative shrink-0 overflow-hidden rounded-[1.25rem] w-20 h-20 shadow-sm"><SmartImage src={sender.photo || ''} alt="Profile" className="w-full h-full object-cover hover:scale-110 transition-transform" /></Link>
+                      <Link to={profileHref(sender)} className="relative shrink-0 overflow-hidden rounded-[1.25rem] w-20 h-20 shadow-sm"><SmartImage src={sender.photo || ''} alt="Profile" className="w-full h-full object-cover hover:scale-110 transition-transform" /></Link>
                       <div className="py-1 flex-1 min-w-0">
-                        <Link to={`/profile/${senderId}`} className="text-base font-bold text-slate-800 hover:text-rose-600 truncate block">{sender.first_name || 'Member'}{sender.age ? `, ${sender.age}` : ''}</Link>
+                        <Link to={profileHref(sender)} className="text-base font-bold text-slate-800 hover:text-rose-600 truncate block">{sender.first_name || 'Member'}{sender.age ? `, ${sender.age}` : ''}</Link>
                         <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1 truncate"><MapPin className="w-3 h-3 shrink-0" />{sender.work_location || 'India'}</p>
                         <p className="text-[10px] text-slate-400 mt-2 font-medium bg-slate-50 inline-block px-2 py-0.5 rounded-md">Received {relativeTime(interest.created_at)}</p>
                       </div>

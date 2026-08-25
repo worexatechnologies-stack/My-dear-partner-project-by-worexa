@@ -7,6 +7,7 @@ export interface Profile {
   chat_public_key?: string;
   access?: any;
   is_unlocked?: boolean;
+  slug?: string;
 }
 
 export interface MembershipPlan { id: string; name: string; price: number; duration: string; features: string[]; highlighted: boolean; badge?: string; color: string }

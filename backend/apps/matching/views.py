@@ -21,14 +21,24 @@ class ProfileBlockView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
+        from apps.core.serializers import MemberPublicSerializer
+
         blocked_ids = ProfileBlock.objects.filter(blocker=request.user).values_list('blocked_id', flat=True)
-        members = Member.objects.filter(pk__in=blocked_ids).only('id', 'first_name', 'last_name', 'gender')
+        members = (
+            Member.objects.filter(pk__in=blocked_ids)
+            .select_related('profile', 'preferences')
+            .prefetch_related(
+                Prefetch(
+                    'profile_photos',
+                    queryset=ProfilePhoto.objects.without_binary(),
+                )
+            )
+            .order_by('first_name', 'last_name')
+        )
+        serialized = MemberPublicSerializer(members, many=True, context={'request': request}).data
         return Response({
             'success': True,
-            'data': [
-                {'id': str(member.pk), 'full_name': member.get_full_name(), 'gender': member.gender}
-                for member in members
-            ],
+            'data': serialized,
         })
 
     @transaction.atomic

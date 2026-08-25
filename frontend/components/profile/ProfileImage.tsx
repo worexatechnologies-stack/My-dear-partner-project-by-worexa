@@ -11,8 +11,8 @@ import {
 
 export type ProfilePhotoVariant = 'image' | 'thumbnail';
 export type ProfileImageSize = 'auto' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
-export type ProfileImageAspectRatio = '1:1' | '4:5';
-export type ProfileImageShape = 'circle' | 'rounded' | 'square';
+export type ProfileImageAspectRatio = '1:1' | '4:5' | 'auto' | 'none' | 'fill';
+export type ProfileImageShape = 'circle' | 'rounded' | 'square' | 'none';
 export type ProfileImageFallback = 'neutral' | 'brand';
 
 export interface ProfileImageProps {
@@ -73,11 +73,6 @@ function withVersion(url: string, version: ProfileImageProps['version']): string
   search.set('v', value);
   return `${path}?${search.toString()}`;
 }
-
-/**
- * Builds a same-origin URL so protected image requests can carry the current
- * HttpOnly access token cookie through the BFF proxy.
- */
 export function profilePhotoEndpoint(
   photoId: string,
   variant: ProfilePhotoVariant = 'image',
@@ -209,8 +204,20 @@ export default function ProfileImage({
   };
 
   const isCircle = shape === 'circle';
-  const ratioClass = isCircle || aspectRatio === '1:1' ? 'aspect-square' : 'aspect-[4/5]';
-  const shapeClass = isCircle ? 'rounded-full' : shape === 'square' ? 'rounded-none' : 'rounded-lg';
+  const ratioClass =
+    aspectRatio === 'none' || aspectRatio === 'auto' || aspectRatio === 'fill'
+      ? ''
+      : isCircle || aspectRatio === '1:1'
+      ? 'aspect-square'
+      : 'aspect-[4/5]';
+  const shapeClass =
+    shape === 'none'
+      ? ''
+      : isCircle
+      ? 'rounded-full'
+      : shape === 'square'
+      ? 'rounded-none'
+      : 'rounded-lg';
   const placeholderClass = placeholderClasses(gender);
   const showFallback = !displaySource || failed;
 
@@ -235,7 +242,7 @@ export default function ProfileImage({
         <img
           src={displaySource}
           alt={alt}
-          className="relative h-full w-full object-cover object-top z-10"
+          className={`relative h-full w-full ${className.includes('object-contain') ? 'object-contain' : 'object-cover'} object-center z-10`}
           draggable={false}
           onLoad={() => {
             setLoading(false);

@@ -1,4 +1,4 @@
-import { fetchApi } from './apiClient';
+import { fetchApi, fetchApiWithHeaders } from './apiClient';
 import { type Profile, type MembershipPlan, type Conversation, type Message } from '../types/domain';
 
 type UserWire = Record<string, any> & { id: string };
@@ -83,6 +83,7 @@ const profileFromWire = (user: UserWire): Profile => {
     partnerPrefs: user.pref_about || 'Not specified',
     chat_public_key: user.chat_public_key,
     is_unlocked: Boolean(user.is_unlocked),
+    slug: typeof user.profile_slug === 'string' && user.profile_slug.trim() ? user.profile_slug.trim() : undefined,
   };
 };
 
@@ -125,8 +126,57 @@ export const getConversations = async (): Promise<Conversation[]> => {
     const partnerSource = row.other_member ?? row.profile;
     const partnerId = row.id ?? partnerSource?.id ?? row.user_id;
     const rawLastMsg = String(row.lastMessage ?? row.last_message?.text ?? row.last_message ?? '');
-    return { ...row, id: partnerId, lastMessage: rawLastMsg, profile: profileFromWire(partnerSource ?? {}) } as Conversation;
+    return {
+      ...row,
+      id: partnerId,
+      lastMessage: rawLastMsg,
+      // Backend returns a per-conversation count; surface it as `unread` so the
+      // sidebar badge and unread filter can read it. Falls back to 0.
+      unread: Math.max(0, Number(row.unread_count ?? row.unread ?? 0) || 0),
+      profile: profileFromWire(partnerSource ?? {}),
+    } as Conversation;
   });
+};
+
+/**
+ * Paginated conversation fetch. The backend limits each request (default 50,
+ * max 100) and reports ``X-Has-More``/``X-Page``/``X-Page-Size`` headers so the
+ * client can load older conversations on demand instead of fetching every
+ * thread up front. The response body shape is unchanged.
+ *
+ * ``hasMore`` is derived from the server's ``X-Has-More`` header. ``fetchApi``
+ * hides response headers, so this reads the header directly (same auth/proxy
+ * path, additive and safe).
+ */
+export const getConversationsPage = async (page = 1, pageSize = 50): Promise<{
+  conversations: Conversation[];
+  hasMore: boolean;
+  page: number;
+}> => {
+  // The backend reports pagination through headers (X-Has-More/X-Page) so the
+  // client can load older conversations on demand instead of fetching every
+  // thread up front. Response body shape is unchanged.
+  const { data: rows, headers } = await fetchApiWithHeaders<Array<Record<string, any>>>(
+    '/conversations/',
+    { params: { page, page_size: pageSize } },
+  );
+  const hasMore = (headers.get('X-Has-More') ?? '').toLowerCase() === 'true';
+  return {
+    conversations: rows.map((row) => {
+      const partnerSource = row.other_member ?? row.profile;
+      const partnerId = row.id ?? partnerSource?.id ?? row.user_id;
+      const rawLastMsg = String(row.lastMessage ?? row.last_message?.text ?? row.last_message ?? '');
+      return {
+        ...row,
+        id: partnerId,
+        lastMessage: rawLastMsg,
+        unread: Math.max(0, Number(row.unread_count ?? row.unread ?? 0) || 0),
+        profile: profileFromWire(partnerSource ?? {}),
+      } as Conversation;
+    }),
+    hasMore,
+    page,
+  };
 };
 
 export interface MessageHistoryPage {

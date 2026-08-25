@@ -1,6 +1,8 @@
+import secrets
 import uuid
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
+from django.utils.text import slugify
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -354,6 +356,29 @@ class Member(BaseAccount):
     is_hidden = models.BooleanField(default=False)
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
+
+    # Public-friendly, unique slug for profile URLs. The UUID remains the
+    # internal database primary key; the slug is only the public identifier.
+    profile_slug = models.CharField(max_length=120, unique=True, null=True, blank=True, db_index=True)
+
+    def _ensure_unique_profile_slug(self):
+        """Build a unique, user-friendly slug from the member's display name."""
+        base = slugify(f"{self.first_name} {self.last_name}")[:60].strip().strip('-')
+        if not base:
+            base = 'member'
+        candidate = base
+        manager = Member._default_manager
+        for _ in range(8):
+            if not manager.filter(profile_slug=candidate).exclude(pk=self.pk).exists():
+                return candidate
+            candidate = f"{base}-{secrets.token_hex(2)}"[:120]
+        # Extremely unlikely fallback; guarantee a unique value regardless.
+        return f"{base}-{secrets.token_hex(4)}"[:120]
+
+    def save(self, *args, **kwargs):
+        if not self.profile_slug:
+            self.profile_slug = self._ensure_unique_profile_slug()
+        super().save(*args, **kwargs)
 
     class Meta:
         db_table = 'members'

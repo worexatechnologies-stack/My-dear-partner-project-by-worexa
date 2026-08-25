@@ -8,12 +8,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
   BadgeCheck,
+  Ban,
   Bookmark,
   BookmarkCheck,
   BriefcaseBusiness,
   CalendarDays,
   Camera,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -33,6 +35,7 @@ import {
   UserRound,
   UsersRound,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import UpgradeModal from '@/components/member/upgrade-modal';
@@ -44,7 +47,8 @@ import {
   useSendInterestMutation,
 } from '@/legacy/services/profileApi';
 import type { MemberPhoto } from '@/legacy/services/photoApi';
-import { getInterests, getShortlists, toggleShortlist } from '@/legacy/services/dataService';
+import { getInterests, getShortlists, toggleShortlist, updateInterestStatus } from '@/legacy/services/dataService';
+import { fetchApi } from '@/legacy/services/apiClient';
 
 function DetailRow({ label, value, icon: Icon }: { label: string; value?: string | number | null; icon: React.ElementType }) {
   if (value === undefined || value === null || value === '') return null;
@@ -73,21 +77,34 @@ function Section({ id, title, description, children }: { id: string; title: stri
   );
 }
 
-type InterestState = 'PENDING' | 'ACCEPTED' | null;
+type InterestState = 'ACCEPTED' | 'SENT' | 'RECEIVED' | 'DECLINED' | null;
 
-function resolveInterestState(outgoing: any[], incoming: any[], profileId: string): InterestState {
+interface InterestInfo {
+  state: InterestState;
+  interestId: string | null;
+  direction?: 'sent' | 'received' | null;
+}
+
+function resolveInterestState(outgoing: any[], incoming: any[], profileId: string): InterestInfo {
   const sentToProfile = outgoing.filter(
     (interest) => String(interest?.receiver?.id || interest?.receiver?.user_id || '') === profileId,
   );
   const receivedFromProfile = incoming.filter(
     (interest) => String(interest?.sender?.id || interest?.sender?.user_id || '') === profileId,
   );
-  const relatedInterests = [...sentToProfile, ...receivedFromProfile];
+  const sent = sentToProfile[sentToProfile.length - 1];
+  const received = receivedFromProfile[receivedFromProfile.length - 1];
 
-  if (relatedInterests.some((interest) => interest?.status === 'ACCEPTED')) return 'ACCEPTED';
-  if (sentToProfile.some((interest) => interest?.status === 'PENDING')) return 'PENDING';
-  return null;
+  if (sent?.status === 'ACCEPTED' || received?.status === 'ACCEPTED') {
+    return { state: 'ACCEPTED', interestId: sent?.id || received?.id || null, direction: sent?.status === 'ACCEPTED' ? 'sent' : 'received' };
+  }
+  if (received?.status === 'PENDING') return { state: 'RECEIVED', interestId: received.id, direction: 'received' };
+  if (sent?.status === 'PENDING') return { state: 'SENT', interestId: sent.id, direction: 'sent' };
+  if (received?.status === 'DECLINED') return { state: 'DECLINED', interestId: received.id, direction: 'received' };
+  if (sent?.status === 'DECLINED') return { state: 'DECLINED', interestId: sent.id, direction: 'sent' };
+  return { state: null, interestId: null, direction: null };
 }
+
 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -96,28 +113,33 @@ export default function ProfilePage() {
   const { user } = useAuth();
   const { membershipSummary } = useMembership();
   const { data: profileData, isLoading, error, refetch } = useGetProfileDetailQuery(profileId);
+  const memberId = profileData?.profile?.id ? String(profileData.profile.id) : '';
   const [sendInterest, { isLoading: interestLoading }] = useSendInterestMutation();
   const [reportProfile, { isLoading: reporting }] = useReportProfileMutation();
 
   const [shortlisted, setShortlisted] = useState(false);
-  const [interestState, setInterestState] = useState<InterestState>(null);
+  const [interestInfo, setInterestInfo] = useState<InterestInfo>({ state: null, interestId: null });
+  const interestState = interestInfo.state;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | null>(null);
   const [showMessageTerms, setShowMessageTerms] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('Fake profile');
   const [reportDetails, setReportDetails] = useState('');
+  const [blocked, setBlocked] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const isOwnProfile = user?.id === profileId;
+  const isOwnProfile = Boolean(memberId && user?.id === memberId);
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
+    if (!memberId) return;
     let cancelled = false;
-    setInterestState(null);
+    setInterestInfo({ state: null, interestId: null });
     getShortlists()
       .then((response) => {
-        if (!cancelled) setShortlisted(response.results.some((profile) => profile.id === profileId));
+        if (!cancelled) setShortlisted(response.results.some((profile) => profile.id === memberId));
       })
       .catch(() => undefined);
 
@@ -127,15 +149,15 @@ export default function ProfilePage() {
       getInterests('outgoing').catch(() => []),
       getInterests('incoming').catch(() => []),
     ]).then(([outgoing, incoming]) => {
-      if (!cancelled) setInterestState(resolveInterestState(outgoing, incoming, profileId));
+      if (!cancelled) setInterestInfo(resolveInterestState(outgoing, incoming, memberId));
     });
 
     return () => { cancelled = true; };
-  }, [profileId]);
+  }, [memberId]);
 
   const handleShortlist = async () => {
     try {
-      const response = await toggleShortlist(profileId);
+      const response = await toggleShortlist(memberId || profileId);
       setShortlisted(response.action === 'added');
     } catch {
       window.alert('Your shortlist could not be updated. Please try again.');
@@ -146,7 +168,7 @@ export default function ProfilePage() {
     if (!profileData?.profile.id || interestState) return;
     try {
       const interest = await sendInterest(profileData.profile.id).unwrap();
-      setInterestState(interest.status === 'ACCEPTED' ? 'ACCEPTED' : 'PENDING');
+      setInterestInfo({ state: interest.status === 'ACCEPTED' ? 'ACCEPTED' : 'SENT', interestId: interest?.id || null });
       if (interest.status === 'ACCEPTED') void refetch();
     } catch (requestError: any) {
       const membershipError = requestError?.data?.code === 'MEMBERSHIP_REQUIRED'
@@ -154,8 +176,24 @@ export default function ProfilePage() {
         || requestError?.status === 402
         || requestError?.status === 403;
       if (membershipError) setUpgradeFeature('messaging');
-      else if (requestError?.status === 409) setInterestState('PENDING');
+      else if (requestError?.status === 409) setInterestInfo({ state: 'SENT', interestId: null });
       else window.alert('Interest could not be sent. Please try again.');
+    }
+  };
+
+  const [respondBusy, setRespondBusy] = useState(false);
+
+  const handleRespondToRequest = async (action: 'ACCEPTED' | 'DECLINED') => {
+    if (!interestInfo.interestId || respondBusy) return;
+    setRespondBusy(true);
+    try {
+      await updateInterestStatus(interestInfo.interestId, action);
+      setInterestInfo({ state: action === 'ACCEPTED' ? 'ACCEPTED' : 'DECLINED', interestId: interestInfo.interestId, direction: interestInfo.direction });
+      if (action === 'ACCEPTED' && profileData?.profile.id) void refetch();
+    } catch {
+      // The interests list remains the source of truth; keep the current state.
+    } finally {
+      setRespondBusy(false);
     }
   };
 
@@ -173,12 +211,26 @@ export default function ProfilePage() {
 
   const submitReport = async () => {
     try {
-      await reportProfile({ profileId, reason: reportReason, description: reportDetails }).unwrap();
+      await reportProfile({ profileId: memberId || profileId, reason: reportReason, description: reportDetails }).unwrap();
       setShowReport(false);
       setReportDetails('');
       window.alert('Report submitted. Our trust team will review it.');
     } catch {
       window.alert('Report could not be submitted. Please try again.');
+    }
+  };
+
+  const handleBlock = async () => {
+    if (blocked) return;
+    setBlocking(true);
+    try {
+      await fetchApi('/blocks/', { method: 'POST', body: JSON.stringify({ profile_id: memberId || profileId }) });
+      setBlocked(true);
+      window.alert('This profile has been blocked. You can unblock it anytime from Blocked & Rejected.');
+    } catch {
+      window.alert('Profile could not be blocked. Please try again.');
+    } finally {
+      setBlocking(false);
     }
   };
 
@@ -193,6 +245,43 @@ export default function ProfilePage() {
   }
 
   if (error || !profileData?.profile) {
+    if (typeof error === 'object' && error && (error as any)?.code === 'blocked_by_user') {
+      return (
+        <div className="flex h-full min-h-[34rem] flex-col items-center justify-center bg-[#f4f6f7] px-5 text-center pb-20 lg:pb-0">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
+            <Ban className="h-9 w-9 text-slate-300" />
+          </div>
+          <h1 className="mt-6 text-2xl font-extrabold text-[#17232d]">You have been blocked by this user</h1>
+          <p className="mt-2 max-w-sm text-sm text-slate-500">
+            You can't view this profile or send them messages anymore.
+          </p>
+          <button type="button" onClick={() => router.back()} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white">
+            <ArrowLeft className="h-4 w-4" /> Go back
+          </button>
+        </div>
+      );
+    }
+    if (typeof error === 'object' && error && (error as any)?.code === 'you_blocked') {
+      return (
+        <div className="flex h-full min-h-[34rem] flex-col items-center justify-center bg-[#f4f6f7] px-5 text-center pb-20 lg:pb-0">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
+            <Ban className="h-9 w-9 text-slate-300" />
+          </div>
+          <h1 className="mt-6 text-2xl font-extrabold text-[#17232d]">You have blocked this user</h1>
+          <p className="mt-2 max-w-sm text-sm text-slate-500">
+            Unblock them if you'd like to reconnect. You can do this from Blocked &amp; Rejected.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/blocked" className="inline-flex items-center gap-2 rounded-lg bg-[#bd304d] px-4 py-2.5 text-sm font-bold text-white">
+              <ShieldCheck className="h-4 w-4" /> Manage blocked
+            </Link>
+            <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white">
+              <ArrowLeft className="h-4 w-4" /> Go back
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full min-h-[34rem] flex-col items-center justify-center bg-[#f4f6f7] px-5 text-center pb-20 lg:pb-0">
         <UserRound className="h-10 w-10 text-slate-300" />
@@ -204,6 +293,8 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  const isBlockedByMe = Boolean((profileData as any)?.blocked_by_me);
 
   const profile = profileData.profile as typeof profileData.profile & {
     mother_tongue?: string;
@@ -224,7 +315,15 @@ export default function ProfilePage() {
   const matchScore = profile.compatibility_score;
   const currentPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
   const isMatched = interestState === 'ACCEPTED';
-  const interestLabel = isMatched ? 'Matched' : interestState === 'PENDING' ? 'Interest sent' : 'Connect';
+  const interestLabel = isMatched
+    ? 'Matched'
+    : interestState === 'SENT'
+      ? 'Interest sent'
+      : interestState === 'RECEIVED'
+        ? 'Respond'
+        : interestState === 'DECLINED'
+          ? 'Declined'
+          : 'Connect';
 
   const highlights = [
     { label: 'Age', value: profile.age ? `${profile.age} years` : 'Private', icon: CalendarDays },
@@ -246,6 +345,11 @@ export default function ProfilePage() {
                 <Flag className="h-4 w-4" />
               </button>
             )}
+            {!isOwnProfile && (
+              <button type="button" onClick={() => void handleBlock()} title={blocked ? 'Blocked' : 'Block profile'} aria-label={blocked ? 'Blocked' : 'Block profile'} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-[#bd304d]" disabled={blocking}>
+                {blocked ? <ShieldCheck className="h-4 w-4 text-[#bd304d]" /> : <ShieldCheck className="h-4 w-4" />}
+              </button>
+            )}
             <Link href={`/compare?candidate=${profileId}`} title="Compare profile" aria-label="Compare profile" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-white">
               <Scale className="h-4 w-4" />
             </Link>
@@ -259,9 +363,9 @@ export default function ProfilePage() {
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(330px,430px)_minmax(0,1fr)] lg:gap-7">
           <aside className="lg:sticky lg:top-4 space-y-4">
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative aspect-[4/5] max-h-[calc(100dvh-10rem)] min-h-[28rem] overflow-hidden rounded-2xl bg-[#18232d] shadow-[0_18px_45px_rgba(23,35,45,0.18)]">
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative aspect-[4/5] max-h-[calc(100dvh-10rem)] min-h-[28rem] overflow-hidden rounded-2xl bg-[#18232d] shadow-[0_18px_45px_rgba(23,35,45,0.18)] lg:aspect-[4/5] lg:max-h-[calc(100dvh-12rem)] lg:min-h-0">
               {primaryPhotoUrl ? (
-                <SmartImage src={primaryPhotoUrl} alt={profileUser.full_name || 'Member'} className="h-full w-full object-cover object-top" />
+                <SmartImage src={primaryPhotoUrl} alt={profileUser.full_name || 'Member'} className="h-full w-full object-contain" />
               ) : (
                 <div className="flex h-full items-center justify-center text-white/40"><UserRound className="h-16 w-16" /></div>
               )}
@@ -351,6 +455,111 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+{/* Connection state banner — shows requests they sent, requests you
+                received/declined, and active matches without a full page reload */}
+            {!isOwnProfile && interestState && (
+              <div className={`rounded-2xl border p-3.5 shadow-sm transition-colors ${
+                interestState === 'ACCEPTED'
+                  ? 'border-[#cfe6dc] bg-[#f1f8f5]'
+                  : interestState === 'DECLINED'
+                    ? 'border-slate-200 bg-slate-50'
+                    : 'border-rose-100 bg-[#fff7f9]'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    interestState === 'ACCEPTED'
+                      ? 'bg-[#267255] text-white'
+                      : interestState === 'DECLINED'
+                        ? 'bg-slate-200 text-slate-500'
+                        : 'bg-gradient-to-br from-rose-500 to-pink-600 text-white'
+                  }`}>
+                    {interestState === 'ACCEPTED' ? (
+                      <CheckCircle2 className="h-5 w-5" />
+                    ) : interestState === 'DECLINED' ? (
+                      <X className="h-5 w-5" />
+                    ) : (
+                      <Heart className="h-5 w-5 fill-white/20" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-extrabold ${
+                      interestState === 'ACCEPTED'
+                        ? 'text-[#1f5f47]'
+                        : interestState === 'DECLINED'
+                          ? 'text-slate-600'
+                          : 'text-[#8d143c]'
+                    }`}>
+                      {interestState === 'ACCEPTED'
+                        ? `You & ${profileUser.full_name || 'them'} are connected`
+                        : interestState === 'DECLINED'
+                          ? interestInfo.direction === 'received'
+                            ? `You declined ${profileUser.full_name || 'this member'}'s request`
+                            : `Your request to ${profileUser.full_name || 'them'} was declined`
+                          : interestState === 'RECEIVED'
+                            ? `${profileUser.full_name || 'This member'} sent you a connection request`
+                            : `You sent ${profileUser.full_name || 'them'} a connection`}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      {interestState === 'ACCEPTED'
+                        ? 'Start a conversation with your match.'
+                        : interestState === 'DECLINED'
+                          ? interestInfo.direction === 'received'
+                            ? 'Changed your mind? Re-accept and connect with them.'
+                            : 'You can revisit this request anytime under Interests.'
+                          : interestState === 'RECEIVED'
+                            ? 'Respond to their request to start connecting.'
+                            : 'Waiting for their response.'}
+                    </p>
+
+                    {interestState === 'RECEIVED' && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleRespondToRequest('ACCEPTED')}
+                          disabled={respondBusy}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 active:scale-[0.98]"
+                        >
+                          {respondBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleRespondToRequest('DECLINED')}
+                          disabled={respondBusy}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-60 active:scale-[0.98]"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Decline
+                        </button>
+                      </div>
+                    )}
+
+                    {interestState === 'DECLINED' && interestInfo.direction === 'received' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRespondToRequest('ACCEPTED')}
+                        disabled={respondBusy}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 active:scale-[0.98]"
+                      >
+                        {respondBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                        Undo & Re-accept
+                      </button>
+                    )}
+
+                    {interestState === 'ACCEPTED' && (
+                      <button
+                        type="button"
+                        onClick={handleMessage}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#17232d] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#2a3b49]"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Chat now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </aside>
 
           <main className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -496,7 +705,7 @@ export default function ProfilePage() {
             <p className="mt-2 text-sm leading-6 text-slate-500">Keep personal details private until you are comfortable. Never share payments, passwords, or verification codes in chat.</p>
             <div className="mt-5 flex gap-2">
               <button type="button" onClick={() => setShowMessageTerms(false)} className="flex-1 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
-              <button type="button" onClick={() => router.push(`/messages?user=${profileId}`)} className="flex-1 rounded-lg bg-[#267255] px-4 py-2.5 text-sm font-bold text-white">Continue to chat</button>
+              <button type="button" onClick={() => router.push(`/messages?user=${memberId || profileId}`)} className="flex-1 rounded-lg bg-[#267255] px-4 py-2.5 text-sm font-bold text-white">Continue to chat</button>
             </div>
           </div>
         </div>, document.body)}

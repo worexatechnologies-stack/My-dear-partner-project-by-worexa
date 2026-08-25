@@ -6,14 +6,15 @@ import {
   ArrowDown,
   ArrowLeft,
   BadgeCheck,
+  Ban,
   CheckCheck,
+  ChevronDown,
   ChevronRight,
   Crown,
-  Info,
+  Heart,
   LockKeyhole,
   MessageCircleMore,
   Search,
-  Send,
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
@@ -22,13 +23,14 @@ import {
 import SmartImage from '@/components/shared/smart-image';
 import { Link, useLocation, useNavigate, useSearchParams } from '@/lib/router-compat';
 import { useAuth } from '../contexts/AuthContext';
-import { getConversations, getMessages, getProfile, markMessagesRead, sendMessage } from '../services/dataService';
+import { getConversations, getConversationsPage, getMessages, getProfile, markMessagesRead, sendMessage } from '../services/dataService';
 import { fetchApi } from '../services/apiClient';
 import { useRealtime } from '../../providers/RealtimeProvider';
 import { useChatSocket } from '../../hooks/use-chat-socket';
 import { usePresence } from '../../hooks/use-presence';
 import { deriveFallbackKey, encryptMessage, smartDecryptText } from '../utils/crypto';
 import { clearActiveChatPartnerId, setActiveChatPartnerId } from '@/lib/chat-notification-state';
+import { profileHref } from '@/lib/profile-url';
 
 interface ChatMessage {
   id: string;
@@ -73,7 +75,7 @@ function profileId(conversation: any) {
 
 function unreadBadge(count: unknown) {
   const unread = Math.max(0, Number(count) || 0);
-  return unread >= 4 ? '4+' : String(unread);
+  return unread >= 100 ? '99+' : String(unread);
 }
 
 function mergeMessagesByTime(...groups: ChatMessage[][]) {
@@ -102,6 +104,9 @@ export default function MessagesPage() {
   const [membershipPlan, setMembershipPlan] = useState<string | null>(null);
   const [membershipVersion, setMembershipVersion] = useState(0);
   const [conversations, setConversations] = useState<any[]>([]);
+  const [conversationPage, setConversationPage] = useState(1);
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -114,6 +119,7 @@ export default function MessagesPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [restriction, setRestriction] = useState('');
+  const [blockedState, setBlockedState] = useState<'blocked_by_user' | 'you_blocked' | ''>('');
   const [error, setError] = useState('');
   const [limitOpen, setLimitOpen] = useState(false);
   const [typingByPartner, setTypingByPartner] = useState<Record<string, boolean>>({});
@@ -190,7 +196,12 @@ export default function MessagesPage() {
   const refreshConversations = useCallback(async () => {
     try {
       const pendingRouteId = pendingRouteSelectionRef.current;
-      let rows = await decryptConversations(await getConversations());
+      // Fetch the first page and remember whether older pages remain so we do
+      // not load all conversations up front (fix: pagination/limiting).
+      const { conversations: firstPage, hasMore } = await getConversationsPage(1, 50);
+      let rows = await decryptConversations(firstPage);
+      setHasMoreConversations(hasMore);
+      setConversationPage(1);
       if (pendingRouteId && !rows.some((row) => profileId(row) === pendingRouteId)) {
         const profile = requestedProfile || await getProfile(pendingRouteId);
         rows = [{ id: pendingRouteId, profile, lastMessage: '', time: '', unread: 0 }, ...rows];
@@ -218,6 +229,26 @@ export default function MessagesPage() {
       setLoadingConversations(false);
     }
   }, [decryptConversations, navigate, requestedProfile, requestedUserId]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (loadingMoreConversations || !hasMoreConversations) return;
+    setLoadingMoreConversations(true);
+    try {
+      const nextPage = conversationPage + 1;
+      const { conversations: more, hasMore } = await getConversationsPage(nextPage, 50);
+      setConversations((current) => {
+        const seen = new Set(current.map((row) => String(profileId(row))));
+        const fresh = more.filter((row) => !seen.has(String(profileId(row))));
+        return [...current, ...fresh];
+      });
+      setConversationPage(nextPage);
+      setHasMoreConversations(hasMore);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'More conversations could not be loaded.');
+    } finally {
+      setLoadingMoreConversations(false);
+    }
+  }, [conversationPage, hasMoreConversations, loadingMoreConversations]);
 
   useEffect(() => { void refreshConversations(); }, [refreshConversations]);
 
@@ -371,6 +402,7 @@ export default function MessagesPage() {
     setIsAtBottom(false);
     setRestriction('');
     setError('');
+    setBlockedState('');
     getMessages(profileId(activeConversation), { pageSize: 20 })
       .then(async (page) => {
         const formatted = await formatMessageRows(page.messages, activeConversation);
@@ -384,6 +416,8 @@ export default function MessagesPage() {
         if (cancelled) return;
         const message = String(requestError?.message || requestError || '');
         if (requestError?.code === 'DAILY_MESSAGE_LIMIT_REACHED') setLimitOpen(true);
+        else if (requestError?.code === 'blocked_by_user' || /blocked by this user/i.test(message)) setBlockedState('blocked_by_user');
+        else if (requestError?.code === 'messaging_blocked' || requestError?.code === 'you_blocked' || /blocked/i.test(message)) setBlockedState('you_blocked');
         else if (/interest|mutual/i.test(message)) setRestriction('You can chat after both members accept the interest.');
         else if (/membership|plan|premium|gold|upgrade/i.test(message)) setRestriction('Messaging is not included in your current membership.');
         else if (/approve|pending|available/i.test(message)) setRestriction('This member is not currently available for chat.');
@@ -452,7 +486,7 @@ export default function MessagesPage() {
   }, [messages.length, partnerTyping, scrollToLatest]);
 
   useEffect(() => {
-    if (!activeConversation || !currentPartnerId || loadingMessages || !isAtBottom) return;
+    if (!activeConversation || !currentPartnerId || loadingMessages) return;
     const unreadIds = messages.filter((message) => message.senderId !== 'me' && !message.read).map((message) => message.id);
     if (unreadIds.length === 0) return;
 
@@ -476,14 +510,51 @@ export default function MessagesPage() {
       }
     };
     void persistRead();
-  }, [activeConversation, connected, currentPartnerId, isAtBottom, loadingMessages, messages, sendSocket]);
+  }, [activeConversation, connected, currentPartnerId, loadingMessages, messages, sendSocket]);
+
+  // Coalesce conversation-list refreshes: N realtime CHAT_MESSAGE events in a
+  // short window produce at most ONE API request, and never two overlapping
+  // requests (a second "pending" refresh runs only after the first completes).
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshInflightRef = useRef(false);
+  const refreshPendingRef = useRef(false);
+  const runRefresh = useCallback(async () => {
+    if (refreshInflightRef.current) {
+      refreshPendingRef.current = true;
+      return;
+    }
+    refreshInflightRef.current = true;
+    try {
+      await refreshConversations();
+    } finally {
+      refreshInflightRef.current = false;
+      if (refreshPendingRef.current) {
+        refreshPendingRef.current = false;
+        void runRefresh();
+      }
+    }
+  }, [refreshConversations]);
+
+  const scheduleConversationRefresh = useCallback(() => {
+    if (refreshTimerRef.current) return; // already scheduled, drain into ONE call
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      void runRefresh();
+    }, 2000);
+  }, [runRefresh]);
 
   useEffect(() => {
     const unsubscribe = subscribe('notification.created', (event) => {
-      if (event.data?.notification_type === 'CHAT_MESSAGE') void refreshConversations();
+      if (event.data?.notification_type === 'CHAT_MESSAGE') scheduleConversationRefresh();
     });
-    return unsubscribe;
-  }, [refreshConversations, subscribe]);
+    return () => {
+      unsubscribe();
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [scheduleConversationRefresh, subscribe]);
 
   useEffect(() => () => {
     for (const timer of typingTimeoutsRef.current.values()) window.clearTimeout(timer);
@@ -610,6 +681,15 @@ export default function MessagesPage() {
     setActiveConversation(conversation);
     setMobileChatOpen(true);
     setDetailsOpen(typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches);
+    // Optimistically clear the badge for the thread the member opened; the
+    // server read marker persists it across reloads.
+    setConversations((current) => current.map((row) => profileId(row) === partnerId ? { ...row, unread: 0 } : row));
+    // Remove any lingering ?user= deep link so a refresh opens the list, not
+    // the same thread again.
+    if (pendingRouteSelectionRef.current || (typeof window !== 'undefined' && window.location.search.includes('user='))) {
+      pendingRouteSelectionRef.current = null;
+      navigate('/messages', { replace: true, preventScrollReset: true });
+    }
   };
 
   const closeActiveConversation = () => {
@@ -661,160 +741,280 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-full min-h-[36rem] overflow-hidden bg-[#eef1f2] pb-16 lg:p-5 lg:pb-5">
-      <div className="mx-auto flex h-full w-full max-w-[1440px] overflow-hidden border-slate-200 bg-white lg:rounded-lg lg:border lg:shadow-sm">
-        <aside className={`${mobileChatOpen ? 'hidden lg:flex' : 'flex'} h-full w-full shrink-0 flex-col border-r border-slate-200 bg-white lg:w-[350px] xl:w-[390px]`}>
-          <header className="border-b border-slate-200 px-4 pb-4 pt-5 sm:px-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase text-[#bd304d]">Connections</p>
-                <h1 className="mt-1 text-xl font-extrabold text-[#17232d]">Messages</h1>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-full bg-[#eef7f3] px-2.5 py-1.5 text-[11px] font-bold text-[#267255]">
-                <LockKeyhole className="h-3.5 w-3.5" /> Private
+    <>
+      <style>{`/* ── Sidebar motion — reuses the existing palette (no new colors) ── */
+.sb-card { animation: sb-card-in .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes sb-card-in { from { opacity:0; transform:translateY(7px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+.sb-card-lift { transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease, background-color .28s ease; }
+.sb-card-lift:hover { transform: translateY(-2px); }
+.sb-card-lift:active { transform: scale(.988); }
+.sb-indicator { animation: sb-bar-in .42s cubic-bezier(.22,1,.36,1) both; transform-origin: top; }
+@keyframes sb-bar-in { from { transform:scaleY(0); opacity:0; } to { transform:scaleY(1); opacity:1; } }
+.sb-avatar { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease; }
+.sb-card-lift:hover .sb-avatar { transform: scale(1.05); box-shadow: 0 6px 16px -6px rgba(120,40,70,.35); }
+.sb-badge { animation: sb-badge-in .55s cubic-bezier(.22,1,.36,1) both; }
+@keyframes sb-badge-in { 0% { opacity:0; transform:scale(.4); } 60% { transform:scale(1.15); } 100% { opacity:1; transform:scale(1); } }
+.sb-dot { animation: sb-dot-pulse 1.9s ease-in-out infinite; }
+@keyframes sb-dot-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(47,201,122,.35); } 50% { box-shadow:0 0 0 4px rgba(47,201,122,0); } }
+.sb-search { transition: all .3s ease; }
+.sb-search:focus { box-shadow: 0 0 0 4px rgba(246,195,212,.5); }
+.sb-head-in { animation: sb-head-in .45s cubic-bezier(.22,1,.36,1) both; }
+@keyframes sb-head-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+`}</style>
+    <div className="chat-shell flex h-full w-full items-stretch justify-center overflow-hidden bg-[#f6f1f4] lg:h-[calc(100vh-64px)] lg:p-5">
+      <div className="relative flex h-full w-full overflow-hidden bg-white shadow-[0_24px_70px_-28px_rgba(112,38,66,0.28)] lg:mx-auto lg:max-w-[1180px] lg:rounded-[30px] lg:border lg:border-[#f4e6ee]">
+        {/* Soft decorative blooms — extreme low opacity */}
+        <span aria-hidden className="pointer-events-none absolute -left-10 -top-10 z-0 h-40 w-40 rounded-full bg-gradient-to-br from-[#ffe0ea]/50 to-[#fff4f8]/60 blur-2xl" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-14 -right-10 z-0 h-44 w-44 rounded-full bg-gradient-to-tl from-[#ffe9f0]/50 to-[#fff6fa]/60 blur-2xl" />
+
+        <aside className={`${mobileChatOpen ? 'hidden lg:flex' : 'flex'} relative z-10 h-full w-full shrink-0 flex-col border-r border-[#f3e7ee] bg-white lg:w-[376px]`}>
+          <header className="sb-head-in px-5 pb-2 pt-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ffe0e9] to-[#fff0f4] text-[#b3265e] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_12px_-6px_rgba(190,50,90,0.35)]">
+                  <MessageCircleMore className="h-5 w-5" fill="currentColor" strokeWidth={1.6} />
+                </span>
+                <div>
+                  <h1 className="text-[21px] font-extrabold leading-tight tracking-tight text-[#3c1830]">Messages</h1>
+                  <p className="flex items-center gap-1 text-[11px] font-semibold text-[#b48ea0]">
+                    <Heart className="h-3 w-3 fill-[#e8799e] text-[#e8799e]" /> Your connections
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="relative mt-4">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={conversationQuery} onChange={(event) => setConversationQuery(event.target.value)} placeholder="Search conversations" className="h-10 w-full rounded-lg border border-slate-200 bg-[#f7f8f8] pl-9 pr-9 text-sm text-[#17232d] outline-none placeholder:text-slate-400 focus:border-[#9ebbad] focus:bg-white" />
-              {conversationQuery && <button type="button" onClick={() => setConversationQuery('')} aria-label="Clear search" className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X className="h-3.5 w-3.5" /></button>}
+
+            <div className="relative mb-4">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#c39aae]" />
+              <input
+                value={conversationQuery}
+                onChange={(event) => setConversationQuery(event.target.value)}
+                placeholder="Search conversations..."
+                className="sb-search h-11 w-full rounded-full border border-[#f0e4ec] bg-[#fbf7f9] pl-11 pr-9 text-sm font-semibold text-[#4a2338] outline-none transition-all placeholder:text-[#c8a6b6] focus:border-[#f6c3d4] focus:bg-white focus:ring-4 focus:ring-[#fff0f6]"
+              />
+              {conversationQuery && (
+                <button type="button" onClick={() => setConversationQuery('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#fdeef3] text-[#c25780] transition-colors hover:bg-[#fcdde8]">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
-            <div className="mt-3 flex gap-1 rounded-lg bg-[#f2f4f5] p-1" aria-label="Conversation filter">
-              {(['all', 'unread'] as const).map((value) => (
-                <button key={value} type="button" onClick={() => setFilter(value)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold capitalize ${filter === value ? 'bg-white text-[#17232d] shadow-sm' : 'text-slate-500'}`}>{value}</button>
-              ))}
+
+            <div className="flex gap-1 rounded-2xl bg-[#faf4f7] p-1" aria-label="Conversation filter">
+              <button type="button" onClick={() => setFilter('all')} className={`flex-1 rounded-xl px-3 py-1.5 text-[12.5px] font-bold transition-all ${filter === 'all' ? 'bg-white text-[#c2185b] shadow-[0_2px_8px_-3px_rgba(200,60,100,0.25)]' : 'text-[#9b7385] hover:text-[#c25780]'}`}>
+                All
+              </button>
+              <button type="button" onClick={() => setFilter('unread')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-[12.5px] font-bold transition-all ${filter === 'unread' ? 'bg-white text-[#c6227b] shadow-[0_2px_8px_-3px_rgba(200,60,100,0.25)]' : 'text-[#9b7385] hover:text-[#c25780]'}`}>
+                Unread
+                {conversations.filter((c) => Number(c.unread || 0) > 0).length > 0 && (
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gradient-to-br from-[#f25d8b] to-[#e4335f] px-1 text-[9px] font-extrabold text-white shadow-sm">
+                    {conversations.filter((c) => Number(c.unread || 0) > 0).length}
+                  </span>
+                )}
+              </button>
+              <button type="button" className="flex-1 rounded-xl px-3 py-1.5 text-[12.5px] font-bold text-[#9b7385] transition-all hover:text-[#c25780]">
+                Archived
+              </button>
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {loadingConversations && <div className="flex items-center justify-center gap-2 p-8 text-xs font-bold text-slate-400"><span className="h-4 w-4 animate-spin rounded-full border-2 border-[#bd304d] border-t-transparent" /> Loading conversations</div>}
-            {!loadingConversations && filteredConversations.length === 0 && (
-              <div className="px-7 py-14 text-center">
-                <MessageCircleMore className="mx-auto h-9 w-9 text-slate-300" />
-                <p className="mt-3 text-sm font-bold text-[#17232d]">No conversations found</p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">Accepted interests appear here when messaging is available.</p>
-                <Link to="/search" className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-[#bd304d]">Discover profiles <ChevronRight className="h-3.5 w-3.5" /></Link>
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-1">
+            {loadingConversations && (
+              <div className="flex flex-col items-center gap-3 p-10 text-center">
+                <span className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-[#f3c6d4] border-t-[#e4335f]" />
+                <p className="text-xs font-bold text-[#b48ea0]">Loading conversations…</p>
               </div>
             )}
-            {filteredConversations.map((conversation) => {
+            {!loadingConversations && filteredConversations.length === 0 && (
+              <div className="px-7 py-14 text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fff0f5] text-[#d86d95] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                  <MessageCircleMore className="h-6 w-6" fill="currentColor" strokeWidth={1.5} />
+                </span>
+                <p className="mt-4 text-sm font-extrabold text-[#4a2338]">No conversations yet</p>
+                <p className="mt-1 text-xs leading-5 text-[#b48ea0]">Accepted interests appear here when messaging is available.</p>
+                <Link to="/search" className="mt-4 inline-flex items-center gap-1 rounded-full border border-[#f3c6d4] bg-[#fff7fa] px-4 py-2 text-xs font-bold text-[#c2185b] transition-all hover:bg-[#ffeef4]">Discover profiles <ChevronRight className="h-3.5 w-3.5" /></Link>
+              </div>
+            )}
+            {filteredConversations.map((conversation, index) => {
               const id = profileId(conversation);
               const selected = id === currentPartnerId;
               const online = Boolean(isOnline(id));
               const typing = Boolean(typingByPartner[id]);
+              const unread = Number(conversation.unread || 0);
+              const stagger = Math.min(index, 10) * 35;
               return (
-                <button key={id} type="button" onClick={() => selectConversation(conversation)} className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3.5 text-left hover:bg-[#f7f8f8] sm:px-5 ${selected ? 'bg-[#f1f7f4]' : 'bg-white'}`}>
-                  <div className="relative shrink-0">
-                    <SmartImage src={conversation.profile?.photo} alt={profileName(conversation)} className="h-12 w-12 rounded-lg object-cover" />
-                    {online && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#2aa66f]" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="flex min-w-0 items-center gap-1 truncate text-sm font-extrabold text-[#17232d]">
+                <button key={id} type="button" onClick={() => selectConversation(conversation)} className={`sb-card sb-card-lift group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-3 text-left transition-all duration-200 ${selected ? 'bg-gradient-to-r from-[#fff0f6] to-[#fffafc] shadow-[0_8px_20px_-12px_rgba(170,54,96,0.35)]' : 'hover:bg-[#fdf7fa]'}`} style={{ animationDelay: `${stagger}ms` }}>
+                  {selected && <span className="sb-indicator absolute left-0 top-4 bottom-4 w-[3px] rounded-r-full bg-gradient-to-b from-[#ef82a6] to-[#e4335f]" />}
+                  <span className="relative shrink-0">
+                    <span className="sb-avatar block h-12 w-12 overflow-hidden rounded-full border-2 border-white bg-[#fdf0f5] shadow-[0_3px_10px_-4px_rgba(90,30,60,0.3)]">
+                      <SmartImage src={conversation.profile?.photo} alt={profileName(conversation)} className="h-full w-full object-cover" />
+                    </span>
+                    {online && <span className="sb-dot absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#2fc97a]" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className={`flex min-w-0 items-center gap-1 truncate text-[14px] transition-colors ${unread > 0 ? 'font-extrabold text-[#3c1830]' : 'font-bold text-[#4a2338]'}`}>
                         <span className="truncate">{profileName(conversation)}</span>
-                        {conversation.profile?.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#267255]" aria-label="Verified" />}
-                      </p>
-                      <span className={`shrink-0 text-[10px] font-bold ${conversation.unread ? 'text-[#267255]' : 'text-slate-400'}`}>{conversationTime(conversation.time)}</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <p className={`truncate text-xs ${typing ? 'font-semibold text-[#267255]' : 'text-slate-500'}`}>
-                        {typing ? 'typing...' : conversation.lastMessage || 'Start a conversation'}
-                      </p>
-                      {Number(conversation.unread || 0) > 0 && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#267255] px-1 text-[10px] font-extrabold text-white">{unreadBadge(conversation.unread)}</span>}
-                    </div>
-                  </div>
+                        {conversation.profile?.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#2aa584]" aria-label="Verified" />}
+                      </span>
+                      <span className={`shrink-0 text-[10.5px] font-semibold ${unread > 0 ? 'text-[#e0557e]' : 'text-[#c39aae]'}`}>{conversationTime(conversation.time)}</span>
+                    </span>
+                    <span className="mt-1 flex items-center justify-between gap-2">
+                      <span className={`min-w-0 truncate text-[12.5px] ${typing ? 'font-semibold text-[#e0557e]' : unread > 0 ? 'font-semibold text-[#9a6278]' : 'text-[#b691a1]'}`}>
+                        {typing ? 'typing…' : conversation.lastMessage || 'Say hello 👋'}
+                      </span>
+                      {unread > 0 && (
+                        <span className="sb-badge unread-pop flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f25d8b] to-[#e4335f] px-1.5 text-[9.5px] font-extrabold text-white shadow-[0_3px_8px_-2px_rgba(230,60,100,0.55)]">
+                          {unreadBadge(unread)}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </button>
               );
             })}
+            {hasMoreConversations && (
+              <button
+                type="button"
+                onClick={() => void loadMoreConversations()}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#f3c6d4] bg-[#fff7fa] px-3 py-2.5 text-xs font-bold text-[#c2185b] transition-all hover:bg-[#ffeef4] active:scale-[0.995]"
+              >
+                {loadingMoreConversations ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#f3c6d4] border-t-[#e4335f]" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+                {loadingMoreConversations ? 'Loading conversations…' : 'Load older conversations'}
+              </button>
+            )}
           </div>
         </aside>
 
         {activeConversation ? (
-          <section className={`${mobileChatOpen ? 'flex' : 'hidden lg:flex'} min-w-0 flex-1 flex-col bg-[#f8f9f9]`}>
-            <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 sm:px-5">
+          <section className={`${mobileChatOpen ? 'flex' : 'hidden lg:flex'} relative min-w-0 flex-1 flex-col bg-[#fbf7f9]`}>
+            <header className="absolute inset-x-0 top-0 z-30 flex h-[76px] shrink-0 items-center justify-between gap-3 border-b border-[#f1e4ec] bg-white/85 px-4 backdrop-blur-md sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
-                <button type="button" onClick={closeActiveConversation} aria-label="Back to conversations" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 lg:hidden"><ArrowLeft className="h-5 w-5" /></button>
-                <Link to={`/profile/${currentPartnerId}`} className="relative shrink-0">
-                  <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} className="h-10 w-10 rounded-lg object-cover" />
-                  {activeOnline && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#2aa66f]" />}
+                <button type="button" onClick={closeActiveConversation} aria-label="Back to conversations" className="-ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#9b7385] transition-colors hover:bg-[#fdf0f5] hover:text-[#c2185b] lg:hidden"><ArrowLeft className="h-5 w-5" /></button>
+                <Link to={activeConversation ? profileHref(activeConversation.profile || activeConversation) : '#'} className="relative shrink-0">
+                  <span className="block h-11 w-11 overflow-hidden rounded-full border-2 border-white bg-[#fdf0f5] shadow-[0_3px_10px_-3px_rgba(90,30,60,0.35)]">
+                    <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} aspectRatio="4:5" className="h-full w-full object-cover" />
+                  </span>
+                  {activeOnline && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#2fc97a]" />}
                 </Link>
-                <div className="min-w-0">
-                  <Link to={`/profile/${currentPartnerId}`} className="flex items-center gap-1.5 truncate text-sm font-extrabold text-[#17232d] hover:text-[#bd304d]">
+                <div className="flex min-w-0 flex-col justify-center">
+                  <Link to={activeConversation ? profileHref(activeConversation.profile || activeConversation) : '#'} className="flex min-w-0 items-center gap-1.5 truncate text-[15.5px] font-extrabold tracking-tight text-[#3c1830] transition-colors hover:text-[#d13a72]">
                     <span className="truncate">{profileName(activeConversation)}</span>
-                    {activeConversation.profile?.verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#267255]" />}
                   </Link>
-                  <p className={`truncate text-[11px] font-semibold ${partnerTyping || activeOnline || chatSocketState === 'connecting' ? 'text-[#267255]' : 'text-slate-400'}`}>
-                    {partnerTyping ? 'Typing...' : activeOnline ? 'Online' : chatSocketState === 'connecting' ? 'Connecting...' : lastSeenLabel(activeLastSeen)}
+                  <p className={`flex items-center gap-1.5 truncate text-[11.5px] font-semibold ${partnerTyping ? 'text-[#e0557e]' : activeOnline ? 'text-[#2aa584]' : 'text-[#b48ea0]'}`}>
+                    {partnerTyping ? (
+                      <>
+                        <span className="flex gap-0.5"><span className="h-1 w-1 animate-bounce rounded-full bg-[#e0557e]" /><span className="h-1 w-1 animate-bounce rounded-full bg-[#e0557e]" style={{ animationDelay: '120ms' }} /><span className="h-1 w-1 animate-bounce rounded-full bg-[#e0557e]" style={{ animationDelay: '240ms' }} /></span>
+                        Typing
+                      </>
+                    ) : activeOnline ? 'Online' : chatSocketState === 'connecting' ? 'Connecting…' : lastSeenLabel(activeLastSeen)}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setDetailsOpen((open) => !open)} title="Profile details" aria-label="Profile details" className={`flex h-9 w-9 items-center justify-center rounded-full ${detailsOpen ? 'bg-[#eef7f3] text-[#267255]' : 'text-slate-500 hover:bg-slate-100'}`}><Info className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setDetailsOpen((open) => !open)} aria-label="More options" className="flex h-10 w-10 items-center justify-center rounded-full text-[#9b7385] transition-colors hover:bg-[#fdf0f5] hover:text-[#c2185b]">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+                </button>
               </div>
             </header>
 
             {error && (
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700">
+              <div className="absolute inset-x-0 top-[76px] z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[#f8d7e2] bg-[#fff5f8] px-4 py-2.5 text-xs font-semibold text-[#b3265e] shadow-sm">
                 <span className="flex min-w-0 items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /><span className="truncate">{error}</span></span>
-                <button type="button" onClick={() => setError('')} className="font-bold">Dismiss</button>
+                <button type="button" onClick={() => setError('')} className="rounded-full px-2 py-0.5 font-bold transition-colors hover:bg-[#fde3ec]">Dismiss</button>
               </div>
             )}
-            {restriction ? (
-              <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#267255] shadow-sm"><LockKeyhole className="h-6 w-6" /></div>
-                <h2 className="mt-4 text-lg font-extrabold text-[#17232d]">Conversation unavailable</h2>
-                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">{restriction}</p>
+            {blockedState ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-6 pt-[76px] text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#f3e4ec] bg-white text-[#d8a7bc] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"><Ban className="h-7 w-7" /></div>
+                <h2 className="mt-5 text-lg font-extrabold text-[#3c1830]">{blockedState === 'blocked_by_user' ? 'You have been blocked by this user' : 'You have blocked this user'}</h2>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-[#b48ea0]">
+                  {blockedState === 'blocked_by_user'
+                    ? 'You can no longer send messages in this conversation.'
+                    : 'You have blocked this user. Unblock them from Blocked & Rejected to message again.'}
+                </p>
+                {blockedState === 'you_blocked' && (
+                  <Link to="/blocked" className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#d13a72] to-[#c2185b] px-6 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_-8px_rgba(210,60,120,0.6)] transition-all hover:brightness-105">
+                    <ShieldCheck className="h-4 w-4" /> Manage blocked
+                  </Link>
+                )}
+              </div>
+            ) : restriction ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-6 pt-[76px] text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f4fbf8] text-[#2aa584]"><LockKeyhole className="h-6 w-6" /></div>
+                <h2 className="mt-4 text-lg font-extrabold text-[#3c1830]">Conversation unavailable</h2>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-[#b48ea0]">{restriction}</p>
               </div>
             ) : (
               <>
                 <div className="relative min-h-0 flex-1">
-                  <div ref={feedRef} onScroll={handleFeedScroll} className="h-full overflow-y-auto px-3 py-5 sm:px-6">
+                  <div className="chat-pattern pointer-events-none absolute inset-0 opacity-[0.5]" aria-hidden />
+                  <div ref={feedRef} onScroll={handleFeedScroll} className="relative h-full overflow-y-auto px-4 pb-5 pt-[96px] sm:px-8">
                   <div className="mx-auto max-w-3xl">
-                    <div className="mx-auto mb-6 flex max-w-md items-start gap-2 rounded-lg border border-[#dce9e3] bg-[#f2f8f5] px-3 py-2.5 text-[11px] leading-5 text-[#4b6d5f]">
-                      <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#267255]" />
-                      Messages are encrypted. Keep personal and financial information private.
+                    <div className="mx-auto mb-8 flex w-fit max-w-md items-start gap-2.5 rounded-full border border-[#efe0e9] bg-white/80 px-4 py-2 text-[11px] font-medium leading-5 text-[#b48ea0] shadow-[0_2px_10px_-6px_rgba(90,30,60,0.12)] backdrop-blur-sm">
+                      <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#c394ab]" />
+                      Messages are encrypted. Stay safe.
                     </div>
 
-                    {loadingMessages && <div className="py-16 text-center text-xs font-bold text-slate-400">Loading conversation...</div>}
+                    {loadingMessages && (
+                      <div className="flex flex-col items-center gap-3 py-16 text-center">
+                        <span className="h-6 w-6 animate-spin rounded-full border-[2.5px] border-[#f3c6d4] border-t-[#e4335f]" />
+                        <p className="text-xs font-bold text-[#b48ea0]">Loading conversation…</p>
+                      </div>
+                    )}
                     {!loadingMessages && messages.length > 0 && (
-                      <p className="mb-4 text-center text-[11px] font-semibold text-slate-400">
-                        {loadingOlderMessages ? 'Loading older messages...' : nextMessageCursor ? 'Scroll up to load older messages' : 'Beginning of this conversation'}
+                      <p className="mb-6 text-center text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#c9a7b4]">
+                        {loadingOlderMessages ? 'Loading older messages…' : nextMessageCursor ? 'Scroll up for older messages' : 'Beginning of conversation'}
                       </p>
                     )}
                     {!loadingMessages && messages.length === 0 && !partnerTyping && (
-                      <div className="py-12 text-center">
-                        <MessageCircleMore className="mx-auto h-9 w-9 text-slate-300" />
-                        <h2 className="mt-3 text-base font-extrabold text-[#17232d]">Start the conversation</h2>
-                        <p className="mt-1 text-xs text-slate-500">A simple, thoughtful introduction works best.</p>
-                        <div className="mt-5 flex flex-wrap justify-center gap-2">
+                      <div className="pb-12 pt-6 text-center">
+                        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#ffe0e9] to-[#fff0f4] text-[#d86d95] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_24px_-12px_rgba(190,50,90,0.4)]">
+                          <MessageCircleMore className="h-7 w-7" fill="currentColor" strokeWidth={1.5} />
+                        </span>
+                        <h2 className="mt-5 text-lg font-extrabold tracking-tight text-[#3c1830]">Start the conversation</h2>
+                        <p className="mt-1 text-[12.5px] text-[#b48ea0]">A warm, thoughtful introduction goes a long way.</p>
+                        <div className="mt-6 flex flex-wrap justify-center gap-2">
                           {['Hello, nice to meet you.', 'I enjoyed reading your profile.', 'Would you like to talk?'].map((prompt) => (
-                            <button key={prompt} type="button" onClick={() => void handleSend(prompt)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-[#9ebbad] hover:text-[#267255]">{prompt}</button>
+                            <button key={prompt} type="button" onClick={() => void handleSend(prompt)} className="rounded-full border border-[#f3c6d4] bg-white px-4 py-2 text-[12.5px] font-bold text-[#c25780] shadow-[0_2px_8px_-4px_rgba(200,60,100,0.2)] transition-all hover:-translate-y-0.5 hover:border-[#e899b2] hover:bg-[#fff4f8] hover:text-[#c2185b]">{prompt}</button>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       {messages.map((message, index) => {
                         const mine = message.senderId === 'me';
                         const showDate = index === 0 || messages[index - 1].date !== message.date;
+                        const deleted = message.deletedForEveryone;
                         return (
-                          <div key={message.id}>
-                            {showDate && <div className="my-5 text-center"><span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-400">{message.date}</span></div>}
-                            <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-[86%] rounded-lg px-3.5 py-2.5 shadow-sm sm:max-w-[72%] ${mine ? 'bg-[#245f4a] text-white' : 'border border-slate-200 bg-white text-[#17232d]'}`}>
-                                <p className={`whitespace-pre-wrap break-words text-sm leading-5 ${message.deletedForEveryone ? 'italic opacity-70' : ''}`}>{message.text}</p>
-                                <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-white/60' : 'text-slate-400'}`}>
-                                  <span>{message.failed ? 'Not sent' : message.pending ? 'Sending' : message.time}</span>
-                                  {mine && !message.failed && (
-                                    <span className={`inline-flex items-center justify-center ${message.read ? 'rounded-full bg-white p-0.5 text-[#0b3d91] shadow-sm' : 'text-white/60'}`} aria-label={message.read ? 'Read' : 'Delivered'}>
+                          <div key={message.id} className="msg-in">
+                            {showDate && (
+                              <div className="my-7 text-center">
+                                <span className="rounded-full border border-[#efe3e9] bg-white/90 px-4 py-1.5 text-[10.5px] font-bold tracking-wide text-[#b48ea0] shadow-[0_2px_8px_-5px_rgba(90,30,60,0.16)] backdrop-blur-sm">{message.date}</span>
+                              </div>
+                            )}
+                            <div className={`flex items-end ${mine ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`group relative max-w-[85%] sm:max-w-[72%] ${mine
+                                ? 'rounded-[22px] rounded-br-[8px] bg-gradient-to-br from-[#ffd9e4] to-[#ffecf2] text-[#6b1737] shadow-[0_6px_18px_-10px_rgba(200,50,95,0.4)]'
+                                : 'rounded-[22px] rounded-bl-[8px] border border-[#f0e4ec] bg-white text-[#46303c] shadow-[0_4px_16px_-10px_rgba(80,30,55,0.25)]'}`}>
+                                <p className={`whitespace-pre-wrap break-words px-4 pt-2.5 text-[14.5px] leading-[1.5] ${deleted ? 'italic text-[13px] text-[#c2a3b1]' : ''}`}>
+                                  {deleted ? 'Message deleted' : message.text}
+                                </p>
+                                <div className={`flex items-center justify-end gap-1.5 px-4 pb-2 pt-1 text-[10px] font-semibold ${mine ? 'text-[#b3376a]/65' : 'text-[#c3a6b2]'}`}>
+                                  <span>{message.failed ? 'Not sent' : message.pending ? 'Sending…' : message.time}</span>
+                                  {mine && !message.failed && !deleted && (
+                                    <span className={`flex items-center transition-colors ${message.read ? 'text-[#c2185b]' : 'text-[#c2417d]/45'}`} aria-label={message.read ? 'Read' : 'Delivered'}>
                                       <CheckCheck className="h-3.5 w-3.5" />
                                     </span>
                                   )}
                                 </div>
-                                {!message.pending && !message.failed && !message.deletedForEveryone && (
-                                  <div className={`mt-2 flex gap-2 text-[10px] ${mine ? 'justify-end text-white/70' : 'justify-start text-slate-400'}`}>
-                                    <button type="button" onClick={() => void handleDeleteMessage(message, 'for_me')} className="underline underline-offset-2">Delete for me</button>
-                                    {mine && <button type="button" onClick={() => void handleDeleteMessage(message, 'for_everyone')} className="underline underline-offset-2">Delete for everyone</button>}
+                                {!message.pending && !message.failed && !deleted && (
+                                  <div className={`flex gap-3 rounded-b-[22px] px-4 pb-2 pt-0.5 text-[10px] font-bold opacity-0 transition-opacity duration-150 group-hover:opacity-100 ${mine ? 'justify-end text-[#c25780]' : 'justify-start text-[#c3a6b2]'}`}>
+                                    <button type="button" onClick={() => void handleDeleteMessage(message, 'for_me')} className="hover:underline underline-offset-2">Delete for me</button>
+                                    {mine && <button type="button" onClick={() => void handleDeleteMessage(message, 'for_everyone')} className="hover:underline underline-offset-2">Delete for everyone</button>}
                                   </div>
                                 )}
                               </div>
@@ -823,9 +1023,9 @@ export default function MessagesPage() {
                         );
                       })}
                       {partnerTyping && (
-                        <div className="flex justify-start">
-                          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-3 shadow-sm" aria-label={`${profileName(activeConversation)} is typing`}>
-                            {[0, 1, 2].map((dot) => <span key={dot} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#267255]" style={{ animationDelay: `${dot * 120}ms` }} />)}
+                        <div className="msg-in flex justify-start">
+                          <div className="flex items-center gap-1.5 rounded-[20px] rounded-bl-[8px] border border-[#f0e4ec] bg-white px-4 py-3.5 shadow-[0_4px_14px_-8px_rgba(80,40,55,0.25)]" aria-label={`${profileName(activeConversation)} is typing`}>
+                            {[0, 1, 2].map((dot) => <span key={dot} className="h-2 w-2 animate-bounce rounded-full bg-[#e8799e]" style={{ animationDelay: `${dot * 120}ms` }} />)}
                           </div>
                         </div>
                       )}
@@ -837,46 +1037,71 @@ export default function MessagesPage() {
                       type="button"
                       onClick={() => scrollToLatest('smooth')}
                       aria-label={newMessagesBelow > 0 ? `Jump to ${newMessagesBelow} new messages` : 'Scroll to latest message'}
-                      className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[#17232d] px-3 py-2 text-xs font-bold text-white shadow-lg transition hover:bg-[#bd304d] focus:outline-none focus:ring-2 focus:ring-[#bd304d] focus:ring-offset-2"
+                      className="absolute bottom-4 right-6 z-10 inline-flex items-center gap-1.5 rounded-full border border-[#f3e4ec] bg-white px-3.5 py-2 text-[11px] font-bold text-[#c2185b] shadow-[0_8px_20px_-8px_rgba(200,60,100,0.45)] transition-all hover:-translate-y-0.5 hover:shadow-lg"
                     >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                      {newMessagesBelow > 0 && <span>{newMessagesBelow} new {newMessagesBelow === 1 ? 'message' : 'messages'}</span>}
+                      <ArrowDown className="h-4 w-4 text-[#d26d95]" />
+                      {newMessagesBelow > 0 && <span className="unread-pop flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gradient-to-br from-[#f25d8b] to-[#e4335f] px-1 text-[9px] font-extrabold text-white">{newMessagesBelow}</span>}
                     </button>
                   )}
                 </div>
 
-                <footer className="shrink-0 border-t border-slate-200 bg-white p-3 sm:px-5 sm:py-4">
-                  <div className="mx-auto flex max-w-3xl items-end gap-2">
-                    <textarea value={draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend(); } }} rows={1} maxLength={2000} placeholder="Write a message" aria-label="Message" className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-lg border border-slate-200 bg-[#f7f8f8] px-3.5 py-3 text-sm leading-5 text-[#17232d] outline-none placeholder:text-slate-400 focus:border-[#9ebbad] focus:bg-white" />
-                    <button type="button" onClick={() => void handleSend()} disabled={!draft.trim()} title="Send message" aria-label="Send message" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#bd304d] text-white shadow-sm hover:bg-[#a72742] disabled:cursor-not-allowed disabled:bg-slate-300"><Send className="h-4 w-4" /></button>
+                <footer className="relative z-20 shrink-0 border-t-0 bg-[#0f172a] px-3 py-3 sm:px-4">
+                  <div className="mx-auto flex max-w-3xl items-end gap-2.5">
+                    <textarea
+                      value={draft}
+                      onChange={(event) => updateDraft(event.target.value)}
+                      onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend(); } }}
+                      rows={1}
+                      maxLength={2000}
+                      placeholder="Write a message..."
+                      aria-label="Message"
+                      className="max-h-[140px] min-h-[48px] min-w-0 flex-1 resize-none rounded-[14px] border-0 bg-white px-5 py-3 text-[15px] leading-normal text-[#0f172a] outline-none transition-all placeholder:text-[#c4a9b5] focus:ring-2 focus:ring-[#eed7de]/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSend()}
+                      disabled={!draft.trim()}
+                      title="Send message"
+                      aria-label="Send message"
+                      className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[12px] bg-[#eed7de] text-white transition-all duration-200 hover:bg-[#e4c9d1] active:scale-95 disabled:cursor-not-allowed disabled:bg-[#334155] disabled:text-slate-500 disabled:active:scale-100"
+                    >
+                      <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" /></svg>
+                    </button>
                   </div>
-                  <p className="mx-auto mt-1.5 hidden max-w-3xl text-[10px] text-slate-400 sm:block">Enter to send. Shift + Enter for a new line.</p>
                 </footer>
               </>
             )}
           </section>
         ) : (
-          <section className="hidden min-w-0 flex-1 flex-col items-center justify-center bg-[#f8f9f9] px-8 text-center lg:flex">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white text-[#267255] shadow-sm"><MessageCircleMore className="h-7 w-7" /></div>
-            <h2 className="mt-4 text-xl font-extrabold text-[#17232d]">Your conversations</h2>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">Choose a conversation to continue talking with an accepted match.</p>
+          <section className="hidden min-w-0 flex-1 flex-col items-center justify-center border-l border-[#f3e7ee] bg-[#fbf7f9] px-8 text-center lg:flex">
+            <span className="relative flex h-20 w-20 items-center justify-center">
+              <span className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#ffe0e9] to-[#fff0f4] blur-xl opacity-70" />
+              <span className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#ffe0e9] to-[#fff0f4] text-[#d86d95] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_28px_-14px_rgba(190,50,90,0.5)]">
+                <MessageCircleMore className="h-7 w-7" fill="currentColor" strokeWidth={1.5} />
+              </span>
+            </span>
+            <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-[#3c1830]">Your conversations</h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-[#b48ea0]">Choose a conversation to continue an elegant chat with your accepted match.</p>
           </section>
         )}
 
         {detailsOpen && activeConversation && (
-          <aside className="hidden h-full w-[280px] shrink-0 flex-col border-l border-slate-200 bg-white xl:flex">
-            <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
-              <p className="text-sm font-extrabold text-[#17232d]">Profile details</p>
-              <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+          <aside className="hidden h-full w-[300px] shrink-0 flex-col border-l border-[#f3e7ee] bg-white xl:flex">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#f3e7ee] px-5">
+              <p className="text-sm font-extrabold text-[#3c1830]">Profile details</p>
+              <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="flex h-8 w-8 items-center justify-center rounded-full text-[#b48ea0] transition-colors hover:bg-[#fdf0f5] hover:text-[#c2185b]"><X className="h-4 w-4" /></button>
             </div>
             <div className="overflow-y-auto p-5 text-center">
-              <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} className="mx-auto aspect-[4/5] w-full rounded-lg object-cover" />
-              <h2 className="mt-4 text-lg font-extrabold text-[#17232d]">{profileName(activeConversation)}</h2>
-              <p className="mt-1 text-xs text-slate-500">{activeConversation.profile?.occupation || 'Member'}</p>
-              <Link to={`/profile/${currentPartnerId}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white"><UserRound className="h-4 w-4" /> View full profile</Link>
-              <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#dce9e3] bg-[#f2f8f5] p-3 text-left">
-                <ShieldCheck className="h-5 w-5 shrink-0 text-[#267255]" />
-                <div><p className="text-xs font-bold text-[#1f5f47]">Stay on the platform</p><p className="mt-1 text-[11px] leading-5 text-[#5a7469]">Use in-app chat until you trust the other member.</p></div>
+              <span className="mx-auto block h-44 w-32 overflow-hidden rounded-2xl border-2 border-white bg-[#fdf0f5] shadow-[0_12px_28px_-14px_rgba(100,30,60,0.4)]">
+                <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} aspectRatio="4:5" className="h-full w-full object-cover" />
+              </span>
+              <h2 className="mt-5 text-lg font-extrabold tracking-tight text-[#3c1830]">{profileName(activeConversation)}</h2>
+              <p className="mt-1 text-xs font-medium text-[#c39aae]">{activeConversation.profile?.occupation || 'Member'}</p>
+              {activeOnline && <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#2aa584]"><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2aa584] opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[#2fc97a]" /></span> Online</p>}
+              <Link to={profileHref(activeConversation.profile || activeConversation)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#17232d] to-[#2a3b49] px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_-12px_rgba(23,35,45,0.8)] transition-all hover:brightness-110"><UserRound className="h-4 w-4" /> View full profile</Link>
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[#ffe0e9] bg-[#fff6fa] p-3.5 text-left">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-[#d86d95]" />
+                <div><p className="text-xs font-bold text-[#8d3a57]">Stay on the platform</p><p className="mt-0.5 text-[11px] leading-5 text-[#b48ea0]">Use in-app chat until you trust the other member.</p></div>
               </div>
             </div>
           </aside>
@@ -884,20 +1109,22 @@ export default function MessagesPage() {
 
         {detailsOpen && activeConversation && (
           <div className="fixed inset-0 z-[70] xl:hidden" role="dialog" aria-modal="true" aria-label="Profile details">
-            <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close profile details" className="absolute inset-0 bg-slate-950/35" />
-            <aside className="absolute bottom-0 right-0 top-0 flex w-[min(88vw,360px)] flex-col border-l border-slate-200 bg-white shadow-2xl">
-              <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5">
-                <p className="text-sm font-extrabold text-[#17232d]">Profile details</p>
-                <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close profile details" className="absolute inset-0 bg-[#4a2033]/40 backdrop-blur-sm" />
+            <aside className="absolute bottom-0 right-0 top-0 flex w-[min(88vw,360px)] flex-col border-l border-[#f3e7ee] bg-white shadow-2xl">
+              <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#f3e7ee] px-5">
+                <p className="text-sm font-extrabold text-[#3c1830]">Profile details</p>
+                <button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="flex h-9 w-9 items-center justify-center rounded-full text-[#b48ea0] transition-colors hover:bg-[#fdf0f5] hover:text-[#c2185b]"><X className="h-4 w-4" /></button>
               </div>
               <div className="overflow-y-auto p-5 text-center">
-                <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} className="mx-auto aspect-[4/5] w-full rounded-lg object-cover" />
-                <h2 className="mt-4 text-lg font-extrabold text-[#17232d]">{profileName(activeConversation)}</h2>
-                <p className="mt-1 text-xs text-slate-500">{activeConversation.profile?.occupation || 'Member'}</p>
-                <Link to={`/profile/${currentPartnerId}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white"><UserRound className="h-4 w-4" /> View full profile</Link>
-                <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#dce9e3] bg-[#f2f8f5] p-3 text-left">
-                  <ShieldCheck className="h-5 w-5 shrink-0 text-[#267255]" />
-                  <div><p className="text-xs font-bold text-[#1f5f47]">Stay on the platform</p><p className="mt-1 text-[11px] leading-5 text-[#5a7469]">Use in-app chat until you trust the other member.</p></div>
+                <span className="mx-auto block h-48 w-36 overflow-hidden rounded-2xl border-2 border-white bg-[#fdf0f5] shadow-[0_12px_28px_-14px_rgba(100,30,60,0.4)]">
+                  <SmartImage src={activeConversation.profile?.photo} alt={profileName(activeConversation)} aspectRatio="4:5" className="h-full w-full object-cover" />
+                </span>
+                <h2 className="mt-5 text-lg font-extrabold tracking-tight text-[#3c1830]">{profileName(activeConversation)}</h2>
+                <p className="mt-1 text-xs font-medium text-[#c39aae]">{activeConversation.profile?.occupation || 'Member'}</p>
+                <Link to={profileHref(activeConversation.profile || activeConversation)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#17232d] to-[#2a3b49] px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_-12px_rgba(23,35,45,0.8)] transition-all hover:brightness-110"><UserRound className="h-4 w-4" /> View full profile</Link>
+                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[#ffe0e9] bg-[#fff6fa] p-3.5 text-left">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-[#d86d95]" />
+                  <div><p className="text-xs font-bold text-[#8d3a57]">Stay on the platform</p><p className="mt-0.5 text-[11px] leading-5 text-[#b48ea0]">Use in-app chat until you trust the other member.</p></div>
                 </div>
               </div>
             </aside>
@@ -919,5 +1146,6 @@ export default function MessagesPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

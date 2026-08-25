@@ -23,6 +23,7 @@ import {
 import SmartImage from '@/components/shared/smart-image';
 import { useToast } from '@/components/ui';
 import { useAuth } from '@/legacy/contexts/AuthContext';
+import { profileHref } from '@/lib/profile-url';
 import { fetchApi } from '@/legacy/services/apiClient';
 import {
   getInterests,
@@ -109,7 +110,7 @@ function ProfileFeedCard({
     <article className="min-h-full snap-start scroll-mt-2 overflow-hidden rounded-[1.45rem] border border-[#e8dcd7] bg-[#fffefd] shadow-[0_12px_36px_rgba(64,36,47,.07)] transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(64,36,47,.12)]">
       <div className="relative isolate overflow-hidden">
         <Link
-          href={`/profile/${profile.id}`}
+          href={profileHref(profile)}
           aria-label={`View ${profile.name || 'member'} profile`}
           className="block aspect-[4/3] sm:aspect-[5/4]"
         >
@@ -124,7 +125,7 @@ function ProfileFeedCard({
         <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-b from-[#20111a]/58 via-[#20111a]/6 to-[#20111a]/86" />
 
         <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 p-4">
-          <Link href={`/profile/${profile.id}`} className="flex min-w-0 items-center gap-2.5 text-white">
+          <Link href={profileHref(profile)} className="flex min-w-0 items-center gap-2.5 text-white">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/70 bg-[#8e3d58]/90 text-xs font-extrabold shadow-sm backdrop-blur-md">
               {initials(profile.name)}
             </span>
@@ -148,7 +149,7 @@ function ProfileFeedCard({
               <X className="h-4 w-4" />
             </button>
             <Link
-              href={`/profile/${profile.id}`}
+              href={profileHref(profile)}
               aria-label="Open full profile"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-[#20111a]/35 text-white shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#8e3d58]"
             >
@@ -159,7 +160,7 @@ function ProfileFeedCard({
 
         <div className="absolute inset-x-0 bottom-0 z-30 p-4 pb-6 text-white sm:p-5 sm:pb-7">
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/profile/${profile.id}`} className="font-display text-xl font-extrabold tracking-[-.03em] hover:text-[#ffdce5] sm:text-2xl">
+            <Link href={profileHref(profile)} className="font-display text-xl font-extrabold tracking-[-.03em] hover:text-[#ffdce5] sm:text-2xl">
               {profile.name || 'Member'}{profile.age ? `, ${profile.age}` : ''}
             </Link>
             {profile.premium && (
@@ -224,7 +225,7 @@ function ProfileFeedCard({
             {interested ? 'Interest sent' : 'Send interest'}
           </button>
           <Link
-            href={`/profile/${profile.id}`}
+            href={profileHref(profile)}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfd2cd] bg-white text-xs font-extrabold text-[#4e4347] transition hover:border-[#bd8c99] hover:text-[#8e3d58]"
           >
             <Eye className="h-4 w-4" /> View profile
@@ -472,7 +473,6 @@ export default function DashboardReels() {
 
   const firstPending = incoming[0];
   const pendingSender = firstPending?.sender ?? {};
-  const pendingSenderId = pendingSender.id ?? pendingSender.user_id ?? firstPending?.sender_id;
 
   return (
     <div className="min-h-full bg-white pb-24 lg:pb-7">
@@ -557,10 +557,9 @@ export default function DashboardReels() {
               {canViewVisitors && visitors.length > 0 && (
                 <div className="mt-3 space-y-1 border-t border-[#eee5e1] pt-3">
                   {visitors.slice(0, 2).map((visitor) => {
-                    const profileId = visitor.profile?.id || visitor.profile?.user_id || visitor.id;
                     const name = visitor.profile?.full_name || visitor.profile?.first_name || 'Member';
                     return (
-                      <Link key={visitor.id} href={`/profile/${profileId}`} className="flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-[#faf5f2]">
+                      <Link key={visitor.id} href={profileHref(visitor.profile)} className="flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-[#faf5f2]">
                         <SmartImage src={visitor.profile?.photo} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[11px] font-bold text-[#4c4145]">{name}</span>
@@ -584,7 +583,7 @@ export default function DashboardReels() {
 
               {firstPending ? (
                 <div className="mt-3 border-t border-[#eee5e1] pt-3">
-                  <Link href={`/profile/${pendingSenderId}`} className="flex items-center gap-2.5">
+                  <Link href={profileHref(pendingSender)} className="flex items-center gap-2.5">
                     <SmartImage src={pendingSender.photo} alt={pendingSender.first_name || 'Member'} className="h-9 w-9 shrink-0 rounded-full object-cover" />
                     <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#4c4145]">{pendingSender.full_name || pendingSender.first_name || 'Member'}</span>
                     <ChevronRight className="h-3.5 w-3.5 text-[#baa9ae]" />

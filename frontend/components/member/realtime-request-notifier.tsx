@@ -27,6 +27,47 @@ interface RequestItem {
 
 const MAX_REQUEST_POPUPS = 5;
 
+function initialsOf(name?: string): string {
+  return (name || 'M').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'M';
+}
+
+/** Resolve the best visible photo URL for a sender/actor from any wire shape. */
+function resolveSenderPhoto(sender?: RequestItem['sender']): { photoUrl: string; userId?: string } {
+  if (!sender || typeof sender !== 'object') return { photoUrl: '' };
+  const anySender = sender as any;
+
+  // Standard MemberPublicSerializer output.
+  const vis = String(anySender.photo_visibility || '');
+  if (vis === 'visible') {
+    if (typeof (sender.photo as string | undefined) === 'string' && (sender.photo as string).trim()) {
+      return { photoUrl: sender.photo as string, userId: sender.id };
+    }
+  }
+  // Fall back to the photos array / nested primary_photo objects.
+  const collect = (candidate: unknown): string => {
+    if (!candidate) return '';
+    if (typeof candidate === 'string') return candidate.trim();
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        const url = collect(item);
+        if (url) return url;
+      }
+      return '';
+    }
+    if (typeof candidate === 'object') {
+      const rec = candidate as Record<string, unknown>;
+      for (const key of ['url', 'image_url', 'thumbnail_url', 'download_url', 'photo']) {
+        const url = collect(rec[key]);
+        if (url) return url;
+      }
+    }
+    return '';
+  };
+  const photoUrl = collect(anySender.photos) || collect(anySender.primary_photo) || collect(anySender.photo);
+  if (photoUrl) return { photoUrl, userId: sender.id };
+  return { photoUrl: '' };
+}
+
 export function RealtimeRequestNotifier() {
   const { subscribe } = useRealtime();
   const [requestQueue, setRequestQueue] = useState<RequestItem[]>([]);
@@ -34,6 +75,7 @@ export function RealtimeRequestNotifier() {
   const processedIdsRef = useRef<Set<string>>(new Set());
   const shownPopupCountRef = useRef(0);
   const [busy, setBusy] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
   const [morePendingCount, setMorePendingCount] = useState(0);
   const activeRequest = requestQueue[0] || null;
@@ -146,20 +188,16 @@ export function RealtimeRequestNotifier() {
       
       if (status === 'ACCEPTED') {
         setToastMsg({
-          text: `You accepted ${senderName}'s request! Redirecting to chat...`,
+          text: `You accepted ${senderName}'s request! You can connect with them anytime from Matches.`,
           type: 'success',
         });
-        const senderId = activeRequest.sender.id;
-        setTimeout(() => {
-          window.location.href = `/messages?user=${senderId}`;
-        }, 1200);
+        setRejected(false);
+        dismissActiveRequest();
       } else {
-        setToastMsg({
-          text: `Request declined. If rejected by mistake, you can agree anytime under Interests > Declined.`,
-          type: 'info',
-        });
+        // Stay open in a "rejected" state so the member can undo a mistake
+        // instead of hunting for the request again later.
+        setRejected(true);
       }
-      dismissActiveRequest();
     } catch {
       setToastMsg({
         text: 'Action could not be saved. Please try again.',
@@ -170,8 +208,32 @@ export function RealtimeRequestNotifier() {
     }
   };
 
+  const undoReject = async () => {
+    if (!activeRequest || busy) return;
+    setBusy(true);
+    try {
+      await updateInterestStatus(activeRequest.id, 'ACCEPTED');
+      const senderName = activeRequest.sender?.full_name || 'Member';
+      setToastMsg({
+        text: `You re-accepted ${senderName}'s request! They can now connect with you. 💕`,
+        type: 'success',
+      });
+      setRejected(false);
+      dismissActiveRequest();
+    } catch {
+      setToastMsg({
+        text: 'Could not undo the rejection. Please try again.',
+        type: 'info',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const dismissPopup = () => {
-    if (!busy) dismissActiveRequest();
+    if (busy) return;
+    setRejected(false);
+    dismissActiveRequest();
   };
 
   return (
@@ -231,20 +293,40 @@ export function RealtimeRequestNotifier() {
               </button>
 
               {/* Badge */}
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-100 text-[10px] font-bold uppercase tracking-wider text-rose-600 mb-4">
-                <Heart className="w-3 h-3 fill-rose-500 text-rose-500 animate-pulse" />
-                Connection Request Received
-              </div>
+              {rejected ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-4">
+                  <X className="w-3 h-3" />
+                  Request Declined
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-100 text-[10px] font-bold uppercase tracking-wider text-rose-600 mb-4">
+                  <Heart className="w-3 h-3 fill-rose-500 text-rose-500 animate-pulse" />
+                  Connection Request Received
+                </div>
+              )}
 
               {/* Sender Details */}
               <div className="flex items-center gap-4 mb-4">
-                <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border-2 border-rose-100 shrink-0">
-                  <SmartImage
-                    src={activeRequest.sender?.photo}
-                    alt={activeRequest.sender?.full_name || 'Member'}
-                    fill
-                    className="object-cover"
-                  />
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-rose-50 border-2 border-rose-100 shrink-0">
+                  {(() => {
+                    const { photoUrl, userId } = resolveSenderPhoto(activeRequest.sender);
+                    if (photoUrl) {
+                      return (
+                        <SmartImage
+                          src={photoUrl}
+                          userId={userId || null}
+                          alt={activeRequest.sender?.full_name || 'Member'}
+                          fill
+                          className="h-full w-full object-cover"
+                        />
+                      );
+                    }
+                    return (
+                      <span className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-rose-100 to-rose-200 text-rose-600 font-black text-2xl select-none border border-rose-100">
+                        {initialsOf(activeRequest.sender?.full_name)}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-lg leading-snug font-display">
@@ -254,41 +336,64 @@ export function RealtimeRequestNotifier() {
                     {activeRequest.sender?.occupation || 'Profile Seeker'}
                     {activeRequest.sender?.work_location ? ` • ${activeRequest.sender.work_location}` : ''}
                   </p>
-                  <p className="text-[11px] font-semibold text-rose-600 mt-1">
-                    Wants to connect & message with you!
+                  <p className="text-[11px] font-semibold mt-1">
+                    {rejected
+                      ? 'You chose to decline this request.'
+                      : 'Wants to connect & message with you!'}
                   </p>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  onClick={() => handleRespond('DECLINED')}
-                  disabled={busy}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <X className="w-4 h-4 text-slate-400" />
-                  Decline
-                </button>
-                <button
-                  onClick={() => handleRespond('ACCEPTED')}
-                  disabled={busy}
-                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold text-xs hover:from-rose-600 hover:to-pink-700 shadow-md shadow-rose-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:-translate-y-0.5"
-                >
-                  <Check className="w-4 h-4" />
-                  Accept & Message
-                </button>
-              </div>
+              {!rejected ? (
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={() => handleRespond('DECLINED')}
+                    disabled={busy}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <X className="w-4 h-4 text-slate-400" />
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => handleRespond('ACCEPTED')}
+                    disabled={busy}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold text-xs hover:from-rose-600 hover:to-pink-700 shadow-md shadow-rose-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:-translate-y-0.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    Accept
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 pt-2">
+                  <Link
+                    href="/interests/declined"
+                    onClick={dismissPopup}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    View Declined
+                  </Link>
+                  <button
+                    onClick={undoReject}
+                    disabled={busy}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs hover:from-emerald-600 hover:to-teal-700 shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:-translate-y-0.5"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
+                    {busy ? 'Accepting...' : 'Undo & Accept'}
+                  </button>
+                </div>
+              )}
 
               {/* Mistake Help Tip */}
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Mistake recovery available</span>
+                <span>{rejected ? 'Changed your mind? Re-accept anytime.' : 'Swipe request or tap later'}</span>
                 <Link
-                  href="/interests/declined"
+                  href="/interests/received"
                   onClick={dismissPopup}
                   className="text-rose-600 font-bold hover:underline"
                 >
-                  View Declined Requests →
+                  View Pending Requests →
                 </Link>
               </div>
             </motion.div>

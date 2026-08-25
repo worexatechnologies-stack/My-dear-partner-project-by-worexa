@@ -16,6 +16,7 @@ import { getInterests, getConversations, getProfiles, updateInterestStatus } fro
 import { fetchApi } from '@/legacy/services/apiClient';
 import { DashboardSkeleton } from '@/legacy/components/SkeletonLoader';
 import { useGetUnlockUsageQuery } from '@/legacy/services/profileApi';
+import { profileHref } from '@/lib/profile-url';
 
 /* ─────────────────────────── types & helpers ─────────────────────── */
 
@@ -320,7 +321,7 @@ function MatchCard({
       onMouseLeave={() => setHovered(false)}
     >
       {/* Photo */}
-      <Link to={`/profile/${profile.id}`} className="block aspect-[3/4] overflow-hidden" tabIndex={-1} aria-hidden="true">
+      <Link to={profileHref(profile)} className="block aspect-[3/4] overflow-hidden" tabIndex={-1} aria-hidden="true">
         <SmartImage
           src={profile.photo}
           alt={profile.name || 'Match'}
@@ -363,7 +364,7 @@ function MatchCard({
       {/* Info + actions strip */}
       <div className="absolute inset-x-0 bottom-0 px-3 pb-3 pt-8">
         <Link
-          to={`/profile/${profile.id}`}
+          to={profileHref(profile)}
           aria-label={`View ${profile.name}${profile.age ? `, age ${profile.age}` : ''}'s profile`}
         >
           <p className="font-black text-sm text-white truncate">
@@ -722,12 +723,12 @@ export default function DashboardPage() {
                           aria-label={`Interest from ${senderName}`}
                         >
                           <div className="flex gap-3.5">
-                            <Link to={`/profile/${senderId}`} className="relative shrink-0 overflow-hidden rounded-2xl w-[72px] h-[72px] shadow-sm">
+                            <Link to={profileHref(sender)} className="relative shrink-0 overflow-hidden rounded-2xl w-[72px] h-[72px] shadow-sm">
                               <SmartImage src={sender.photo || ''} alt={senderName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                             </Link>
                             <div className="py-1 flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 mb-0.5">
-                                <Link to={`/profile/${senderId}`} className="text-sm font-bold text-slate-800 hover:text-rose-600 truncate transition-colors">
+                                <Link to={profileHref(sender)} className="text-sm font-bold text-slate-800 hover:text-rose-600 truncate transition-colors">
                                   {senderName}{sender.age ? `, ${sender.age}` : ''}
                                 </Link>
                                 {sender.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-rose-500 shrink-0" aria-label="Verified" />}
@@ -855,7 +856,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={v.id}
-                      to={`/profile/${pid}`}
+                      to={profileHref(v.profile)}
                       className="group flex items-center gap-3 p-2.5 rounded-2xl border border-transparent hover:border-slate-100 hover:bg-slate-50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                     >
                       <SmartImage

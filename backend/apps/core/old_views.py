@@ -54,7 +54,7 @@ from .models import (
     TicketStatusHistory,
     WebPushSubscription,
 )
-from .responses import ApiResponse
+from .responses import ApiErrorResponse, ApiResponse
 from .services.match_closure_service import MatchClosureService
 from .serializers import (
     ChatMessageSerializer,
@@ -238,36 +238,70 @@ class ProfileDetailView(APIView):
     def get(self, request, pk):
         """Return an eligible profile and atomically record its daily unlock.
 
-        The unlock, entitlement and access calculations belong to
-        ``ProfileService``.  Keeping this view as a thin HTTP adapter prevents
-        its response from drifting from the daily-usage endpoint.
+        ``pk`` is normally a public ``profile_slug`` (e.g. ``rahul-sharma``).
+        For backward compatibility, a raw UUID is also accepted and resolved
+        internally. The slug is never exposed as the public identifier's
+        replacement; the UUID remains the internal lookup target.
         """
         from rest_framework.response import Response
         from apps.core.services.profile_service import ProfileService
 
+        member = None
+        try:
+            member = Member.objects.filter(profile_slug=str(pk)).first()
+        except (TypeError, ValueError):
+            member = None
+        if member is None:
+            try:
+                member = Member.objects.filter(pk=uuid.UUID(str(pk))).first()
+            except (TypeError, ValueError, AttributeError):
+                member = None
+        if member is None:
+            return ApiResponse(
+                success=False,
+                message='Profile not found.',
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        pk = member.pk
         success, message, payload = ProfileService.get_full_profile(
             request.user,
             pk,
             source=request.query_params.get('source', 'search'),
         )
         if not success:
-            if payload and payload.get('code') == 'daily_profile_unlock_limit_reached':
-                if 'limit' in payload:
-                    payload['views_limit'] = payload['limit']
-                elif 'daily_limit' in payload:
-                    payload['views_limit'] = payload['daily_limit']
-                from apps.core.entitlements import entitlement_denial, get_active_entitlements
-                denial = entitlement_denial(get_active_entitlements(request.user), 'daily_profile_view_limit', daily_limit=True)
-                denial.update({
-                    'code': 'daily_profile_unlock_limit_reached',
-                    'used': payload.get('used') if 'used' in payload else payload.get('used_today'),
-                    'remaining': payload.get('remaining') if 'remaining' in payload else payload.get('remaining_today'),
-                    'views_limit': payload.get('views_limit'),
-                })
-                return Response(
-                    denial,
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            if payload and isinstance(payload, dict):
+                code = payload.get('code')
+                # Instagram-style blocked states.
+                if code == 'blocked_by_user':
+                    return ApiErrorResponse(
+                        message='You have been blocked by this user.',
+                        code='blocked_by_user',
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if code == 'you_blocked':
+                    return ApiErrorResponse(
+                        message='You have blocked this user.',
+                        code='you_blocked',
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if code == 'daily_profile_unlock_limit_reached':
+                    if 'limit' in payload:
+                        payload['views_limit'] = payload['limit']
+                    elif 'daily_limit' in payload:
+                        payload['views_limit'] = payload['daily_limit']
+                    from apps.core.entitlements import entitlement_denial, get_active_entitlements
+                    denial = entitlement_denial(get_active_entitlements(request.user), 'daily_profile_view_limit', daily_limit=True)
+                    denial.update({
+                        'code': 'daily_profile_unlock_limit_reached',
+                        'used': payload.get('used') if 'used' in payload else payload.get('used_today'),
+                        'remaining': payload.get('remaining') if 'remaining' in payload else payload.get('remaining_today'),
+                        'views_limit': payload.get('views_limit'),
+                    })
+                    return Response(
+                        denial,
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
             return ApiResponse(
                 success=False,
                 message=message,
@@ -281,6 +315,8 @@ class ProfileDetailView(APIView):
         member = payload['profile']
         return ApiResponse(data={
             'profile': MemberPublicSerializer(member, context={'request': request}).data,
+            'blocked_by_me': bool(payload.get('blocked_by_me', False)),
+            'blocked_by_user': bool(payload.get('blocked_by_user', False)),
             'compatibility': payload['compatibility'],
             'access': payload['access'],
         })
@@ -395,7 +431,7 @@ class InterestListCreateView(APIView):
                     notification_type='INTEREST_RECEIVED',
                     title='New interest received',
                     message=f'{request.user.get_full_name()} sent you an interest.',
-                    link_url=f'/profile/{request.user.pk}',
+                    link_url=f'/profile/{request.user.profile_slug or request.user.pk}',
                     related_object=interest,
                 )
                 return ApiResponse(
@@ -412,7 +448,7 @@ class InterestListCreateView(APIView):
             notification_type='INTEREST_RECEIVED',
             title='New interest received',
             message=f'{request.user.get_full_name()} sent you an interest.',
-            link_url=f'/profile/{request.user.pk}',
+            link_url=f'/profile/{request.user.profile_slug or request.user.pk}',
             related_object=interest,
         )
         return ApiResponse(
@@ -472,7 +508,7 @@ class InterestDetailView(APIView):
                 notification_type='INTEREST_UPDATED',
                 title='Interest updated',
                 message=f'{request.user.get_full_name()} {new_status.lower()} your interest.',
-                link_url=f'/profile/{request.user.pk}',
+                link_url=f'/profile/{request.user.profile_slug or request.user.pk}',
                 related_object=interest,
             )
         return ApiResponse(data=InterestSerializer(interest, context={'request': request}).data)
@@ -516,57 +552,99 @@ class InterestDetailView(APIView):
 class ConversationListView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
+    DEFAULT_PAGE_SIZE = 50
+    MAX_PAGE_SIZE = 100
+
+    def _page_params(self, request):
+        try:
+            page_size = max(1, min(int(request.query_params.get('page_size', self.DEFAULT_PAGE_SIZE)), self.MAX_PAGE_SIZE))
+        except (TypeError, ValueError):
+            page_size = self.DEFAULT_PAGE_SIZE
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (TypeError, ValueError):
+            page = 1
+        return page, page_size
+
     def get(self, request):
-        closed_partner_ids = MatchClosureService.closed_partner_ids(request.user)
-        blocked_partner_ids = set(ProfileBlock.objects.filter(blocker=request.user).values_list('blocked_id', flat=True))
-        blocked_partner_ids.update(ProfileBlock.objects.filter(blocked=request.user).values_list('blocker_id', flat=True))
-        messages = (
-            ChatMessage.objects.filter(Q(sender=request.user) | Q(receiver=request.user))
-            .exclude(user_visibility__user_id_snapshot=request.user.pk, user_visibility__hidden=True)
-            .select_related('sender', 'receiver')
-            .order_by('-created_at')
+        member = request.user
+        page, page_size = self._page_params(request)
+
+        closed_partner_ids = MatchClosureService.closed_partner_ids(member)
+        blocked_partner_ids = set(ProfileBlock.objects.filter(blocker=member).values_list('blocked_id', flat=True))
+        blocked_partner_ids.update(ProfileBlock.objects.filter(blocked=member).values_list('blocker_id', flat=True))
+        excluded_partner_ids = set(closed_partner_ids) | blocked_partner_ids
+        excluded_partner_ids.discard(member.pk)
+
+        from .message_service import conversation_summary_rows
+
+        page_rows, total = conversation_summary_rows(
+            member=member,
+            excluded_partner_ids=excluded_partner_ids,
+            page=page,
+            page_size=page_size,
         )
-        seen = set()
+
+        # Fetch the actual latest visible message objects for this page in ONE
+        # query (constant cost, independent of conversation count).
+        latest_ids = [str(row['latest_message_id']) for row in page_rows if row.get('latest_message_id')]
+        latest_messages = {}
+        if latest_ids:
+            latest_messages = {
+                str(msg.pk): msg
+                for msg in ChatMessage.objects.filter(pk__in=latest_ids).select_related('sender', 'receiver')
+            }
+
+        # Fetch every partner profile for this page in ONE query + prefetch
+        # photos (constant cost, independent of conversation count).
+        partner_ids = {str(row['partner_id']) for row in page_rows if row.get('partner_id')}
+        partner_qs = (
+            Member.objects.filter(pk__in=partner_ids)
+            .select_related('profile', 'preferences')
+            .prefetch_related(
+                Prefetch('profile_photos', queryset=ProfilePhoto.objects.active().without_binary())
+            )
+        )
+        partners_map = {str(p.pk): p for p in partner_qs}
+
+        seen_partners = set()
         conversations = []
-        for message in messages:
-            other = message.receiver if message.sender_id == request.user.pk else message.sender
+        for row in page_rows:
+            other = partners_map.get(str(row['partner_id']))
             if other is None:
                 continue
-            if other.pk in closed_partner_ids or other.pk in blocked_partner_ids:
+            msg = latest_messages.get(str(row['latest_message_id']))
+            if msg is None:
                 continue
-            if other.pk in seen:
-                continue
-            seen.add(other.pk)
-            unread = ChatMessage.objects.filter(sender=other, receiver=request.user, is_read=False).count()
-            wire_message = serialize_message(message, viewer=request.user)
+            # ``id`` is retained for the existing chat UI; ``partner_id`` is
+            # the explicit contract for new clients.
             conversations.append({
-                # ``id`` is retained for the existing chat UI; ``partner_id``
-                # is the explicit contract for new clients.
                 'id': str(other.pk),
                 'partner_id': str(other.pk),
                 'profile': MemberPublicSerializer(other, context={'request': request}).data,
-                'lastMessage': wire_message['text'] if wire_message else '',
-                'time': message.created_at,
-                'unread': unread,
+                'lastMessage': msg.text if not msg.deleted_for_everyone else 'Message deleted',
+                'time': msg.created_at,
+                'unread': row['unread_count'] or 0,
             })
+            seen_partners.add(str(other.pk))
 
         # An accepted interest is a real mutual match even before either
-        # member sends the first message. Include it so it can be found in the
-        # Messages screen and either member can start the conversation.
+        # member sends the first message. Include those that do not already
+        # have a conversation row on this page.
         accepted_interests = (
             Interest.objects.filter(
-                Q(sender=request.user) | Q(receiver=request.user),
+                Q(sender=member) | Q(receiver=member),
                 status=Interest.Status.ACCEPTED,
             )
             .select_related('sender', 'receiver')
             .order_by('-updated_at')
         )
         for interest in accepted_interests:
-            other = interest.receiver if interest.sender_id == request.user.pk else interest.sender
+            other = interest.receiver if interest.sender_id == member.pk else interest.sender
             if (
-                other.pk in seen
-                or other.pk in closed_partner_ids
-                or other.pk in blocked_partner_ids
+                other is None
+                or str(other.pk) in seen_partners
+                or str(other.pk) in excluded_partner_ids
                 or not other.is_active
                 or other.deleted_at is not None
                 or other.account_status != Member.AccountStatus.ACTIVE
@@ -577,7 +655,7 @@ class ConversationListView(APIView):
                 )
             ):
                 continue
-            seen.add(other.pk)
+            seen_partners.add(str(other.pk))
             conversations.append({
                 'id': str(other.pk),
                 'partner_id': str(other.pk),
@@ -587,8 +665,21 @@ class ConversationListView(APIView):
                 'unread': 0,
             })
 
-        conversations.sort(key=lambda conversation: conversation['time'], reverse=True)
-        return ApiResponse(data=conversations)
+        conversations.sort(key=lambda conversation: str(conversation['time']), reverse=True)
+
+        # Pagination metadata is exposed via headers so the client can load
+        # the next batch with ?page=N without breaking the existing array
+        # response body (unwrapPayload returns `.data` as-is).
+        return ApiResponse(
+            data=conversations,
+            status=status.HTTP_200_OK,
+            headers={
+                'X-Page': str(page),
+                'X-Page-Size': str(page_size),
+                'X-Has-More': 'true' if page * page_size < total else 'false',
+                'X-Total': str(total),
+            },
+        )
 
 
 def _mark_partner_messages_read(reader, partner):
@@ -708,7 +799,9 @@ class MessageHistoryView(APIView):
                 message = "Messaging is only available after mutual interest acceptance."
             elif code == "match_removed":
                 message = "This match has been removed."
-            elif code == "messaging_blocked":
+            elif code == "blocked_by_user":
+                message = "You have been blocked by this user."
+            elif code == "messaging_blocked" or code == "you_blocked":
                 message = "Messaging is not available."
             elif code == "target_ineligible":
                 message = "This member is not eligible or available."
