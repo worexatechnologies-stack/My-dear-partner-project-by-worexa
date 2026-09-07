@@ -63,6 +63,8 @@ urlpatterns = [
     # The legacy frontend is mounted at /api/v1 and needs shortlists while it
     # transitions away from its former browser mock client.
     path('api/v1/', include('apps.matching.urls')),
+    # Device push notification registration
+    path('api/v1/', include('apps.notifications.urls')),
     
     # OpenAPI Schema & Docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

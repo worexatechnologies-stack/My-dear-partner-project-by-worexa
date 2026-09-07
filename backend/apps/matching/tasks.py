@@ -43,7 +43,7 @@ def recalculate_compatibility_scores():
 
 @shared_task(name="apps.matching.tasks.send_interest_notification")
 def send_interest_notification(interest_id):
-    """Email notification stub; replaceable with a push provider later."""
+    """Email and push notification for received interests."""
 
     interest = Interest.objects.select_related("sender", "receiver").filter(pk=interest_id).first()
     if interest is None:
@@ -55,4 +55,16 @@ def send_interest_notification(interest_id):
         recipient_list=[interest.receiver.email],
         fail_silently=True,
     )
+
+    try:
+        from apps.notifications.models import Device
+        from apps.notifications.push import send_interest_push
+
+        devices = list(Device.objects.filter(user=interest.receiver))
+        sender_name = interest.sender.get_full_name() or interest.sender.email or "Someone"
+        for device in devices:
+            send_interest_push(device, sender_name, interest.pk)
+    except Exception:
+        pass
+
     return True

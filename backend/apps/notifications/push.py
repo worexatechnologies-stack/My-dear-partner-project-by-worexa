@@ -1,19 +1,199 @@
-"""Secure Web Push delivery for member notifications.
+"""Push notification delivery service for MyDearPartner.
 
-Subscriptions are stored per authenticated member/device. The Web Push
-provider dependency is imported only when keys are configured so local and test
-environments do not need external credentials to run the core application.
+Supports both:
+1. Web Push (VAPID / pywebpush) for desktop / mobile browsers.
+2. Firebase Cloud Messaging (FCM / APNs) for iOS and Android native apps.
 """
 
 import json
 import logging
+import os
 
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
+import firebase_admin
+from firebase_admin import credentials, messaging
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Firebase Admin SDK initialization
+# ---------------------------------------------------------------------------
+
+_firebase_initialized = False
+
+
+def firebase_app():
+    """Initialize and return the Firebase Admin app instance."""
+    global _firebase_initialized
+    try:
+        return firebase_admin.get_app()
+    except ValueError:
+        pass
+
+    cert_path = getattr(
+        settings,
+        'FIREBASE_SERVICE_ACCOUNT_FILE',
+        '/opt/mydearpartner/secrets/firebase-service-account.json',
+    )
+    if not cert_path or not os.path.exists(cert_path):
+        logger.warning(
+            "Firebase credentials file not found at '%s'. Push notifications are suspended.",
+            cert_path,
+        )
+        return None
+
+    try:
+        cred = credentials.Certificate(cert_path)
+        app = firebase_admin.initialize_app(cred)
+        _firebase_initialized = True
+        logger.info("Firebase Admin initialized successfully using %s", cert_path)
+        return app
+    except Exception as exc:
+        logger.exception("Failed to initialize Firebase Admin SDK: %s", exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Mobile FCM Push Senders (iOS + Android)
+# ---------------------------------------------------------------------------
+
+def send_chat_push(
+    device,
+    sender_name,
+    encrypted_text,
+    message_id,
+    conversation_id,
+    sender_id,
+    receiver_id,
+):
+    """Send E2EE chat push notification to an iOS or Android device.
+
+    iOS requires an APNs alert with mutable_content=True so the Notification
+    Service Extension can decrypt and render the message while the app is
+    closed/terminated.
+    Android receives a data-only payload so headless JavaScript can decrypt.
+    """
+    app = firebase_app()
+    if not app:
+        return None
+
+    token = getattr(device, 'token', device)
+    platform = str(getattr(device, 'platform', 'android')).lower().strip()
+
+    data = {
+        "kind": "chat_message",
+        "message_id": str(message_id),
+        "conversation_id": str(conversation_id),
+        "sender_id": str(sender_id),
+        "receiver_id": str(receiver_id),
+        "sender_name": str(sender_name),
+        "encrypted_text": str(encrypted_text),
+    }
+
+    apns = None
+    if platform == "ios":
+        apns = messaging.APNSConfig(
+            headers={
+                "apns-push-type": "alert",
+                "apns-priority": "10",
+            },
+            payload=messaging.APNSPayload(
+                aps=messaging.Aps(
+                    alert=messaging.ApsAlert(
+                        title="💬 MyDearPartner",
+                        body="🔒 You have a new message",
+                    ),
+                    sound="default",
+                    mutable_content=True,
+                )
+            ),
+        )
+
+    try:
+        msg = messaging.Message(
+            token=token,
+            data=data,
+            android=messaging.AndroidConfig(priority="high"),
+            apns=apns,
+        )
+        response = messaging.send(msg)
+        logger.info("FCM chat push delivered: %s (token=%s...)", response, token[:15])
+        return response
+    except messaging.UnregisteredError:
+        logger.info("FCM token unregistered. Deleting device %s...", token[:15])
+        if hasattr(device, 'delete'):
+            device.delete()
+        else:
+            from apps.notifications.models import Device
+            Device.objects.filter(token=token).delete()
+        return None
+    except Exception as exc:
+        logger.exception("Error sending chat push to %s: %s", token[:15], exc)
+        return None
+
+
+def send_interest_push(device, sender_name, interest_id):
+    """Notify a mobile device when an interest is received."""
+    app = firebase_app()
+    if not app:
+        return None
+
+    token = getattr(device, 'token', device)
+    platform = str(getattr(device, 'platform', 'android')).lower().strip()
+
+    data = {
+        "kind": "interest_received",
+        "interest_id": str(interest_id),
+        "sender_name": str(sender_name),
+    }
+
+    apns = None
+    if platform == "ios":
+        apns = messaging.APNSConfig(
+            headers={
+                "apns-push-type": "alert",
+                "apns-priority": "10",
+            },
+            payload=messaging.APNSPayload(
+                aps=messaging.Aps(
+                    alert=messaging.ApsAlert(
+                        title="💌 New Interest",
+                        body=f"{sender_name} sent you an interest!",
+                    ),
+                    sound="default",
+                )
+            ),
+        )
+
+    try:
+        msg = messaging.Message(
+            token=token,
+            data=data,
+            android=messaging.AndroidConfig(priority="high"),
+            apns=apns,
+        )
+        response = messaging.send(msg)
+        logger.info("FCM interest push delivered: %s", response)
+        return response
+    except messaging.UnregisteredError:
+        logger.info("FCM token unregistered. Deleting device %s...", token[:15])
+        if hasattr(device, 'delete'):
+            device.delete()
+        else:
+            from apps.notifications.models import Device
+            Device.objects.filter(token=token).delete()
+        return None
+    except Exception as exc:
+        logger.exception("Error sending interest push to %s: %s", token[:15], exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Web Push (VAPID / Browser)
+# ---------------------------------------------------------------------------
 
 def push_is_configured():
     return bool(
@@ -29,13 +209,10 @@ def _safe_link_url(link_url):
 
 def notification_push_payload(notification):
     """Return the deliberately minimal payload exposed on the device lock screen."""
-
     is_chat = str(notification.notification_type or '').upper() == 'CHAT_MESSAGE'
     return {
         'id': str(notification.pk),
         'title': str(notification.title or 'My Dear Partner')[:120],
-        # Chat content can be end-to-end encrypted and is never copied to a
-        # system notification preview.
         'body': 'You have a new message.' if is_chat else str(notification.message or 'You have a new update.')[:180],
         'icon': '/images/main-logo.png',
         'tag': f'mdp-notification-{notification.pk}',
@@ -48,8 +225,7 @@ def notification_push_payload(notification):
 
 @shared_task(ignore_result=True, autoretry_for=(), retry_backoff=False)
 def deliver_notification_push(notification_id):
-    """Deliver a persisted notification to active devices after commit."""
-
+    """Deliver a persisted notification to active web browsers."""
     if not push_is_configured():
         return
 
@@ -107,11 +283,9 @@ def deliver_notification_push(notification_id):
 
 def queue_notification_push(notification):
     """Queue delivery without allowing device provider failures to affect the API."""
-
     if not push_is_configured() or not notification.member_recipient_id:
         return
     try:
         deliver_notification_push.delay(str(notification.pk))
     except Exception:
-        # The database row and Channels event remain the primary delivery path.
         logger.exception('Could not enqueue Web Push notification=%s', notification.pk)

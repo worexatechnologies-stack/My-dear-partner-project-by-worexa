@@ -157,6 +157,36 @@ def create_notification(recipient, *, type, title, body, link_url='', related_ob
     return notification
 
 
+def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
+    try:
+        from apps.notifications.models import Device
+        from apps.notifications.push import send_chat_push
+
+        devices = list(Device.objects.filter(user=recipient_user))
+        if not devices:
+            return
+
+        sender_name = sender_user.get_full_name() or sender_user.email or "Member"
+        conversation_id = str(getattr(chat_msg, 'conversation_id', '') or '')
+        encrypted_text = getattr(chat_msg, 'text', '') or ''
+        message_id = str(chat_msg.pk)
+        sender_id = str(sender_user.pk)
+        receiver_id = str(recipient_user.pk)
+
+        for device in devices:
+            send_chat_push(
+                device=device,
+                sender_name=sender_name,
+                encrypted_text=encrypted_text,
+                message_id=message_id,
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+                receiver_id=receiver_id,
+            )
+    except Exception:
+        logger.exception("Failed to dispatch mobile FCM chat push")
+
+
 def notify_chat_message(recipient, sender, text, message):
     """Persist ONE CHAT_MESSAGE notification per conversation instead of one
     per message so the notification bell does not flood (e.g. 10 messages from
@@ -169,6 +199,9 @@ def notify_chat_message(recipient, sender, text, message):
     from django.utils import timezone
 
     from apps.core.models import Notification
+
+    # Always dispatch mobile push to registered devices after transaction commit
+    transaction.on_commit(lambda: _send_mobile_chat_push(recipient, sender, message))
 
     link_url = f'/messages?user={sender.pk}'
     title = f'New message from {sender.get_full_name() or "Member"}'
