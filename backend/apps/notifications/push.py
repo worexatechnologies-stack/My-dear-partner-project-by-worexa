@@ -13,7 +13,7 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 import firebase_admin
-from firebase_admin import credentials, messaging
+from firebase_admin import credentials, exceptions, messaging
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,48 @@ logger = logging.getLogger(__name__)
 _firebase_initialized = False
 
 
+def get_firebase_credentials():
+    """Locate and load Firebase credentials from environment or secret files."""
+    # 1. Inline JSON via environment variable (useful in Docker / container deployments)
+    raw_json = (
+        os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON', '').strip()
+        or os.environ.get('FIREBASE_CREDENTIALS_JSON', '').strip()
+    )
+    if raw_json:
+        try:
+            if raw_json.startswith('{'):
+                cred_dict = json.loads(raw_json)
+            else:
+                import base64
+                cred_dict = json.loads(base64.b64decode(raw_json).decode('utf-8'))
+            return credentials.Certificate(cred_dict)
+        except Exception as exc:
+            logger.warning("Failed to parse inline Firebase credentials JSON: %s", exc)
+
+    # 2. File path candidates
+    candidates = [
+        getattr(settings, 'FIREBASE_SERVICE_ACCOUNT_FILE', None),
+        getattr(settings, 'FIREBASE_CREDENTIALS_PATH', None),
+        os.environ.get('FIREBASE_SERVICE_ACCOUNT_FILE'),
+        os.environ.get('FIREBASE_CREDENTIALS_PATH'),
+        os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'),
+        '/opt/mydearpartner/secrets/firebase-service-account.json',
+        str(getattr(settings, 'BASE_DIR', '')) + '/secrets/firebase-service-account.json',
+        str(getattr(settings, 'BASE_DIR', '')) + '/firebase-service-account.json',
+    ]
+
+    for path in candidates:
+        if path and os.path.exists(path) and os.path.isfile(path):
+            try:
+                cred = credentials.Certificate(path)
+                logger.info("Found valid Firebase credentials file at '%s'", path)
+                return cred
+            except Exception as exc:
+                logger.warning("Failed reading Firebase credentials from '%s': %s", path, exc)
+
+    return None
+
+
 def firebase_app():
     """Initialize and return the Firebase Admin app instance."""
     global _firebase_initialized
@@ -33,27 +75,54 @@ def firebase_app():
     except ValueError:
         pass
 
-    cert_path = getattr(
-        settings,
-        'FIREBASE_SERVICE_ACCOUNT_FILE',
-        '/opt/mydearpartner/secrets/firebase-service-account.json',
-    )
-    if not cert_path or not os.path.exists(cert_path):
+    cred = get_firebase_credentials()
+    if not cred:
         logger.warning(
-            "Firebase credentials file not found at '%s'. Push notifications are suspended.",
-            cert_path,
+            "Firebase credentials not found. Push notifications are suspended. "
+            "Please configure FIREBASE_SERVICE_ACCOUNT_FILE or FIREBASE_SERVICE_ACCOUNT_JSON."
         )
         return None
 
     try:
-        cred = credentials.Certificate(cert_path)
         app = firebase_admin.initialize_app(cred)
         _firebase_initialized = True
-        logger.info("Firebase Admin initialized successfully using %s", cert_path)
+        logger.info(
+            "Firebase Admin initialized successfully (project_id=%s)",
+            getattr(cred, 'project_id', 'unknown'),
+        )
         return app
     except Exception as exc:
         logger.exception("Failed to initialize Firebase Admin SDK: %s", exc)
         return None
+
+
+def _handle_token_error(token, user_id, exc):
+    """Remove invalid/unregistered token from database when Firebase rejects it."""
+    is_unregistered = isinstance(exc, (messaging.UnregisteredError, exceptions.NotFoundError))
+    is_invalid = isinstance(exc, exceptions.InvalidArgumentError)
+    err_str = str(exc).upper()
+    err_code = str(getattr(exc, 'code', '') or '').upper()
+
+    if (
+        is_unregistered
+        or is_invalid
+        or 'UNREGISTERED' in err_str
+        or 'INVALID_ARGUMENT' in err_str
+        or err_code in ('UNREGISTERED', 'INVALID_ARGUMENT', 'NOT_FOUND')
+    ):
+        from apps.notifications.models import Device
+
+        deleted_count, _ = Device.objects.filter(token=token).delete()
+        logger.warning(
+            "Firebase token invalid/unregistered. Removed %s device record(s) "
+            "for token=%s... (recipient_user_id=%s, error=%s)",
+            deleted_count,
+            token[:15],
+            user_id,
+            exc,
+        )
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -62,133 +131,244 @@ def firebase_app():
 
 def send_chat_push(
     device,
-    sender_name,
-    encrypted_text,
-    message_id,
-    conversation_id,
-    sender_id,
-    receiver_id,
+    sender_name="Member",
+    encrypted_text="",
+    message_id="",
+    conversation_id="",
+    sender_id="",
+    receiver_id="",
+    title="New message",
+    body="You have a new message",
 ):
-    """Send E2EE chat push notification to an iOS or Android device.
+    """Send FCM/APNs push notification for a new chat message.
 
-    iOS requires an APNs alert with mutable_content=True so the Notification
-    Service Extension can decrypt and render the message while the app is
-    closed/terminated.
-    Android receives a data-only payload so headless JavaScript can decrypt.
+    Appears in the system tray when foregrounded, backgrounded, or killed.
+    Android uses channel 'mdp_messages_v2' with priority 'high'.
+    iOS uses APNs priority 10, sound default, badge 1, mutable-content 1.
     """
     app = firebase_app()
     if not app:
         return None
 
     token = getattr(device, 'token', device)
-    platform = str(getattr(device, 'platform', 'android')).lower().strip()
+    user_id = getattr(device, 'user_id', receiver_id)
 
+    # Build data payload (all values must be strings)
     data = {
-        "kind": "chat_message",
-        "message_id": str(message_id),
-        "conversation_id": str(conversation_id),
-        "sender_id": str(sender_id),
-        "receiver_id": str(receiver_id),
-        "sender_name": str(sender_name),
-        "encrypted_text": str(encrypted_text),
+        "kind": "message",
+        "conversation_id": str(conversation_id or ""),
+        "message_id": str(message_id or ""),
+        "sender_id": str(sender_id or ""),
     }
+    if sender_name:
+        data["sender_name"] = str(sender_name)
 
-    apns = None
-    if platform == "ios":
-        apns = messaging.APNSConfig(
-            headers={
-                "apns-push-type": "alert",
-                "apns-priority": "10",
-            },
-            payload=messaging.APNSPayload(
-                aps=messaging.Aps(
-                    alert=messaging.ApsAlert(
-                        title="💬 MyDearPartner",
-                        body="🔒 You have a new message",
-                    ),
-                    sound="default",
-                    mutable_content=True,
-                )
-            ),
-        )
+    # Android config
+    android = messaging.AndroidConfig(
+        priority="high",
+        notification=messaging.AndroidNotification(
+            channel_id="mdp_messages_v2",
+            sound="default",
+        ),
+    )
+
+    # APNs config
+    apns = messaging.APNSConfig(
+        headers={
+            "apns-priority": "10",
+        },
+        payload=messaging.APNSPayload(
+            aps=messaging.Aps(
+                sound="default",
+                badge=1,
+                mutable_content=True,
+            )
+        ),
+    )
+
+    msg = messaging.Message(
+        token=token,
+        notification=messaging.Notification(
+            title=title or "New message",
+            body=body or "You have a new message",
+        ),
+        data=data,
+        android=android,
+        apns=apns,
+    )
 
     try:
-        msg = messaging.Message(
-            token=token,
-            data=data,
-            android=messaging.AndroidConfig(priority="high"),
-            apns=apns,
-        )
         response = messaging.send(msg)
-        logger.info("FCM chat push delivered: %s (token=%s...)", response, token[:15])
+        logger.info(
+            "Firebase message delivered: message_id=%s recipient_user_id=%s token=%s...",
+            response,
+            user_id,
+            token[:15],
+        )
         return response
-    except messaging.UnregisteredError:
-        logger.info("FCM token unregistered. Deleting device %s...", token[:15])
-        if hasattr(device, 'delete'):
-            device.delete()
-        else:
-            from apps.notifications.models import Device
-            Device.objects.filter(token=token).delete()
-        return None
     except Exception as exc:
-        logger.exception("Error sending chat push to %s: %s", token[:15], exc)
+        logger.error(
+            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            user_id,
+            token[:15],
+            exc,
+        )
+        _handle_token_error(token, user_id, exc)
         return None
 
 
-def send_interest_push(device, sender_name, interest_id):
-    """Notify a mobile device when an interest is received."""
+def send_interest_push(
+    device,
+    sender_name="Someone",
+    interest_id="",
+    sender_id="",
+    receiver_id="",
+    title="New Interest",
+    body="Someone sent you an interest",
+):
+    """Send FCM/APNs push notification for an interest received.
+
+    Appears in the system tray when foregrounded, backgrounded, or killed.
+    Android uses channel 'mdp_interests_v2' with priority 'high'.
+    iOS uses APNs priority 10, sound default, badge 1.
+    """
     app = firebase_app()
     if not app:
         return None
 
     token = getattr(device, 'token', device)
-    platform = str(getattr(device, 'platform', 'android')).lower().strip()
+    user_id = getattr(device, 'user_id', receiver_id)
 
+    # Build data payload (all values must be strings)
     data = {
-        "kind": "interest_received",
-        "interest_id": str(interest_id),
-        "sender_name": str(sender_name),
+        "kind": "interest",
+        "interest_id": str(interest_id or ""),
+        "sender_id": str(sender_id or ""),
     }
+    if sender_name:
+        data["sender_name"] = str(sender_name)
 
-    apns = None
-    if platform == "ios":
-        apns = messaging.APNSConfig(
-            headers={
-                "apns-push-type": "alert",
-                "apns-priority": "10",
-            },
-            payload=messaging.APNSPayload(
-                aps=messaging.Aps(
-                    alert=messaging.ApsAlert(
-                        title="💌 New Interest",
-                        body=f"{sender_name} sent you an interest!",
-                    ),
-                    sound="default",
-                )
-            ),
-        )
+    # Android config
+    android = messaging.AndroidConfig(
+        priority="high",
+        notification=messaging.AndroidNotification(
+            channel_id="mdp_interests_v2",
+            sound="default",
+        ),
+    )
+
+    # APNs config
+    apns = messaging.APNSConfig(
+        headers={
+            "apns-priority": "10",
+        },
+        payload=messaging.APNSPayload(
+            aps=messaging.Aps(
+                sound="default",
+                badge=1,
+            )
+        ),
+    )
+
+    msg = messaging.Message(
+        token=token,
+        notification=messaging.Notification(
+            title=title or "New Interest",
+            body=body or "Someone sent you an interest",
+        ),
+        data=data,
+        android=android,
+        apns=apns,
+    )
 
     try:
-        msg = messaging.Message(
-            token=token,
-            data=data,
-            android=messaging.AndroidConfig(priority="high"),
-            apns=apns,
-        )
         response = messaging.send(msg)
-        logger.info("FCM interest push delivered: %s", response)
+        logger.info(
+            "Firebase message delivered: message_id=%s recipient_user_id=%s token=%s...",
+            response,
+            user_id,
+            token[:15],
+        )
         return response
-    except messaging.UnregisteredError:
-        logger.info("FCM token unregistered. Deleting device %s...", token[:15])
-        if hasattr(device, 'delete'):
-            device.delete()
-        else:
-            from apps.notifications.models import Device
-            Device.objects.filter(token=token).delete()
-        return None
     except Exception as exc:
-        logger.exception("Error sending interest push to %s: %s", token[:15], exc)
+        logger.error(
+            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            user_id,
+            token[:15],
+            exc,
+        )
+        _handle_token_error(token, user_id, exc)
         return None
+
+
+def send_chat_push_to_user(
+    recipient_user,
+    sender_name="Member",
+    encrypted_text="",
+    message_id="",
+    conversation_id="",
+    sender_id="",
+    title="New message",
+    body="You have a new message",
+):
+    """Dispatch chat push notifications to all active devices of a recipient user."""
+    from apps.notifications.models import Device
+
+    recipient_id = getattr(recipient_user, 'pk', recipient_user)
+    devices = list(Device.objects.filter(user=recipient_user, active=True))
+    logger.info(
+        "Preparing chat push dispatch: recipient_user_id=%s token_count=%d",
+        recipient_id,
+        len(devices),
+    )
+    results = []
+    for dev in devices:
+        res = send_chat_push(
+            device=dev,
+            sender_name=sender_name,
+            encrypted_text=encrypted_text,
+            message_id=message_id,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            receiver_id=recipient_id,
+            title=title,
+            body=body,
+        )
+        results.append(res)
+    return results
+
+
+def send_interest_push_to_user(
+    recipient_user,
+    sender_name="Someone",
+    interest_id="",
+    sender_id="",
+    title="New Interest",
+    body="Someone sent you an interest",
+):
+    """Dispatch interest push notifications to all active devices of a recipient user."""
+    from apps.notifications.models import Device
+
+    recipient_id = getattr(recipient_user, 'pk', recipient_user)
+    devices = list(Device.objects.filter(user=recipient_user, active=True))
+    logger.info(
+        "Preparing interest push dispatch: recipient_user_id=%s token_count=%d",
+        recipient_id,
+        len(devices),
+    )
+    results = []
+    for dev in devices:
+        res = send_interest_push(
+            device=dev,
+            sender_name=sender_name,
+            interest_id=interest_id,
+            sender_id=sender_id,
+            receiver_id=recipient_id,
+            title=title,
+            body=body,
+        )
+        results.append(res)
+    return results
 
 
 # ---------------------------------------------------------------------------

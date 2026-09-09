@@ -268,3 +268,151 @@ class NotificationConsumerTests(TestCase):
 
         with self.assertRaises(Exception):
             await comm.receive_json_from(timeout=1)
+
+
+class DeviceRegistrationAndPushTests(TestCase):
+    """Test suite for device registration and FCM push notification dispatch."""
+
+    def setUp(self):
+        self.member1 = make_member(email="member1@example.com")
+        self.member2 = make_member(email="member2@example.com")
+        from rest_framework.test import APIClient
+        self.client = APIClient()
+
+    def test_device_registration_creates_active_device(self):
+        self.client.force_authenticate(user=self.member1)
+        response = self.client.post(
+            "/api/v1/devices/",
+            {"token": "fcm_token_12345", "platform": "android"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["data"]["token"], "fcm_token_12345")
+        self.assertEqual(response.data["data"]["platform"], "android")
+        self.assertTrue(response.data["data"]["active"])
+
+        from apps.notifications.models import Device
+        device = Device.objects.get(token="fcm_token_12345")
+        self.assertEqual(device.user, self.member1)
+        self.assertTrue(device.active)
+
+    def test_device_registration_reassigns_to_new_user_and_activates(self):
+        from apps.notifications.models import Device
+        Device.objects.create(
+            user=self.member1,
+            token="shared_fcm_token",
+            platform="android",
+            active=False,
+        )
+
+        self.client.force_authenticate(user=self.member2)
+        response = self.client.post(
+            "/api/v1/devices/",
+            {"token": "shared_fcm_token", "platform": "ios"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["data"]["active"])
+        self.assertEqual(response.data["data"]["platform"], "ios")
+
+        device = Device.objects.get(token="shared_fcm_token")
+        self.assertEqual(device.user, self.member2)
+        self.assertTrue(device.active)
+        self.assertEqual(device.platform, "ios")
+
+    def test_device_unregistration(self):
+        from apps.notifications.models import Device
+        Device.objects.create(user=self.member1, token="token_to_remove", platform="android")
+
+        self.client.force_authenticate(user=self.member1)
+        # DELETE via path param
+        response = self.client.delete("/api/v1/devices/token_to_remove/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Device.objects.filter(token="token_to_remove").exists())
+
+    def test_send_chat_push_payload_and_channel(self):
+        from apps.notifications.push import send_chat_push
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/test_msg_id_1"
+
+            msg_id = send_chat_push(
+                device="test_device_token_abc",
+                sender_name="Alice",
+                message_id="msg_999",
+                conversation_id="conv_888",
+                sender_id="usr_1",
+                receiver_id="usr_2",
+                title="New message",
+                body="You have a new message",
+            )
+
+            self.assertEqual(msg_id, "projects/mydearpartner/messages/test_msg_id_1")
+            mock_send.assert_called_once()
+            message_arg = mock_send.call_args[0][0]
+
+            # Verify Android payload
+            self.assertEqual(message_arg.android.notification.channel_id, "mdp_messages_v2")
+            self.assertEqual(message_arg.android.priority, "high")
+
+            # Verify Data payload
+            self.assertEqual(message_arg.data["kind"], "message")
+            self.assertEqual(message_arg.data["conversation_id"], "conv_888")
+            self.assertEqual(message_arg.data["message_id"], "msg_999")
+            self.assertEqual(message_arg.data["sender_id"], "usr_1")
+
+            # Verify APNs payload
+            self.assertTrue(message_arg.apns.payload.aps.mutable_content)
+            self.assertEqual(message_arg.apns.payload.aps.sound, "default")
+            self.assertEqual(message_arg.apns.payload.aps.badge, 1)
+
+    def test_send_interest_push_payload_and_channel(self):
+        from apps.notifications.push import send_interest_push
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/test_interest_id_2"
+
+            msg_id = send_interest_push(
+                device="test_device_token_xyz",
+                sender_name="Bob",
+                interest_id="int_777",
+                sender_id="usr_3",
+                receiver_id="usr_4",
+                title="New Interest",
+                body="Someone sent you an interest",
+            )
+
+            self.assertEqual(msg_id, "projects/mydearpartner/messages/test_interest_id_2")
+            mock_send.assert_called_once()
+            message_arg = mock_send.call_args[0][0]
+
+            # Verify Android channel
+            self.assertEqual(message_arg.android.notification.channel_id, "mdp_interests_v2")
+            self.assertEqual(message_arg.android.priority, "high")
+
+            # Verify Data payload
+            self.assertEqual(message_arg.data["kind"], "interest")
+            self.assertEqual(message_arg.data["interest_id"], "int_777")
+            self.assertEqual(message_arg.data["sender_id"], "usr_3")
+
+    def test_unregistered_error_deletes_device(self):
+        from apps.notifications.models import Device
+        from apps.notifications.push import send_chat_push
+        import firebase_admin.messaging as fcm
+
+        dev = Device.objects.create(user=self.member1, token="unregistered_token_123")
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.side_effect = fcm.UnregisteredError("App instance unregistered")
+
+            result = send_chat_push(device=dev)
+            self.assertIsNone(result)
+            self.assertFalse(Device.objects.filter(token="unregistered_token_123").exists())
+

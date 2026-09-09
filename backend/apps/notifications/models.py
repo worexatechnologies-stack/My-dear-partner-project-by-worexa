@@ -10,6 +10,7 @@ class Device(models.Model):
     )
     token = models.CharField(max_length=512, unique=True)
     platform = models.CharField(max_length=10, default="android")
+    active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -19,6 +20,7 @@ class Device(models.Model):
         verbose_name_plural = "Devices"
         indexes = [
             models.Index(fields=["user", "platform"]),
+            models.Index(fields=["user", "active"]),
         ]
 
     def __str__(self):

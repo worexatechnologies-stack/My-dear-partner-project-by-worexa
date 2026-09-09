@@ -162,7 +162,7 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
         from apps.notifications.models import Device
         from apps.notifications.push import send_chat_push
 
-        devices = list(Device.objects.filter(user=recipient_user))
+        devices = list(Device.objects.filter(user=recipient_user, active=True))
         if not devices:
             return
 
@@ -173,6 +173,14 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
         sender_id = str(sender_user.pk)
         receiver_id = str(recipient_user.pk)
 
+        logger.info(
+            "Dispatching mobile chat push: recipient_user_id=%s active_tokens=%d sender_id=%s conversation_id=%s",
+            receiver_id,
+            len(devices),
+            sender_id,
+            conversation_id,
+        )
+
         for device in devices:
             send_chat_push(
                 device=device,
@@ -182,6 +190,8 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
                 conversation_id=conversation_id,
                 sender_id=sender_id,
                 receiver_id=receiver_id,
+                title="New message",
+                body="You have a new message",
             )
     except Exception:
         logger.exception("Failed to dispatch mobile FCM chat push")

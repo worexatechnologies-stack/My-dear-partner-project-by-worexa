@@ -60,11 +60,30 @@ def send_interest_notification(interest_id):
         from apps.notifications.models import Device
         from apps.notifications.push import send_interest_push
 
-        devices = list(Device.objects.filter(user=interest.receiver))
+        devices = list(Device.objects.filter(user=interest.receiver, active=True))
         sender_name = interest.sender.get_full_name() or interest.sender.email or "Someone"
+        sender_id = str(interest.sender.pk)
+        receiver_id = str(interest.receiver.pk)
+
+        logger.info(
+            "Dispatching mobile interest push: recipient_user_id=%s active_tokens=%d sender_id=%s interest_id=%s",
+            receiver_id,
+            len(devices),
+            sender_id,
+            interest.pk,
+        )
+
         for device in devices:
-            send_interest_push(device, sender_name, interest.pk)
+            send_interest_push(
+                device=device,
+                sender_name=sender_name,
+                interest_id=str(interest.pk),
+                sender_id=sender_id,
+                receiver_id=receiver_id,
+                title="New Interest",
+                body="Someone sent you an interest",
+            )
     except Exception:
-        pass
+        logger.exception("Failed to dispatch mobile FCM interest push")
 
     return True
