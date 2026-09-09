@@ -21,6 +21,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "@fontsource-variable/dm-sans": "^5.2.8",
     "@fontsource-variable/manrope": "^5.2.8",
     "@reduxjs/toolkit": "^2.12.0",
