@@ -290,6 +290,28 @@ const CSS = `
 }
 .pc-more-btn:hover { background:rgba(0,0,0,0.55); }
 
+/* Swipe Stamps */
+.pc-stamp {
+  position:absolute; top:2.25rem; z-index:25;
+  display:inline-flex; align-items:center; gap:0.45rem;
+  padding:0.45rem 1.15rem; border-radius:0.875rem;
+  font-family:var(--font-heading); font-size:1.3rem; font-weight:900;
+  letter-spacing:0.06em; text-transform:uppercase;
+  pointer-events:none; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+  transition:opacity 0.08s ease-out;
+}
+.pc-stamp-like {
+  left:1.75rem; color:#22c55e; border:3px solid #22c55e;
+  background:rgba(34,197,94,0.18);
+  transform:rotate(-14deg);
+}
+.pc-stamp-pass {
+  right:1.75rem; color:#f43f5e; border:3px solid #f43f5e;
+  background:rgba(244,63,94,0.18);
+  transform:rotate(14deg);
+}
+
 /* Swipe overlay */
 .pc-swipe { position:absolute; display:inline-flex; align-items:center; gap:0.375rem; padding:0.4rem 0.875rem; border-radius:9999px; font-size:0.75rem; font-weight:800; color:white; pointer-events:none; z-index:20; box-shadow:0 4px 14px rgba(0,0,0,0.18); top:50%; left:50%; transform:translate(-50%,-50%); background:#e11d48; }
 
@@ -531,6 +553,87 @@ const CSS = `
 .d-state-spin { width:2.75rem; height:2.75rem; border-radius:50%; border:3px solid #f3dbe3; border-top-color:#e11d48; animation:d-spin .8s linear infinite; }
 @keyframes d-spin { to { transform:rotate(360deg); } }
 
+/* ── Deck under-card (stack depth effect) ── */
+.d-center-under {
+  position:absolute; inset:0;
+  width:100%; max-width:92vw; height:100%; min-height:0;
+  margin:0 auto; pointer-events:none;
+  will-change:transform, opacity;
+}
+@media(min-width:480px){ .d-center-under{max-width:400px;} }
+@media(min-width:768px){ .d-center-under{max-width:440px;} }
+@media(min-width:1024px){ .d-center-under{max-width:480px;} }
+@media(min-width:1440px){ .d-center-under{max-width:520px;} }
+
+/* ── End of deck celebration card ── */
+.d-end-card {
+  width:100%; height:100%; min-height:0;
+  position:relative; border-radius:2rem; overflow:hidden;
+  border:1.5px solid rgba(182,74,104,0.22);
+  background:linear-gradient(155deg, #ffffff 0%, #fff7f9 45%, #fde8ee 100%);
+  box-shadow:0 24px 60px rgba(43,16,29,0.18), 0 6px 20px rgba(43,16,29,0.08);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:2.5rem 1.75rem; text-align:center;
+  animation:d-card-enter .4s cubic-bezier(.22,1,.36,1) both;
+}
+.d-end-glow {
+  position:absolute; inset:-40px; pointer-events:none;
+  background:radial-gradient(circle at 50% 30%, rgba(225,29,72,0.16), transparent 70%);
+}
+.d-end-icon-wrap {
+  position:relative; width:5.5rem; height:5.5rem; margin-bottom:1.25rem;
+  display:flex; align-items:center; justify-content:center;
+}
+.d-end-icon-pulse {
+  position:absolute; inset:0; border-radius:50%;
+  background:linear-gradient(135deg,#e11d48,#b64a68);
+  opacity:0.22; animation:d-end-pulse 2.2s ease-in-out infinite;
+}
+.d-end-icon {
+  width:4.25rem; height:4.25rem; border-radius:50%;
+  background:linear-gradient(135deg,#ffffff,#fff0f4);
+  border:2px solid rgba(225,29,72,0.28);
+  box-shadow:0 12px 28px rgba(225,29,72,0.22), inset 0 2px 0 rgba(255,255,255,0.9);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; z-index:2;
+}
+@keyframes d-end-pulse { 0%,100%{ transform:scale(0.9); opacity:0.18; } 50%{ transform:scale(1.3); opacity:0.38; } }
+.d-end-title {
+  font-family:var(--font-heading); font-size:1.55rem; font-weight:800; color:#321122;
+  margin:0 0 0.5rem; line-height:1.2; letter-spacing:-0.01em;
+}
+.d-end-desc {
+  font-size:0.8125rem; color:#7d6b73; line-height:1.55; max-width:21rem; margin:0 0 1.5rem;
+}
+.d-end-actions {
+  display:flex; flex-direction:column; gap:0.625rem; width:100%; max-width:18rem;
+  position:relative; z-index:3;
+}
+.d-end-btn-primary {
+  display:inline-flex; align-items:center; justify-content:center; gap:0.5rem;
+  width:100%; padding:0.75rem 1.25rem; border-radius:9999px; border:none;
+  background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); color:white;
+  font-size:0.8125rem; font-weight:700; cursor:pointer;
+  box-shadow:0 10px 24px rgba(225,29,72,0.34), inset 0 1px 0 rgba(255,255,255,0.3);
+  transition:transform 0.16s ease, filter 0.16s ease;
+}
+.d-end-btn-primary:hover { transform:scale(1.03); filter:brightness(1.06); }
+.d-end-btn-secondary {
+  display:inline-flex; align-items:center; justify-content:center; gap:0.45rem;
+  width:100%; padding:0.65rem 1.25rem; border-radius:9999px;
+  background:white; color:#8e3d58; border:1.5px solid rgba(182,74,104,0.35);
+  font-size:0.75rem; font-weight:700; cursor:pointer;
+  box-shadow:0 4px 12px rgba(67,22,39,0.06);
+  transition:all 0.16s ease;
+}
+.d-end-btn-secondary:hover { background:#fdf5f7; border-color:#b64a68; transform:scale(1.02); }
+.d-end-btn-ghost {
+  display:inline-flex; align-items:center; justify-content:center; gap:0.35rem;
+  padding:0.45rem 0.75rem; color:#8a7a80; font-size:0.75rem; font-weight:600;
+  text-decoration:none; transition:color 0.15s ease;
+}
+.d-end-btn-ghost:hover { color:#b64a68; text-decoration:underline; }
+
 /* ── Mobile immersive swipe deck (Tinder-style) ── */
 @media(max-width:639px){
   .d-hint    { font-size:0.6875rem; padding:0.35rem 0.9rem; margin-top:0.125rem; }
@@ -611,12 +714,14 @@ function PeekCard({ profile, side }: { profile: Profile; side: 'left' | 'right' 
 function ProfileCard({
   profile, interested, shortlisted,
   onInterest, onShortlist, onPass, onMore,
-  dragOffset, enterFrom,
+  dragOffset, flingDir, isUnderCard, enterFrom,
 }: {
   profile: Profile; interested: boolean; shortlisted: boolean;
   onInterest(id: string): void; onShortlist(id: string): void;
   onPass(id: string): void; onMore(id: string): void;
-  dragOffset?: { x: number; y: number; dragging: boolean };
+  dragOffset?: { x: number; y: number };
+  flingDir?: 'left' | 'right' | null;
+  isUnderCard?: boolean;
   enterFrom?: 'left' | 'right' | '';
 }) {
   const photo = visiblePhoto(profile);
@@ -642,7 +747,11 @@ function ProfileCard({
   const shown = allTags.slice(0, 4);
   const extra = allTags.length - shown.length;
 
-  const swipeU = dragOffset && dragOffset.y < -75 && Math.abs(dragOffset.y) > Math.abs(dragOffset.x);
+  const showLike = !isUnderCard && (flingDir === 'right' || (dragOffset && dragOffset.x > 15));
+  const showPass = !isUnderCard && (flingDir === 'left' || (dragOffset && dragOffset.x < -15));
+  const likeOpacity = flingDir === 'right' ? 1 : Math.min(1, Math.max(0, ((dragOffset?.x ?? 0) - 15) / 70));
+  const passOpacity = flingDir === 'left' ? 1 : Math.min(1, Math.max(0, (-(dragOffset?.x ?? 0) - 15) / 70));
+  const swipeU = !isUnderCard && dragOffset && dragOffset.y < -75 && Math.abs(dragOffset.y) > Math.abs(dragOffset.x);
 
   const enterClass = enterFrom === 'right' ? 'enter-right' : enterFrom === 'left' ? 'enter-left' : '';
   return (
@@ -657,6 +766,20 @@ function ProfileCard({
 
       {/* Dark gradient overlay */}
       <div className="pc-gradient" />
+
+      {/* Swipe Stamps */}
+      {showLike && (
+        <div className="pc-stamp pc-stamp-like" style={{ opacity: likeOpacity }}>
+          <Heart size={20} fill="#22c55e" strokeWidth={0} />
+          <span>LIKE</span>
+        </div>
+      )}
+      {showPass && (
+        <div className="pc-stamp pc-stamp-pass" style={{ opacity: passOpacity }}>
+          <X size={22} strokeWidth={3} />
+          <span>PASS</span>
+        </div>
+      )}
 
       {/* Swipe feedback */}
       {swipeU && <div className="pc-swipe"><Eye size={12} /> View Profile</div>}
@@ -969,46 +1092,47 @@ export function PremiumDiscover() {
   const [tab, setTab] = useState<FeedTab>('all');
   const [filterOpen, setFilter] = useState(false);
   const [moreFor, setMoreFor] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0, dragging: false });
-  const [fling, setFling] = useState<'left' | 'right' | ''>('');
-  const flingRef = useRef<'left' | 'right' | ''>('');
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [flingDir, setFlingDir] = useState<'left' | 'right' | null>(null);
+  const isAnimatingOutRef = useRef(false);
   const [hintGone, setHintGone] = useState(false);
-  const [enterFrom, setEnterFrom] = useState<'left' | 'right' | ''>('');
-  const [, bump] = useState(0);
   const interested = useRef(new Set<string>());
   const shortlisted = useRef(new Set<string>());
   const hidden = useRef(loadDismissedIds());
-  const ptrRef = useRef<{ x: number; y: number } | null>(null);
+  const ptrRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [visitors, setVisitors] = useState<{ count: number; photos: string[] }>({ count: 0, photos: [] });
   const [matches, setMatches] = useState<{ count: number; photos: string[] }>({ count: 0, photos: [] });
-
-  const dismissProfile = useCallback((id: string) => {
-    hidden.current.add(id);
-    saveDismissedIds(hidden.current);
-    bump(n => n + 1);
-  }, []);
 
   /* ── Load profiles ── */
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        setLoading(true); setError('');
+        setLoading(true);
+        setError('');
         const d = await getProfiles({ page_size: '12', ordering: '-created_at' });
         if (!live) return;
-        setProfiles(d.results); setPage(1); setHasMore(d.next !== null);
-      } catch (e: unknown) { if (live) setError(e instanceof Error ? e.message : 'Could not load profiles.'); }
-      finally { if (live) setLoading(false); }
+        setProfiles(d.results);
+        setPage(1);
+        setHasMore(d.next !== null);
+      } catch (e: unknown) {
+        if (live) setError(e instanceof Error ? e.message : 'Could not load profiles.');
+      } finally {
+        if (live) setLoading(false);
+      }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [focusVersion]);
 
-  /* Refresh the deck when the tab regains focus — newly created profiles
-     then appear even if the dashboard was left open in another tab. */
+  /* Refresh the deck when the tab regains focus */
   useEffect(() => {
     const refresh = () => setFocusVersion((n) => n + 1);
-    const onFocus = () => { if (document.visibilityState === 'visible') refresh(); };
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
@@ -1030,10 +1154,18 @@ export function PremiumDiscover() {
         ]);
         if (!live) return;
 
-        const vs = Array.isArray((vd as { results?: unknown[] })?.results) ? (vd as { results: unknown[] }).results : (Array.isArray(vd) ? vd : []);
+        const vs = Array.isArray((vd as { results?: unknown[] })?.results)
+          ? (vd as { results: unknown[] }).results
+          : Array.isArray(vd)
+          ? vd
+          : [];
         setVisitors({ count: vs.length, photos: vs.map((v) => extractPhoto(v)).filter(Boolean) });
 
-        const rs = Array.isArray((incoming as { results?: unknown[] })?.results) ? (incoming as { results: unknown[] }).results : (Array.isArray(incoming) ? incoming : []);
+        const rs = Array.isArray((incoming as { results?: unknown[] })?.results)
+          ? (incoming as { results: unknown[] }).results
+          : Array.isArray(incoming)
+          ? incoming
+          : [];
         setMatches({ count: rs.length, photos: rs.map((r) => extractPhoto(r)).filter(Boolean) });
 
         for (const interest of outgoing ?? []) {
@@ -1047,22 +1179,20 @@ export function PremiumDiscover() {
           if (profile.id) shortlisted.current.add(profile.id);
         }
         saveDismissedIds(hidden.current);
-        bump(n => n + 1);
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, []);
 
   /* ── Deck ── */
-  const deck = useMemo(() =>
-    profiles.filter(p => !hidden.current.has(p.id)).filter(p => matchesFilters(p, filters, tab)),
-    [profiles, filters, tab, bump]
+  const deck = useMemo(
+    () => profiles.filter((p) => !hidden.current.has(p.id)).filter((p) => matchesFilters(p, filters, tab)),
+    [profiles, filters, tab]
   );
-
-  useEffect(() => {
-    if (idx >= deck.length && deck.length > 0) setIdx(deck.length - 1);
-    else if (deck.length === 0) setIdx(0);
-  }, [deck.length, idx]);
 
   const appendMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -1070,164 +1200,194 @@ export function PremiumDiscover() {
     try {
       const np = page + 1;
       const d = await getProfiles({ page: String(np), page_size: '12', ordering: '-created_at' });
-      setPage(np); setProfiles(cur => [...cur, ...d.results]); setHasMore(d.next !== null);
-    } catch (e: unknown) { showToast(e instanceof Error ? e.message : 'Could not load more.', 'error'); }
-    finally { setLoading(false); }
+      setPage(np);
+      setProfiles((cur) => [...cur, ...d.results]);
+      setHasMore(d.next !== null);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Could not load more.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }, [page, loading, hasMore, showToast]);
 
-  const next = useCallback(() => {
-    if (idx < deck.length - 1) setIdx(i => i + 1);
-    else if (hasMore) void appendMore();
-  }, [idx, deck.length, hasMore, appendMore]);
+  /* Pre-fetch next page when 2 cards remain */
+  useEffect(() => {
+    if (hasMore && !loading && deck.length > 0 && idx >= deck.length - 2) {
+      void appendMore();
+    }
+  }, [idx, deck.length, hasMore, loading, appendMore]);
 
-  /* Auto-refill the deck when the loaded page is empty but more pages exist on
-     the server (e.g. every card on the current page was already swiped / liked /
-     shortlisted / hidden / filtered out). Without this the user would get stuck
-     on "all caught up" while fresh, eligible profiles remain on later pages. */
+  /* Auto-refill when deck is initially empty but more pages exist on server */
   useEffect(() => {
     if (loading || !hasMore || deck.length > 0) return;
     void appendMore();
-    // Re-runs whenever profiles change: if the appended page is also fully
-    // filtered out, it keeps fetching the next page until a card appears or
-    // hasMore runs out.
   }, [deck.length, hasMore, loading, appendMore]);
 
-  /* ── Actions ── */
-  const handleInterest = useCallback(async (id: string) => {
-    if (busyId) return; setBusyId(id);
-    try {
-      await sendInterest(id);
-      interested.current.add(id);
-      dismissProfile(id);
-      showToast('Interest sent! 💕', 'success');
-      next();
-    } catch (e: unknown) {
-      if (/already/i.test(String(e))) {
-        interested.current.add(id);
-        dismissProfile(id);
-        showToast('Interest already sent.', 'success');
-        next();
+  /* ── Smooth Swipe Trigger ── */
+  const triggerSwipe = useCallback(
+    (dir: 'left' | 'right') => {
+      if (isAnimatingOutRef.current) return;
+      const currentCard = deck[idx];
+      if (!currentCard) return;
+
+      isAnimatingOutRef.current = true;
+      setFlingDir(dir);
+      if (!hintGone) setHintGone(true);
+
+      // Save action
+      if (dir === 'right') {
+        interested.current.add(currentCard.id);
+        hidden.current.add(currentCard.id);
+        saveDismissedIds(hidden.current);
+        showToast('Interest sent! 💕', 'success');
+        void sendInterest(currentCard.id).catch(() => {});
       } else {
-        showToast('Could not send interest.', 'error');
+        hidden.current.add(currentCard.id);
+        saveDismissedIds(hidden.current);
       }
-    }
-    finally { setBusyId(null); }
-  }, [busyId, next, showToast, dismissProfile]);
 
-  const handleShortlist = useCallback(async (id: string) => {
-    try {
-      const r = await toggleShortlist(id);
-      if (r.shortlisted) shortlisted.current.add(id); else shortlisted.current.delete(id);
-      bump(n => n + 1);
-      showToast(r.action === 'added' ? 'Added to shortlist ⭐' : 'Removed from shortlist', 'success');
-    } catch { showToast('Shortlist could not be updated.', 'error'); }
-  }, [showToast]);
+      // Smooth advance after fly-off animation
+      window.setTimeout(() => {
+        setIdx((prev) => prev + 1);
+        setFlingDir(null);
+        setDragOffset({ x: 0, y: 0 });
+        setIsDragging(false);
+        isAnimatingOutRef.current = false;
+      }, 320);
+    },
+    [deck, idx, hintGone, showToast]
+  );
 
-  const handlePass = useCallback((id: string) => {
-    dismissProfile(id);
-    next();
-  }, [next, dismissProfile]);
+  const handleShortlist = useCallback(
+    async (id: string) => {
+      try {
+        const r = await toggleShortlist(id);
+        if (r.shortlisted) shortlisted.current.add(id);
+        else shortlisted.current.delete(id);
+        showToast(r.action === 'added' ? 'Added to shortlist ⭐' : 'Removed from shortlist', 'success');
+      } catch {
+        showToast('Shortlist could not be updated.', 'error');
+      }
+    },
+    [showToast]
+  );
 
-  /* Buttons = actions: fling the card fully off-screen, then commit the action */
-  const ringSwipe = useCallback((id: string, dir: 'left' | 'right') => {
-    if (flingRef.current) return;
-    flingRef.current = dir;
-    setFling(dir);
-    // Let the fly-off play, then run the action (which advances). The idx-effect
-    // clears fling on advance so the incoming card plays its enter animation.
-    window.setTimeout(() => {
-      if (dir === 'right') void handleInterest(id);
-      else handlePass(id);
-    }, 360);
-  }, [handleInterest, handlePass]);
+  const handleHide = useCallback(
+    (id: string) => {
+      hidden.current.add(id);
+      saveDismissedIds(hidden.current);
+      showToast('Profile hidden.', 'success');
+      triggerSwipe('left');
+    },
+    [showToast, triggerSwipe]
+  );
 
-  /* Swipe = navigation only — advance without sending interest/pass */
-  const ringNext = useCallback((dir: 'left' | 'right') => {
-    if (flingRef.current) return;
-    if (!hintGone) setHintGone(true);
-    flingRef.current = dir;
-    setFling(dir);
-    // Set enter direction BEFORE next() so new card mounts with correct animation
-    setEnterFrom(dir);
-    // Let the current card fly off-screen fully, THEN advance. Advancing in the
-    // same tick as a fling-reset would unmount the card before the fly-off
-    // transition renders, which is exactly why the swipe animation was missing.
-    window.setTimeout(() => {
-      next();
-    }, 360);
-  }, [next, hintGone]);
+  const handleBlock = useCallback(
+    async (id: string) => {
+      hidden.current.add(id);
+      saveDismissedIds(hidden.current);
+      try {
+        await fetchApi('/blocks/', { method: 'POST', body: JSON.stringify({ profile_id: id }) });
+      } catch {
+        /* ignore */
+      }
+      showToast('Profile blocked.', 'success');
+      triggerSwipe('left');
+    },
+    [showToast, triggerSwipe]
+  );
 
-  /* When the active card advances, clear the fling state so the incoming card
-     never inherits the fly-off offset (it plays its own enter animation). */
-  useEffect(() => { setFling(''); flingRef.current = ''; }, [idx]);
+  const handleReport = useCallback(
+    async (id: string) => {
+      hidden.current.add(id);
+      saveDismissedIds(hidden.current);
+      try {
+        await fetchApi('/profile-reports/', {
+          method: 'POST',
+          body: JSON.stringify({ profile_id: id, reason: 'Reported from Discover' }),
+        });
+      } catch {
+        /* ignore */
+      }
+      showToast('Report submitted.', 'success');
+      triggerSwipe('left');
+    },
+    [showToast, triggerSwipe]
+  );
 
-  const handleHide = useCallback((id: string) => {
-    dismissProfile(id);
-    showToast('Profile hidden.', 'success');
-    next();
-  }, [next, showToast, dismissProfile]);
-
-  const handleBlock = useCallback(async (id: string) => {
-    dismissProfile(id);
-    try { await fetchApi('/blocks/', { method: 'POST', body: JSON.stringify({ profile_id: id }) }); } catch { /**/ }
-    showToast('Profile blocked.', 'success');
-    next();
-  }, [next, showToast, dismissProfile]);
-
-  const handleReport = useCallback(async (id: string) => {
-    dismissProfile(id);
-    try { await fetchApi('/profile-reports/', { method: 'POST', body: JSON.stringify({ profile_id: id, reason: 'Reported from Discover' }) }); } catch { /**/ }
-    showToast('Report submitted.', 'success');
-    next();
-  }, [next, showToast, dismissProfile]);
-
-  /* ── Keyboard ── */
+  /* ── Keyboard Shortcuts ── */
   useEffect(() => {
-    const p = deck[idx]; if (!p) return;
+    const p = deck[idx];
+    if (!p) return;
     const fn = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') ringNext('right');
-      else if (e.key === 'ArrowLeft') ringNext('left');
+      if ((e.target as HTMLElement)?.closest('input, textarea, select')) return;
+      if (e.key === 'ArrowRight') triggerSwipe('right');
+      else if (e.key === 'ArrowLeft') triggerSwipe('left');
       else if (e.key === 'ArrowUp') window.location.assign(profileHref(p));
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  }, [deck, idx, ringNext]);
+  }, [deck, idx, triggerSwipe]);
 
-  /* ── Pointer ── */
+  /* ── Pointer Drag Handlers ── */
   const onPD = (e: React.PointerEvent) => {
-    // Skip capture if user clicked on an interactive element (buttons, links, etc.)
-    // This ensures action buttons (X, ♥, ★) still fire their click events
+    if (isAnimatingOutRef.current) return;
     const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, select, [role="button"]')) return;
-    // Capture pointer so drag tracks even when cursor leaves the card area fast
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    ptrRef.current = { x: e.clientX, y: e.clientY };
-    setOffset(o => ({ ...o, dragging: true }));
+    if (target.closest('button, a, input, select, textarea, [role="button"], .pc-actions, .pc-more-btn')) return;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    ptrRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+    setIsDragging(true);
   };
+
   const onPM = (e: React.PointerEvent) => {
     const s = ptrRef.current;
     if (!s) return;
-    setOffset({ x: e.clientX - s.x, y: e.clientY - s.y, dragging: true });
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    setDragOffset({ x: dx, y: dy * 0.35 });
   };
+
   const onPU = (e: React.PointerEvent) => {
-    const s = ptrRef.current; ptrRef.current = null;
-    if (!s) { setOffset({ x: 0, y: 0, dragging: false }); return; }
-    const p = deck[idx];
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    // Require at least 8px movement to count as a drag (prevents accidental swipe on click)
-    if (dist < 8) { setOffset({ x: 0, y: 0, dragging: false }); return; }
-    const flung = Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy);
-    if (flung && p) {
-      setOffset({ x: 0, y: 0, dragging: false });
-      ringNext(dx > 0 ? 'right' : 'left');
+    const s = ptrRef.current;
+    ptrRef.current = null;
+    setIsDragging(false);
+
+    if (!s) {
+      setDragOffset({ x: 0, y: 0 });
       return;
     }
-    if (dy < -80 && p) window.location.assign(profileHref(p));
-    setOffset({ x: 0, y: 0, dragging: false });
+
+    try {
+      if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    const dt = Math.max(1, Date.now() - s.time);
+    const vx = Math.abs(dx) / dt;
+
+    const isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
+    const hasDistance = Math.abs(dx) > 80;
+    const hasFlick = Math.abs(dx) > 35 && vx > 0.42;
+
+    if (isHorizontalSwipe && (hasDistance || hasFlick)) {
+      triggerSwipe(dx > 0 ? 'right' : 'left');
+    } else if (dy < -90 && Math.abs(dy) > Math.abs(dx) && deck[idx]) {
+      window.location.assign(profileHref(deck[idx]));
+      setDragOffset({ x: 0, y: 0 });
+    } else {
+      setDragOffset({ x: 0, y: 0 });
+    }
   };
-  // Double tap (desktop double-click / mobile double-tap) opens the profile.
-  // Guarded so double-tapping on a button/link doesn't double-navigate.
+
   const onDoubleTap = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, [role="button"]')) return;
@@ -1235,21 +1395,45 @@ export function PremiumDiscover() {
     if (p) window.location.assign(profileHref(p));
   };
 
-  /* ── Derived ── */
+  /* ── Derived & Stack calculations ── */
   const active = deck[idx];
+  const nextCard = deck[idx + 1];
   const completion = typeof user?.completion_percentage === 'number' ? user.completion_percentage : 60;
   const planName = (user as unknown as Record<string, Record<string, string>>)?.active_membership?.plan_name || 'Free Plan';
   const isPremium = Boolean((user as unknown as Record<string, unknown>)?.is_premium);
 
-  /* Center card transform: drag follow, fling fly-off, or snap-back */
-  const centerStyle =
-    offset.dragging
-      ? { transform: `translate(${offset.x}px,${offset.y}px) rotate(${offset.x * 0.026}deg)`, transition: 'none' }
-      : fling === 'right'
-        ? { transform: 'translate(760px,-36px) rotate(21deg)', transition: 'transform .34s cubic-bezier(.22,1,.36,1)' }
-        : fling === 'left'
-          ? { transform: 'translate(-760px,-36px) rotate(-21deg)', transition: 'transform .34s cubic-bezier(.22,1,.36,1)' }
-          : undefined;
+  const dragProgress = Math.min(1, Math.abs(dragOffset.x) / 140);
+  const underScale = 0.94 + dragProgress * 0.06;
+  const underTranslateY = 12 - dragProgress * 12;
+  const underOpacity = 0.82 + dragProgress * 0.18;
+
+  const centerTransform = useMemo(() => {
+    if (isDragging) {
+      return {
+        transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${dragOffset.x * 0.045}deg) scale(1.02)`,
+        transition: 'none',
+      };
+    }
+    if (flingDir === 'right') {
+      return {
+        transform: `translate3d(min(850px, 140vw), ${dragOffset.y - 30}px, 0) rotate(22deg) scale(0.92)`,
+        transition: 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease-out',
+        opacity: 0,
+      };
+    }
+    if (flingDir === 'left') {
+      return {
+        transform: `translate3d(max(-850px, -140vw), ${dragOffset.y - 30}px, 0) rotate(-22deg) scale(0.92)`,
+        transition: 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease-out',
+        opacity: 0,
+      };
+    }
+    // Elastic spring snap-back
+    return {
+      transform: 'translate3d(0, 0, 0) rotate(0deg) scale(1)',
+      transition: 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+    };
+  }, [isDragging, dragOffset, flingDir]);
 
   /* ── Render ── */
   return (
@@ -1257,70 +1441,187 @@ export function PremiumDiscover() {
       <style>{CSS}</style>
       <div className="d-root discover-root">
         <div className="d-body">
-
           {/* Main */}
           <div className="d-main">
-
             {/* Card area */}
-            <div className="d-card-area" onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerCancel={onPU} onDoubleClick={onDoubleTap}>
-
+            <div
+              className="d-card-area"
+              onPointerDown={onPD}
+              onPointerMove={onPM}
+              onPointerUp={onPU}
+              onPointerCancel={onPU}
+              onDoubleClick={onDoubleTap}
+            >
               {deck[idx - 1] && <PeekCard profile={deck[idx - 1]} side="left" />}
 
-              <div className="d-center"
-                style={{ ...centerStyle, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
-              >
-                {active && (
-                  <>
-                    <ProfileCard
-                      key={active.id}
-                      profile={active}
-                      interested={interested.current.has(active.id)}
-                      shortlisted={shortlisted.current.has(active.id)}
-                      onInterest={(id) => ringSwipe(id, 'right')}
-                      onShortlist={handleShortlist}
-                      onPass={(id) => ringSwipe(id, 'left')}
-                      onMore={setMoreFor}
-                      dragOffset={offset}
-                      enterFrom={enterFrom}
+              {/* Next card under the active card for smooth stack effect */}
+              {nextCard && (
+                <div
+                  className="d-center-under"
+                  style={{
+                    transform: `scale(${underScale}) translateY(${underTranslateY}px)`,
+                    opacity: underOpacity,
+                    transition: isDragging ? 'none' : 'transform 0.32s ease, opacity 0.32s ease',
+                    zIndex: 6,
+                  }}
+                >
+                  <ProfileCard
+                    profile={nextCard}
+                    interested={interested.current.has(nextCard.id)}
+                    shortlisted={shortlisted.current.has(nextCard.id)}
+                    onInterest={() => {}}
+                    onShortlist={() => {}}
+                    onPass={() => {}}
+                    onMore={() => {}}
+                    isUnderCard
+                  />
+                </div>
+              )}
+
+              {/* Active top card */}
+              {active && (
+                <div
+                  className="d-center"
+                  style={{
+                    ...centerTransform,
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    zIndex: 10,
+                  }}
+                >
+                  <ProfileCard
+                    key={active.id}
+                    profile={active}
+                    interested={interested.current.has(active.id)}
+                    shortlisted={shortlisted.current.has(active.id)}
+                    onInterest={() => triggerSwipe('right')}
+                    onShortlist={handleShortlist}
+                    onPass={() => triggerSwipe('left')}
+                    onMore={setMoreFor}
+                    dragOffset={dragOffset}
+                    flingDir={flingDir}
+                  />
+                  {moreFor === active.id && (
+                    <MoreMenu
+                      id={active.id}
+                      onClose={() => setMoreFor(null)}
+                      onBlock={handleBlock}
+                      onReport={handleReport}
+                      onHide={handleHide}
                     />
-                    {moreFor === active.id && (
-                      <MoreMenu id={active.id} onClose={() => setMoreFor(null)}
-                        onBlock={handleBlock} onReport={handleReport} onHide={handleHide} />
-                    )}
-                  </>
-                )}
-                {loading && profiles.length === 0 && <Skeleton />}
-                {/* Deck is empty while more pages are already loading — e.g. every card on
-                    the current page was swiped earlier and the auto-refill is fetching. */}
-                {loading && deck.length === 0 && profiles.length > 0 && (
+                  )}
+                </div>
+              )}
+
+              {/* End of Deck Card when all profiles are over */}
+              {!active && !loading && deck.length > 0 && (
+                <div className="d-center" style={{ zIndex: 10 }}>
+                  <div className="d-end-card">
+                    <div className="d-end-glow" />
+                    <div className="d-end-icon-wrap">
+                      <div className="d-end-icon-pulse" />
+                      <div className="d-end-icon">
+                        <Heart size={36} fill="#e11d48" color="#e11d48" />
+                      </div>
+                    </div>
+                    <h2 className="d-end-title">You&apos;re All Caught Up! 💕</h2>
+                    <p className="d-end-desc">
+                      You&apos;ve reviewed all available profiles for this filter. New members join every day — check back soon!
+                    </p>
+                    <div className="d-end-actions">
+                      <button
+                        type="button"
+                        className="d-end-btn-primary"
+                        onClick={() => {
+                          setIdx(0);
+                          setDragOffset({ x: 0, y: 0 });
+                        }}
+                      >
+                        <RotateCcw size={16} /> Review Deck Again
+                      </button>
+                      <button
+                        type="button"
+                        className="d-end-btn-secondary"
+                        onClick={() => setFilter(true)}
+                      >
+                        <SlidersHorizontal size={15} /> Adjust Filters
+                      </button>
+                      <Link href="/search" className="d-end-btn-ghost">
+                        Explore All Members <ArrowRight size={14} />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Initial Loading Skeleton */}
+              {loading && profiles.length === 0 && (
+                <div className="d-center" style={{ zIndex: 10 }}>
+                  <Skeleton />
+                </div>
+              )}
+
+              {/* Finding fresh matches state */}
+              {loading && deck.length === 0 && profiles.length > 0 && (
+                <div className="d-center" style={{ zIndex: 10 }}>
                   <div className="d-state">
                     <span className="d-state-spin" />
                     <h3 className="d-state-title">Finding fresh matches…</h3>
                     <p className="d-state-sub">Scanning the latest profiles for you.</p>
                   </div>
-                )}
-                {!loading && error && profiles.length === 0 && (
+                </div>
+              )}
+
+              {/* Error state */}
+              {!loading && error && profiles.length === 0 && (
+                <div className="d-center" style={{ zIndex: 10 }}>
                   <div className="d-state">
                     <div className="d-state-icon"><X size={22} color="#b64a68" /></div>
                     <h3 className="d-state-title">Something went wrong</h3>
                     <p className="d-state-sub">{error}</p>
-                    <button type="button" className="d-state-btn" onClick={() => { setProfiles([]); setPage(1); setHasMore(true); }}>Try Again</button>
+                    <button
+                      type="button"
+                      className="d-state-btn"
+                      onClick={() => {
+                        setProfiles([]);
+                        setPage(1);
+                        setIdx(0);
+                        setHasMore(true);
+                      }}
+                    >
+                      Try Again
+                    </button>
                   </div>
-                )}
-                {!loading && !error && deck.length === 0 && (
+                </div>
+              )}
+
+              {/* Empty Deck from start (strict filters) */}
+              {!loading && !error && deck.length === 0 && (
+                <div className="d-center" style={{ zIndex: 10 }}>
                   <div className="d-state">
                     <div className="d-state-icon"><Heart size={22} color="#b64a68" /></div>
-                    <h3 className="d-state-title">You're all caught up 💕</h3>
-                    <p className="d-state-sub">No more eligible profiles right now. New members join every day — check back soon.</p>
+                    <h3 className="d-state-title">No matching profiles</h3>
+                    <p className="d-state-sub">Try adjusting your filters or search criteria to see more profiles.</p>
                     <div className="d-state-actions">
-                      <button type="button" className="d-state-btn" onClick={() => { setProfiles([]); setPage(1); setHasMore(true); setError(''); }}>
-                        {hasMore ? 'Load More' : '↻ Refresh'}
+                      <button
+                        type="button"
+                        className="d-state-btn"
+                        onClick={() => {
+                          setFilters(DEFAULT_FILTERS);
+                          setTab('all');
+                          setIdx(0);
+                        }}
+                      >
+                        Reset Filters
                       </button>
-                      <Link href="/search" className="d-state-btn d-state-btn-ghost" style={{ textDecoration: 'none' }}>Find Matches</Link>
+                      <Link href="/search" className="d-state-btn d-state-btn-ghost" style={{ textDecoration: 'none' }}>
+                        Find Matches
+                      </Link>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {deck[idx + 1] && <PeekCard profile={deck[idx + 1]} side="right" />}
             </div>
@@ -1333,8 +1634,6 @@ export function PremiumDiscover() {
                 <span className="d-hint-arrow d-hint-right">→</span>
               </div>
             )}
-
-            {/* End card stack (no marketing sections) */}
           </div>
 
           {/* Right panel */}
@@ -1350,8 +1649,18 @@ export function PremiumDiscover() {
         </div>
 
         <FilterDialog
-          open={filterOpen} onClose={() => setFilter(false)}
-          filters={filters} onApply={f => { setFilters(f); setIdx(0); }} onReset={() => { setFilters(DEFAULT_FILTERS); setTab('all'); setIdx(0); }}
+          open={filterOpen}
+          onClose={() => setFilter(false)}
+          filters={filters}
+          onApply={(f) => {
+            setFilters(f);
+            setIdx(0);
+          }}
+          onReset={() => {
+            setFilters(DEFAULT_FILTERS);
+            setTab('all');
+            setIdx(0);
+          }}
         />
       </div>
     </>

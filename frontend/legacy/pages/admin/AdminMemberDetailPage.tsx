@@ -6,11 +6,12 @@ import {
   ArrowLeft, BadgeCheck, Ban, Camera, CreditCard, Edit3, FileText,
   Heart, Info, LoaderCircle, Mail, MapPin, Phone, Shield, User,
   CheckCircle2, XCircle, Clock, AlertTriangle, Star, Trash2,
-  Check, X, Save, Eye, ShieldCheck, RotateCcw,
+  Check, X, Save, Eye, ShieldCheck, RotateCcw, Maximize2,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import { fetchApi } from '../../services/apiClient';
 import ProtectedDocumentViewer from '@/components/documents/ProtectedDocumentViewer';
+import AdminPhotoLightbox, { LightboxPhoto } from '../../components/admin/AdminPhotoLightbox';
 import { getAdminUsers, updateAdminUser, type AdminUserAction } from '../../services/adminService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtime, type RealtimeEvent } from '@/providers/RealtimeProvider';
@@ -53,11 +54,30 @@ function Badge({ label, colorClass }: { label: string; colorClass?: string }) {
   );
 }
 
-export default function AdminMemberDetailPage({ memberId }: { memberId: string }) {
+export default function AdminMemberDetailPage({
+  memberId,
+  onBack,
+}: {
+  memberId: string;
+  onBack?: () => void;
+}) {
   const { user: currentUser, hasAdminPermission } = useAuth();
   const navigate = useNavigate();
   const isSuper = typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin');
   const basePath = isSuper ? '/super-admin/members' : '/admin/members';
+
+  const handleBack = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    if (onBack) {
+      onBack();
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(basePath);
+    }
+  };
 
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,11 +187,55 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
   const memberships = detail?.memberships || [];
   const activity = detail?.activity || [];
 
+  // Photo Zoom Lightbox State
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxPhotos, setLightboxPhotos] = useState<LightboxPhoto[]>([]);
+
+  const openAvatarZoom = () => {
+    if (!m) return;
+    if (photos.length > 0) {
+      const mapped: LightboxPhoto[] = photos.map((p: any) => ({
+        id: p.id,
+        src: `/api/proxy/profile-photos/${p.id}/image/`,
+        alt: `${m.full_name || 'Member'}'s photo`,
+        is_primary: Boolean(p.is_primary),
+        status: p.status,
+        uploaded_at: p.uploaded_at || p.created_at,
+      }));
+      const primaryIdx = photos.findIndex((p: any) => p.is_primary);
+      setLightboxPhotos(mapped);
+      setLightboxIndex(primaryIdx >= 0 ? primaryIdx : 0);
+    } else if (m.photo) {
+      setLightboxPhotos([{
+        src: m.photo as string,
+        alt: `${m.full_name || 'Member'}'s photo`,
+        is_primary: true,
+        status: (m.photo_status as string) || undefined,
+      }]);
+      setLightboxIndex(0);
+    }
+  };
+
+  const openPhotoZoom = (index: number) => {
+    if (!photos || photos.length === 0) return;
+    const mapped: LightboxPhoto[] = photos.map((p: any) => ({
+      id: p.id,
+      src: `/api/proxy/profile-photos/${p.id}/image/`,
+      alt: `${m?.full_name || 'Member'}'s photo`,
+      is_primary: Boolean(p.is_primary),
+      status: p.status,
+      uploaded_at: p.uploaded_at || p.created_at,
+    }));
+    setLightboxPhotos(mapped);
+    setLightboxIndex(index);
+  };
+
   const startEdit = () => {
     if (!m) return;
     setEditData({
       first_name: m.first_name || '',
       last_name: m.last_name || '',
+      profile_created_by: m.profile_created_by || 'SELF',
       gender: m.gender || '',
       date_of_birth: m.date_of_birth || '',
       marital_status: m.marital_status || '',
@@ -212,26 +276,39 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       pref_marital_status: m.pref_marital_status || '',
       pref_about: m.pref_about || '',
       about: m.about || '',
-      hobbies: m.hobbies || '',
+      hobbies: Array.isArray(m.hobbies) ? m.hobbies.join(', ') : (m.hobbies || ''),
       is_active: m.is_active ?? true,
       is_premium: m.is_premium ?? false,
       is_mobile_verified: m.is_mobile_verified ?? false,
     });
+    setActiveTab('profile');
     setEditing(true);
   };
 
   const saveEdit = async () => {
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        ...editData,
+        num_brothers: Number(editData.num_brothers ?? 0),
+        num_sisters: Number(editData.num_sisters ?? 0),
+      };
+      if (editData.pref_age_min !== '' && editData.pref_age_min !== undefined) {
+        payload.pref_age_min = Number(editData.pref_age_min);
+      }
+      if (editData.pref_age_max !== '' && editData.pref_age_max !== undefined) {
+        payload.pref_age_max = Number(editData.pref_age_max);
+      }
       const result = await fetchApi<any>(`/admin/users/${memberId}/`, {
         method: 'PUT',
-        body: JSON.stringify(editData),
+        body: JSON.stringify(payload),
       });
       setDetail(prev => prev ? { ...prev, member: result } : prev);
       setToast({ message: 'Member updated successfully.', tone: 'success' });
       setEditing(false);
-    } catch {
-      setToast({ message: 'Failed to update member.', tone: 'error' });
+      await load();
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to update member.', tone: 'error' });
     } finally {
       setSaving(false);
     }
@@ -311,15 +388,44 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       {toast && <AdminToast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
       <div className="admin-page-header">
         <div className="flex items-center gap-4">
-          <Link to={basePath} className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors bg-transparent border-0 cursor-pointer p-0"
+          >
             <ArrowLeft className="h-4 w-4" /> Members
-          </Link>
+          </button>
         </div>
         <div className="flex items-center gap-3">
-          {(hasAdminPermission('members.manage') || isSuper) && (
-            <button onClick={startEdit} className="admin-btn admin-btn-primary flex items-center gap-2">
-              <Edit3 className="h-4 w-4" /> Edit Member
-            </button>
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="admin-btn flex items-center gap-2"
+              >
+                <X className="h-4 w-4" /> Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="admin-btn admin-btn-primary flex items-center gap-2"
+              >
+                {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save Changes
+              </button>
+            </div>
+          ) : (
+            (hasAdminPermission('members.manage') || isSuper) && (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="admin-btn admin-btn-primary flex items-center gap-2"
+              >
+                <Edit3 className="h-4 w-4" /> Edit Member
+              </button>
+            )
           )}
         </div>
       </div>
@@ -327,9 +433,37 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
       {/* Member header card */}
       <div className="admin-panel mb-6">
         <div className="flex items-start gap-5">
-          <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 relative ${
+              m.photo || photos.length > 0
+                ? 'cursor-zoom-in group/avatar ring-2 ring-transparent hover:ring-rose-500 shadow-md transition-all duration-200'
+                : ''
+            }`}
+            onClick={openAvatarZoom}
+            title={m.photo || photos.length > 0 ? 'Click to zoom profile photo' : undefined}
+          >
             {m.photo ? (
-              <img src={m.photo as string} alt="" className="h-full w-full object-cover" />
+              <>
+                <img
+                  src={m.photo as string}
+                  alt=""
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover/avatar:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 className="h-5 w-5 text-white drop-shadow-md" />
+                </div>
+              </>
+            ) : photos.length > 0 ? (
+              <>
+                <img
+                  src={`/api/proxy/profile-photos/${photos[0].id}/thumbnail/`}
+                  alt=""
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover/avatar:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 className="h-5 w-5 text-white drop-shadow-md" />
+                </div>
+              </>
             ) : (
               <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-slate-400">
                 {((m.first_name as string)?.[0] || '').toUpperCase()}
@@ -390,58 +524,95 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
           <>
             {/* Account info */}
             <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Account Information</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Account Information</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <InfoField label="Member ID" value={(m.id as string) || '—'} />
                 <InfoField label="Full Name" value={m.full_name as string} />
-                <InfoField label="Email" value={m.email as string} />
+                <InfoField label="Email" value={m.email as string} verified={m.is_email_verified as boolean} />
                 <InfoField label="Mobile" value={m.mobile_number as string} verified={m.is_mobile_verified as boolean} />
+                <InfoField label="Profile Created By" value={(m.profile_created_by as string) || 'Self'} />
                 <InfoField label="Account Type" value="Member" />
+                <InfoField label="Account Status" value={(m.account_status as string) || ((m.is_active as boolean) ? 'Active' : 'Inactive')} />
+                <InfoField label="Membership Plan" value={((m.active_membership as any)?.plan?.name as string) || ((m.is_premium as boolean) ? 'Premium' : 'Free')} />
+                <InfoField label="Terms & Privacy" value={m.terms_accepted_at ? `Agreed (${formatAdminDate(m.terms_accepted_at as string)})` : 'Agreed'} />
                 <InfoField label="Joined" value={formatAdminDate(m.created_at as string)} />
                 <InfoField label="Last Login" value={formatAdminDate(m.last_login as string)} />
-                <InfoField label="Account Status" value={(m.is_active as boolean) ? 'Active' : 'Inactive'} />
-                <InfoField label="Premium" value={(m.is_premium as boolean) ? 'Yes' : 'No'} />
+                <InfoField label="Last Profile Update" value={formatAdminDate(m.updated_at as string)} />
               </div>
             </div>
 
             {/* Personal info */}
             <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Personal Information</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Personal & Lifestyle Information</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <InfoField label="Gender" value={m.gender as string} />
                 <InfoField label="Date of Birth" value={m.date_of_birth as string} />
+                <InfoField label="Age" value={m.age ? `${m.age} yrs` : '—'} />
                 <InfoField label="Marital Status" value={m.marital_status as string} />
                 <InfoField label="Height" value={m.height as string} />
                 <InfoField label="Weight" value={m.weight as string} />
                 <InfoField label="Blood Group" value={m.blood_group as string} />
                 <InfoField label="Complexion" value={m.complexion as string} />
                 <InfoField label="Mother Tongue" value={m.mother_tongue as string} />
-                <InfoField label="Work Location" value={m.work_location as string} />
+                <InfoField label="Work Location / City" value={(m.work_location as string) || (m.city as string)} />
+                <InfoField label="Hobbies & Interests" value={Array.isArray(m.hobbies) ? m.hobbies.join(', ') : ((m.hobbies as string) || '—')} />
+                <InfoField label="Profile Created By" value={(m.profile_created_by as string) || 'Self'} />
               </div>
               {(m.about as string) && (
-                <div className="mt-4">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">About</label>
-                  <p className="text-sm text-slate-700">{m.about as string}</p>
+                <div className="mt-4 rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">About Me / Bio</label>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.about as string}</p>
                 </div>
               )}
             </div>
 
             {/* Religious info */}
             <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Religious Information</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Religious & Astrology Information</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <InfoField label="Religion" value={m.religion as string} />
                 <InfoField label="Caste" value={m.caste as string} />
                 <InfoField label="Sub Caste" value={m.sub_caste as string} />
                 <InfoField label="Gothra" value={m.gothra as string} />
-                <InfoField label="Manglik" value={m.manglik_status as string} />
+                <InfoField label="Star / Nakshatra" value={m.star_nakshatra as string} />
+                <InfoField label="Manglik Status" value={m.manglik_status as string} />
               </div>
             </div>
 
             {/* Professional info */}
             <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Professional Information</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Professional & Education Information</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <InfoField label="Education" value={m.highest_education as string} />
+                <InfoField label="Highest Education" value={m.highest_education as string} />
+                <InfoField label="Education Detail" value={m.education_detail as string} />
                 <InfoField label="Occupation" value={m.occupation as string} />
                 <InfoField label="Employed In" value={m.employed_in as string} />
                 <InfoField label="Company" value={m.company as string} />
@@ -450,23 +621,51 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
               </div>
             </div>
 
+            {/* Family Details panel */}
+            <div className="admin-panel">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Family Details</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <InfoField label="Father Status" value={m.father_status as string} />
+                <InfoField label="Mother Status" value={m.mother_status as string} />
+                <InfoField label="No. of Brothers" value={String(m.num_brothers ?? 0)} />
+                <InfoField label="No. of Sisters" value={String(m.num_sisters ?? 0)} />
+                <InfoField label="Family Type" value={m.family_type as string} />
+                <InfoField label="Family Status" value={m.family_status as string} />
+                <InfoField label="Family Location" value={m.family_location as string} />
+              </div>
+            </div>
+
             {/* Partner preferences */}
             <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Partner Preferences</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Partner Preferences</h2>
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <InfoField label="Age Range" value={`${m.pref_age_min || '—'} – ${m.pref_age_max || '—'}`} />
+                <InfoField label="Age Range" value={`${m.pref_age_min || '—'} – ${m.pref_age_max || '—'} yrs`} />
                 <InfoField label="Height Range" value={`${m.pref_height_min || '—'} – ${m.pref_height_max || '—'}`} />
-                <InfoField label="Religion" value={m.pref_religion as string} />
-                <InfoField label="Caste" value={m.pref_caste as string} />
-                <InfoField label="Education" value={m.pref_education as string} />
-                <InfoField label="Occupation" value={m.pref_occupation as string} />
-                <InfoField label="Location" value={m.pref_location as string} />
-                <InfoField label="Marital Status" value={m.pref_marital_status as string} />
+                <InfoField label="Preferred Religion" value={m.pref_religion as string} />
+                <InfoField label="Preferred Caste" value={m.pref_caste as string} />
+                <InfoField label="Preferred Education" value={m.pref_education as string} />
+                <InfoField label="Preferred Occupation" value={m.pref_occupation as string} />
+                <InfoField label="Preferred Location" value={m.pref_location as string} />
+                <InfoField label="Preferred Marital Status" value={m.pref_marital_status as string} />
               </div>
               {(m.pref_about as string) && (
-                <div className="mt-4">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Additional Expectations</label>
-                  <p className="text-sm text-slate-700">{m.pref_about as string}</p>
+                <div className="mt-4 rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">Additional Expectations</label>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.pref_about as string}</p>
                 </div>
               )}
             </div>
@@ -487,157 +686,405 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
 
         {activeTab === 'profile' && (
           editing ? (
-            <div className="admin-panel">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900">Edit Member Profile</h2>
+            <div className="space-y-6">
+              {/* Top Action Bar */}
+              <div className="admin-panel flex flex-wrap items-center justify-between gap-3 bg-rose-50/50 border-rose-200">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Edit3 className="h-5 w-5 text-rose-600" /> Edit Member Profile
+                  </h2>
+                  <p className="text-xs text-slate-500">Update personal details, background, astrology, family, and partner preferences.</p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setEditing(false)} className="admin-btn flex items-center gap-2">
+                  <button type="button" onClick={() => setEditing(false)} className="admin-btn flex items-center gap-2">
                     <X className="h-4 w-4" /> Cancel
                   </button>
-                  <button onClick={saveEdit} disabled={saving} className="admin-btn admin-btn-primary flex items-center gap-2">
+                  <button type="button" onClick={saveEdit} disabled={saving} className="admin-btn admin-btn-primary flex items-center gap-2">
                     {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Save Changes
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <EditField label="First Name" name="first_name" value={editData.first_name as string} onChange={v => setEditData(p => ({ ...p, first_name: v }))} />
-                <EditField label="Last Name" name="last_name" value={editData.last_name as string} onChange={v => setEditData(p => ({ ...p, last_name: v }))} />
-                <EditField label="Gender" name="gender" value={editData.gender as string} onChange={v => setEditData(p => ({ ...p, gender: v }))} />
-                <EditField label="Date of Birth" name="date_of_birth" type="date" value={editData.date_of_birth as string} onChange={v => setEditData(p => ({ ...p, date_of_birth: v }))} />
-                <EditField label="Marital Status" name="marital_status" value={editData.marital_status as string} onChange={v => setEditData(p => ({ ...p, marital_status: v }))} />
-                <EditField label="Height" name="height" value={editData.height as string} onChange={v => setEditData(p => ({ ...p, height: v }))} />
-                <EditField label="Weight" name="weight" value={editData.weight as string} onChange={v => setEditData(p => ({ ...p, weight: v }))} />
-                <EditField label="Blood Group" name="blood_group" value={editData.blood_group as string} onChange={v => setEditData(p => ({ ...p, blood_group: v }))} />
-                <EditField label="Complexion" name="complexion" value={editData.complexion as string} onChange={v => setEditData(p => ({ ...p, complexion: v }))} />
-                <EditField label="Religion" name="religion" value={editData.religion as string} onChange={v => setEditData(p => ({ ...p, religion: v }))} />
-                <EditField label="Mother Tongue" name="mother_tongue" value={editData.mother_tongue as string} onChange={v => setEditData(p => ({ ...p, mother_tongue: v }))} />
-                <EditField label="Caste" name="caste" value={editData.caste as string} onChange={v => setEditData(p => ({ ...p, caste: v }))} />
-                <EditField label="Sub Caste" name="sub_caste" value={editData.sub_caste as string} onChange={v => setEditData(p => ({ ...p, sub_caste: v }))} />
-                <EditField label="Gothra" name="gothra" value={editData.gothra as string} onChange={v => setEditData(p => ({ ...p, gothra: v }))} />
-                <EditField label="Star Nakshatra" name="star_nakshatra" value={editData.star_nakshatra as string} onChange={v => setEditData(p => ({ ...p, star_nakshatra: v }))} />
-                <EditField label="Highest Education" name="highest_education" value={editData.highest_education as string} onChange={v => setEditData(p => ({ ...p, highest_education: v }))} />
-                <EditField label="Education Detail" name="education_detail" value={editData.education_detail as string} onChange={v => setEditData(p => ({ ...p, education_detail: v }))} />
-                <EditField label="Occupation" name="occupation" value={editData.occupation as string} onChange={v => setEditData(p => ({ ...p, occupation: v }))} />
-                <EditField label="Employed In" name="employed_in" value={editData.employed_in as string} onChange={v => setEditData(p => ({ ...p, employed_in: v }))} />
-                <EditField label="Company" name="company" value={editData.company as string} onChange={v => setEditData(p => ({ ...p, company: v }))} />
-                <EditField label="Annual Income" name="annual_income" value={editData.annual_income as string} onChange={v => setEditData(p => ({ ...p, annual_income: v }))} />
-                <EditField label="Work Location" name="work_location" value={editData.work_location as string} onChange={v => setEditData(p => ({ ...p, work_location: v }))} />
-                <EditField label="Father Status" name="father_status" value={editData.father_status as string} onChange={v => setEditData(p => ({ ...p, father_status: v }))} />
-                <EditField label="Mother Status" name="mother_status" value={editData.mother_status as string} onChange={v => setEditData(p => ({ ...p, mother_status: v }))} />
-                <EditField label="No. of Brothers" name="num_brothers" type="number" value={String(editData.num_brothers ?? 0)} onChange={v => setEditData(p => ({ ...p, num_brothers: Number(v) }))} />
-                <EditField label="No. of Sisters" name="num_sisters" type="number" value={String(editData.num_sisters ?? 0)} onChange={v => setEditData(p => ({ ...p, num_sisters: Number(v) }))} />
-                <EditField label="Family Type" name="family_type" value={editData.family_type as string} onChange={v => setEditData(p => ({ ...p, family_type: v }))} />
-                <EditField label="Family Status" name="family_status" value={editData.family_status as string} onChange={v => setEditData(p => ({ ...p, family_status: v }))} />
-                <EditField label="Family Location" name="family_location" value={editData.family_location as string} onChange={v => setEditData(p => ({ ...p, family_location: v }))} />
+
+              {/* Personal Information */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  1. Personal & Lifestyle Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <EditField label="First Name" name="first_name" value={editData.first_name as string} onChange={v => setEditData(p => ({ ...p, first_name: v }))} />
+                  <EditField label="Last Name" name="last_name" value={editData.last_name as string} onChange={v => setEditData(p => ({ ...p, last_name: v }))} />
+                  <EditField
+                    label="Profile Created By"
+                    name="profile_created_by"
+                    type="select"
+                    options={[
+                      { value: 'Self', label: 'Self' },
+                      { value: 'Parent', label: 'Parent' },
+                      { value: 'Sibling', label: 'Sibling' },
+                      { value: 'Relative', label: 'Relative' },
+                      { value: 'Friend', label: 'Friend' },
+                    ]}
+                    value={editData.profile_created_by as string}
+                    onChange={v => setEditData(p => ({ ...p, profile_created_by: v }))}
+                  />
+                  <EditField
+                    label="Gender"
+                    name="gender"
+                    type="select"
+                    options={[
+                      { value: 'Male', label: 'Male' },
+                      { value: 'Female', label: 'Female' },
+                      { value: 'Other', label: 'Other' },
+                    ]}
+                    value={editData.gender as string}
+                    onChange={v => setEditData(p => ({ ...p, gender: v }))}
+                  />
+                  <EditField label="Date of Birth" name="date_of_birth" type="date" value={editData.date_of_birth as string} onChange={v => setEditData(p => ({ ...p, date_of_birth: v }))} />
+                  <EditField
+                    label="Marital Status"
+                    name="marital_status"
+                    type="select"
+                    options={[
+                      { value: 'Never Married', label: 'Never Married' },
+                      { value: 'Divorced', label: 'Divorced' },
+                      { value: 'Widowed', label: 'Widowed' },
+                      { value: 'Awaiting Divorce', label: 'Awaiting Divorce' },
+                      { value: 'Annulled', label: 'Annulled' },
+                    ]}
+                    value={editData.marital_status as string}
+                    onChange={v => setEditData(p => ({ ...p, marital_status: v }))}
+                  />
+                  <EditField label="Height (e.g. 5' 9'' / 175 cm)" name="height" value={editData.height as string} onChange={v => setEditData(p => ({ ...p, height: v }))} />
+                  <EditField label="Weight (e.g. 70 kg)" name="weight" value={editData.weight as string} onChange={v => setEditData(p => ({ ...p, weight: v }))} />
+                  <EditField
+                    label="Blood Group"
+                    name="blood_group"
+                    type="select"
+                    options={['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']}
+                    value={editData.blood_group as string}
+                    onChange={v => setEditData(p => ({ ...p, blood_group: v }))}
+                  />
+                  <EditField label="Complexion" name="complexion" value={editData.complexion as string} onChange={v => setEditData(p => ({ ...p, complexion: v }))} />
+                  <EditField label="Mother Tongue" name="mother_tongue" value={editData.mother_tongue as string} onChange={v => setEditData(p => ({ ...p, mother_tongue: v }))} />
+                  <EditField label="Hobbies & Interests (comma-separated)" name="hobbies" value={editData.hobbies as string} onChange={v => setEditData(p => ({ ...p, hobbies: v }))} />
+                </div>
+                <div className="mt-4">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">About Member / Bio</label>
+                  <textarea
+                    value={editData.about as string}
+                    onChange={e => setEditData(p => ({ ...p, about: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-rose-400 outline-none"
+                    rows={4}
+                    placeholder="Describe background, personality, and values..."
+                  />
+                </div>
               </div>
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">Partner Preferences</h3>
+
+              {/* Religious & Astrology Details */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  2. Religious & Astrological Details
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <EditField label="Religion" name="religion" value={editData.religion as string} onChange={v => setEditData(p => ({ ...p, religion: v }))} />
+                  <EditField label="Caste" name="caste" value={editData.caste as string} onChange={v => setEditData(p => ({ ...p, caste: v }))} />
+                  <EditField label="Sub Caste" name="sub_caste" value={editData.sub_caste as string} onChange={v => setEditData(p => ({ ...p, sub_caste: v }))} />
+                  <EditField label="Gothra" name="gothra" value={editData.gothra as string} onChange={v => setEditData(p => ({ ...p, gothra: v }))} />
+                  <EditField label="Star / Nakshatra" name="star_nakshatra" value={editData.star_nakshatra as string} onChange={v => setEditData(p => ({ ...p, star_nakshatra: v }))} />
+                  <EditField
+                    label="Manglik Status"
+                    name="manglik_status"
+                    type="select"
+                    options={[
+                      { value: 'No', label: 'No' },
+                      { value: 'Yes', label: 'Yes' },
+                      { value: 'Both / Partial', label: 'Both / Partial' },
+                      { value: 'Do not know', label: 'Do not know' },
+                    ]}
+                    value={editData.manglik_status as string}
+                    onChange={v => setEditData(p => ({ ...p, manglik_status: v }))}
+                  />
+                </div>
+              </div>
+
+              {/* Professional & Education */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  3. Education & Professional Background
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <EditField label="Highest Education" name="highest_education" value={editData.highest_education as string} onChange={v => setEditData(p => ({ ...p, highest_education: v }))} />
+                  <EditField label="Education Detail (Degree / College)" name="education_detail" value={editData.education_detail as string} onChange={v => setEditData(p => ({ ...p, education_detail: v }))} />
+                  <EditField label="Occupation" name="occupation" value={editData.occupation as string} onChange={v => setEditData(p => ({ ...p, occupation: v }))} />
+                  <EditField label="Employed In" name="employed_in" value={editData.employed_in as string} onChange={v => setEditData(p => ({ ...p, employed_in: v }))} />
+                  <EditField label="Company / Employer" name="company" value={editData.company as string} onChange={v => setEditData(p => ({ ...p, company: v }))} />
+                  <EditField label="Annual Income" name="annual_income" value={editData.annual_income as string} onChange={v => setEditData(p => ({ ...p, annual_income: v }))} />
+                  <EditField label="Work Location / City" name="work_location" value={editData.work_location as string} onChange={v => setEditData(p => ({ ...p, work_location: v }))} />
+                </div>
+              </div>
+
+              {/* Family Details */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  4. Family Details
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <EditField label="Father Status" name="father_status" value={editData.father_status as string} onChange={v => setEditData(p => ({ ...p, father_status: v }))} />
+                  <EditField label="Mother Status" name="mother_status" value={editData.mother_status as string} onChange={v => setEditData(p => ({ ...p, mother_status: v }))} />
+                  <EditField label="No. of Brothers" name="num_brothers" type="number" value={String(editData.num_brothers ?? 0)} onChange={v => setEditData(p => ({ ...p, num_brothers: Number(v) }))} />
+                  <EditField label="No. of Sisters" name="num_sisters" type="number" value={String(editData.num_sisters ?? 0)} onChange={v => setEditData(p => ({ ...p, num_sisters: Number(v) }))} />
+                  <EditField
+                    label="Family Type"
+                    name="family_type"
+                    type="select"
+                    options={[
+                      { value: 'Nuclear', label: 'Nuclear' },
+                      { value: 'Joint', label: 'Joint' },
+                      { value: 'Other', label: 'Other' },
+                    ]}
+                    value={editData.family_type as string}
+                    onChange={v => setEditData(p => ({ ...p, family_type: v }))}
+                  />
+                  <EditField
+                    label="Family Status"
+                    name="family_status"
+                    type="select"
+                    options={[
+                      { value: 'Middle Class', label: 'Middle Class' },
+                      { value: 'Upper Middle Class', label: 'Upper Middle Class' },
+                      { value: 'Rich', label: 'Rich' },
+                      { value: 'Affluent', label: 'Affluent' },
+                    ]}
+                    value={editData.family_status as string}
+                    onChange={v => setEditData(p => ({ ...p, family_status: v }))}
+                  />
+                  <EditField label="Family Location" name="family_location" value={editData.family_location as string} onChange={v => setEditData(p => ({ ...p, family_location: v }))} />
+                </div>
+              </div>
+
+              {/* Partner Preferences */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  5. Partner Preferences
+                </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <EditField label="Min Age" name="pref_age_min" type="number" value={String(editData.pref_age_min ?? '')} onChange={v => setEditData(p => ({ ...p, pref_age_min: v }))} />
                   <EditField label="Max Age" name="pref_age_max" type="number" value={String(editData.pref_age_max ?? '')} onChange={v => setEditData(p => ({ ...p, pref_age_max: v }))} />
                   <EditField label="Min Height" name="pref_height_min" value={editData.pref_height_min as string} onChange={v => setEditData(p => ({ ...p, pref_height_min: v }))} />
                   <EditField label="Max Height" name="pref_height_max" value={editData.pref_height_max as string} onChange={v => setEditData(p => ({ ...p, pref_height_max: v }))} />
-                  <EditField label="Religion" name="pref_religion" value={editData.pref_religion as string} onChange={v => setEditData(p => ({ ...p, pref_religion: v }))} />
-                  <EditField label="Caste" name="pref_caste" value={editData.pref_caste as string} onChange={v => setEditData(p => ({ ...p, pref_caste: v }))} />
-                  <EditField label="Location" name="pref_location" value={editData.pref_location as string} onChange={v => setEditData(p => ({ ...p, pref_location: v }))} />
-                  <EditField label="Education" name="pref_education" value={editData.pref_education as string} onChange={v => setEditData(p => ({ ...p, pref_education: v }))} />
-                  <EditField label="Occupation" name="pref_occupation" value={editData.pref_occupation as string} onChange={v => setEditData(p => ({ ...p, pref_occupation: v }))} />
-                  <EditField label="Marital Status" name="pref_marital_status" value={editData.pref_marital_status as string} onChange={v => setEditData(p => ({ ...p, pref_marital_status: v }))} />
+                  <EditField label="Preferred Religion" name="pref_religion" value={editData.pref_religion as string} onChange={v => setEditData(p => ({ ...p, pref_religion: v }))} />
+                  <EditField label="Preferred Caste" name="pref_caste" value={editData.pref_caste as string} onChange={v => setEditData(p => ({ ...p, pref_caste: v }))} />
+                  <EditField label="Preferred Location" name="pref_location" value={editData.pref_location as string} onChange={v => setEditData(p => ({ ...p, pref_location: v }))} />
+                  <EditField label="Preferred Education" name="pref_education" value={editData.pref_education as string} onChange={v => setEditData(p => ({ ...p, pref_education: v }))} />
+                  <EditField label="Preferred Occupation" name="pref_occupation" value={editData.pref_occupation as string} onChange={v => setEditData(p => ({ ...p, pref_occupation: v }))} />
+                  <EditField label="Preferred Marital Status" name="pref_marital_status" value={editData.pref_marital_status as string} onChange={v => setEditData(p => ({ ...p, pref_marital_status: v }))} />
                 </div>
                 <div className="mt-4">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Additional Expectations</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">Additional Expectations</label>
                   <textarea
                     value={editData.pref_about as string}
                     onChange={e => setEditData(p => ({ ...p, pref_about: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 p-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-rose-400 outline-none"
                     rows={4}
+                    placeholder="Describe specific preferences or expectations..."
                   />
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="mb-1 block text-xs font-medium text-slate-500">About</label>
-                <textarea
-                  value={editData.about as string}
-                  onChange={e => setEditData(p => ({ ...p, about: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 p-2 text-sm"
-                  rows={4}
-                />
-              </div>
-              {/* Account flags */}
-              <div className="mt-6 border-t border-slate-200 pt-6">
-                <h3 className="mb-3 text-sm font-semibold text-slate-700">Account Settings</h3>
+
+              {/* Account Flags */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2">
+                  6. Account Settings & Verification
+                </h3>
                 <div className="flex flex-wrap gap-6">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!editData.is_active} onChange={e => setEditData(p => ({ ...p, is_active: e.target.checked }))} className="rounded border-slate-300" />
-                    Active
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={!!editData.is_active} onChange={e => setEditData(p => ({ ...p, is_active: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
+                    Account Active
                   </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!editData.is_premium} onChange={e => setEditData(p => ({ ...p, is_premium: e.target.checked }))} className="rounded border-slate-300" />
-                    Premium
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={!!editData.is_premium} onChange={e => setEditData(p => ({ ...p, is_premium: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
+                    Premium Member
                   </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!editData.is_mobile_verified} onChange={e => setEditData(p => ({ ...p, is_mobile_verified: e.target.checked }))} className="rounded border-slate-300" />
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={!!editData.is_mobile_verified} onChange={e => setEditData(p => ({ ...p, is_mobile_verified: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
                     Mobile Verified
                   </label>
                 </div>
               </div>
+
+              {/* Bottom Action Bar */}
+              <div className="admin-panel flex items-center justify-end gap-3 bg-slate-50">
+                <button type="button" onClick={() => setEditing(false)} className="admin-btn flex items-center gap-2">
+                  <X className="h-4 w-4" /> Cancel
+                </button>
+                <button type="button" onClick={saveEdit} disabled={saving} className="admin-btn admin-btn-primary flex items-center gap-2">
+                  {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Changes
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="admin-panel">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Profile Fields</h2>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <InfoField label="First Name" value={m.first_name as string} />
-                <InfoField label="Last Name" value={m.last_name as string} />
-                <InfoField label="Gender" value={m.gender as string} />
-                <InfoField label="Date of Birth" value={m.date_of_birth as string} />
-                <InfoField label="Marital Status" value={m.marital_status as string} />
-                <InfoField label="Height" value={m.height as string} />
-                <InfoField label="Weight" value={m.weight as string} />
-                <InfoField label="Religion" value={m.religion as string} />
-                <InfoField label="Mother Tongue" value={m.mother_tongue as string} />
-                <InfoField label="Caste" value={m.caste as string} />
-                <InfoField label="Sub Caste" value={m.sub_caste as string} />
-                <InfoField label="Gothra" value={m.gothra as string} />
-                <InfoField label="Manglik" value={m.manglik_status as string} />
-                <InfoField label="Education" value={m.highest_education as string} />
-                <InfoField label="Education Detail" value={m.education_detail as string} />
-                <InfoField label="Occupation" value={m.occupation as string} />
-                <InfoField label="Employed In" value={m.employed_in as string} />
-                <InfoField label="Company" value={m.company as string} />
-                <InfoField label="Annual Income" value={m.annual_income as string} />
-                <InfoField label="Work Location" value={m.work_location as string} />
-              </div>
-              {(m.about as string) && (
-                <div className="mt-4">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">About</label>
-                  <p className="text-sm text-slate-700">{m.about as string}</p>
+            <div className="space-y-6">
+              {/* Header card for Profile tab */}
+              <div className="admin-panel flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Member Profile Details</h2>
+                  <p className="text-xs text-slate-500">Comprehensive profile, astrology, family, and partner preference data.</p>
                 </div>
-              )}
+                {(hasAdminPermission('members.manage') || isSuper) && (
+                  <button onClick={startEdit} className="admin-btn admin-btn-primary flex items-center gap-2">
+                    <Edit3 className="h-4 w-4" /> Edit Profile
+                  </button>
+                )}
+              </div>
+
+              {/* Personal & Lifestyle info */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <User className="h-4 w-4 text-rose-500" /> Personal & Lifestyle Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoField label="First Name" value={m.first_name as string} />
+                  <InfoField label="Last Name" value={m.last_name as string} />
+                  <InfoField label="Full Name" value={m.full_name as string} />
+                  <InfoField label="Profile Created By" value={(m.profile_created_by as string) || 'Self'} />
+                  <InfoField label="Gender" value={m.gender as string} />
+                  <InfoField label="Date of Birth" value={m.date_of_birth as string} />
+                  <InfoField label="Age" value={m.age ? `${m.age} yrs` : '—'} />
+                  <InfoField label="Marital Status" value={m.marital_status as string} />
+                  <InfoField label="Height" value={m.height as string} />
+                  <InfoField label="Weight" value={m.weight as string} />
+                  <InfoField label="Blood Group" value={m.blood_group as string} />
+                  <InfoField label="Complexion" value={m.complexion as string} />
+                  <InfoField label="Mother Tongue" value={m.mother_tongue as string} />
+                  <InfoField label="Work Location / City" value={(m.work_location as string) || (m.city as string)} />
+                  <InfoField label="Hobbies & Interests" value={Array.isArray(m.hobbies) ? m.hobbies.join(', ') : ((m.hobbies as string) || '—')} />
+                </div>
+                {(m.about as string) && (
+                  <div className="mt-4 rounded-lg bg-slate-50 p-3 border border-slate-100">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">About Me / Bio</label>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.about as string}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Religious & Astrology info */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <Star className="h-4 w-4 text-amber-500" /> Religious & Astrological Details
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoField label="Religion" value={m.religion as string} />
+                  <InfoField label="Caste" value={m.caste as string} />
+                  <InfoField label="Sub Caste" value={m.sub_caste as string} />
+                  <InfoField label="Gothra" value={m.gothra as string} />
+                  <InfoField label="Star / Nakshatra" value={m.star_nakshatra as string} />
+                  <InfoField label="Manglik Status" value={m.manglik_status as string} />
+                </div>
+              </div>
+
+              {/* Professional & Education info */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-rose-500" /> Career & Education Background
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoField label="Highest Education" value={m.highest_education as string} />
+                  <InfoField label="Education Detail" value={m.education_detail as string} />
+                  <InfoField label="Occupation" value={m.occupation as string} />
+                  <InfoField label="Employed In" value={m.employed_in as string} />
+                  <InfoField label="Company" value={m.company as string} />
+                  <InfoField label="Annual Income" value={m.annual_income as string} />
+                  <InfoField label="Work Location" value={m.work_location as string} />
+                </div>
+              </div>
+
+              {/* Family Details */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <Heart className="h-4 w-4 text-rose-500" /> Family Details
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoField label="Father Status" value={m.father_status as string} />
+                  <InfoField label="Mother Status" value={m.mother_status as string} />
+                  <InfoField label="No. of Brothers" value={String(m.num_brothers ?? 0)} />
+                  <InfoField label="No. of Sisters" value={String(m.num_sisters ?? 0)} />
+                  <InfoField label="Family Type" value={m.family_type as string} />
+                  <InfoField label="Family Status" value={m.family_status as string} />
+                  <InfoField label="Family Location" value={m.family_location as string} />
+                </div>
+              </div>
+
+              {/* Partner preferences */}
+              <div className="admin-panel">
+                <h3 className="mb-4 text-base font-semibold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Partner Preferences
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoField label="Preferred Age Range" value={`${m.pref_age_min || '—'} – ${m.pref_age_max || '—'} yrs`} />
+                  <InfoField label="Preferred Height Range" value={`${m.pref_height_min || '—'} – ${m.pref_height_max || '—'}`} />
+                  <InfoField label="Preferred Religion" value={m.pref_religion as string} />
+                  <InfoField label="Preferred Caste" value={m.pref_caste as string} />
+                  <InfoField label="Preferred Education" value={m.pref_education as string} />
+                  <InfoField label="Preferred Occupation" value={m.pref_occupation as string} />
+                  <InfoField label="Preferred Location" value={m.pref_location as string} />
+                  <InfoField label="Preferred Marital Status" value={m.pref_marital_status as string} />
+                </div>
+                {(m.pref_about as string) && (
+                  <div className="mt-4 rounded-lg bg-slate-50 p-3 border border-slate-100">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">Additional Expectations</label>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.pref_about as string}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )
         )}
 
         {activeTab === 'photos' && (
           <div className="admin-panel">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900">Member Photos</h2>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Member Photos</h2>
+                <p className="text-xs text-slate-500">Click any photo to zoom in full resolution, inspect details, or pan.</p>
+              </div>
+              {photos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openPhotoZoom(0)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" /> View Fullscreen
+                </button>
+              )}
+            </div>
             {photos.length === 0 ? (
               <p className="text-sm text-slate-500">No photos uploaded.</p>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {photos.map((photo: any) => (
-                  <div key={photo.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                    <div className="aspect-[4/5] bg-slate-100">
+                {photos.map((photo: any, index: number) => (
+                  <div key={photo.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm transition hover:shadow-md">
+                    <div
+                      className="aspect-[4/5] bg-slate-100 cursor-zoom-in relative overflow-hidden group/img"
+                      onClick={() => openPhotoZoom(index)}
+                      title="Click anywhere to zoom photo"
+                    >
                       <img
                         src={`/api/proxy/profile-photos/${photo.id}/thumbnail/`}
                         alt=""
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-200 group-hover/img:scale-105"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
+                      <div className="absolute inset-0 bg-black/25 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                        <span className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm shadow-md">
+                          <Maximize2 className="h-3.5 w-3.5" /> Click to Zoom
+                        </span>
+                      </div>
                     </div>
-                    <div className="absolute right-2 top-2 flex flex-col gap-1">
-                      {photo.is_primary && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-white">Primary</span>}
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    <div className="absolute right-2 top-2 flex flex-col gap-1 pointer-events-none">
+                      {photo.is_primary && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-white shadow-sm">Primary</span>}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium shadow-sm ${
                         photo.status === 'APPROVED' || photo.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
                         photo.status === 'REJECTED' || photo.status === 'rejected' ? 'bg-red-100 text-red-800' :
                         'bg-amber-100 text-amber-800'
@@ -646,10 +1093,26 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
                     <div className="absolute inset-x-0 bottom-0 flex translate-y-full gap-1 bg-gradient-to-t from-black/60 to-transparent p-2 transition-transform group-hover:translate-y-0">
                       {(photo.status === 'PENDING' || photo.status === 'pending') && (
                         <>
-                          <button onClick={() => setPhotoAction({ photoId: photo.id, approve: true })} className="flex-1 rounded bg-emerald-500 py-1 text-xs font-medium text-white hover:bg-emerald-600">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPhotoAction({ photoId: photo.id, approve: true });
+                            }}
+                            className="flex-1 rounded bg-emerald-500 py-1 text-xs font-medium text-white hover:bg-emerald-600 shadow-sm"
+                            title="Approve Photo"
+                          >
                             <Check className="mx-auto h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => setPhotoAction({ photoId: photo.id, approve: false })} className="flex-1 rounded bg-red-500 py-1 text-xs font-medium text-white hover:bg-red-600">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPhotoAction({ photoId: photo.id, approve: false });
+                            }}
+                            className="flex-1 rounded bg-red-500 py-1 text-xs font-medium text-white hover:bg-red-600 shadow-sm"
+                            title="Reject Photo"
+                          >
                             <X className="mx-auto h-3.5 w-3.5" />
                           </button>
                         </>
@@ -993,18 +1456,34 @@ export default function AdminMemberDetailPage({ memberId }: { memberId: string }
           onClose={() => setViewDoc(null)}
         />
       )}
+      <AdminPhotoLightbox
+        isOpen={lightboxIndex !== null}
+        photos={lightboxPhotos}
+        currentIndex={lightboxIndex ?? 0}
+        memberName={(m?.full_name as string) || 'Member'}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={(idx) => setLightboxIndex(idx)}
+        onApprove={(photoId) => {
+          setPhotoAction({ photoId, approve: true });
+        }}
+        onReject={(photoId) => {
+          setPhotoAction({ photoId, approve: false });
+        }}
+        isActionBusy={actionBusy}
+      />
     </div>
   );
 }
 
-function InfoField({ label, value, verified }: { label: string; value?: string; verified?: boolean }) {
+function InfoField({ label, value, verified }: { label: string; value?: string | number | null; verified?: boolean }) {
+  const displayVal = value !== undefined && value !== null && value !== '' ? String(value) : '—';
   return (
     <div>
       <label className="mb-0.5 block text-xs font-medium text-slate-500">{label}</label>
-      <p className="flex items-center gap-1.5 text-sm text-slate-800">
-        {value || '—'}
+      <div className="flex items-center gap-1.5 text-sm text-slate-800 font-medium">
+        <span>{displayVal}</span>
         {verified !== undefined && (verified ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 text-slate-300" />)}
-      </p>
+      </div>
     </div>
   );
 }
@@ -1025,14 +1504,37 @@ function VerificationCard({ label, status }: { label: string; status: string }) 
   );
 }
 
-function EditField({ label, name, value, type = 'text', onChange }: { label: string; name: string; value: string; type?: string; onChange: (v: string) => void }) {
+function EditField({
+  label, name, value, type = 'text', options, onChange
+}: {
+  label: string;
+  name: string;
+  value: string;
+  type?: string;
+  options?: Array<{ value: string; label: string }> | string[];
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
-      <label htmlFor={`edit-${name}`} className="mb-0.5 block text-xs font-medium text-slate-500">{label}</label>
+      <label htmlFor={`edit-${name}`} className="mb-1 block text-xs font-semibold text-slate-600">{label}</label>
       {type === 'textarea' ? (
-        <textarea id={`edit-${name}`} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm" rows={3} />
+        <textarea id={`edit-${name}`} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-rose-400 outline-none" rows={3} />
+      ) : type === 'select' && options ? (
+        <select
+          id={`edit-${name}`}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white focus:border-rose-400 outline-none"
+        >
+          <option value="">Select {label}</option>
+          {options.map(opt => {
+            const val = typeof opt === 'string' ? opt : opt.value;
+            const lbl = typeof opt === 'string' ? opt : opt.label;
+            return <option key={val} value={val}>{lbl}</option>;
+          })}
+        </select>
       ) : (
-        <input id={`edit-${name}`} type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input id={`edit-${name}`} type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 outline-none" />
       )}
     </div>
   );

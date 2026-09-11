@@ -110,6 +110,9 @@ def update_member(member, **data):
     for field, value in preference_data.items():
         setattr(preference, field, value)
     preference.save()
+    member.refresh_from_db()
+    if hasattr(member, '_required_values_cache'):
+        delattr(member, '_required_values_cache')
     return member
 
 

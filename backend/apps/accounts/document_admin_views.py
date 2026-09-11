@@ -204,6 +204,20 @@ class AdminDocumentApproveView(APIView):
                 ]
             )
 
+            try:
+                from apps.core.models import ProfileVerificationRequest
+                ProfileVerificationRequest.objects.filter(
+                    member=member,
+                    verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+                    status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+                ).update(
+                    status=ProfileVerificationRequest.Status.APPROVED,
+                    reviewed_at=timezone.now(),
+                    reviewed_by_id=reviewer.pk,
+                )
+            except Exception:
+                pass
+
             _log_audit(request, request.user, 'DOCUMENT_APPROVED', doc, old_status='PENDING', new_status=doc.status)
 
             _notify_member(
@@ -272,6 +286,21 @@ class AdminDocumentRejectView(APIView):
                     'updated_at',
                 ]
             )
+
+            try:
+                from apps.core.models import ProfileVerificationRequest
+                ProfileVerificationRequest.objects.filter(
+                    member=member,
+                    verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+                    status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+                ).update(
+                    status=ProfileVerificationRequest.Status.REJECTED,
+                    rejection_reason=reason,
+                    reviewed_at=timezone.now(),
+                    reviewed_by_id=reviewer.pk,
+                )
+            except Exception:
+                pass
 
             _log_audit(request, request.user, 'DOCUMENT_REJECTED', doc, old_status='PENDING', new_status=doc.status, reason=reason)
 

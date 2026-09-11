@@ -118,7 +118,7 @@ export default function AdminUsersPage() {
   // If viewing a detail page, render AdminMemberDetailPage
   const matchDetail = useMatch(`${basePath}/:id`);
   if (matchDetail?.params?.id) {
-    return <AdminMemberDetailPage memberId={matchDetail.params.id} />;
+    return <AdminMemberDetailPage memberId={matchDetail.params.id} onBack={() => navigate(basePath)} />;
   }
 
   return (
@@ -369,7 +369,7 @@ export default function AdminUsersPage() {
               </button>
             </div>
             <div className="p-6">
-              <AdminMemberDetailPage memberId={detailMemberId} />
+              <AdminMemberDetailPage memberId={detailMemberId} onBack={() => setDetailMemberId(null)} />
             </div>
           </div>
         </div>

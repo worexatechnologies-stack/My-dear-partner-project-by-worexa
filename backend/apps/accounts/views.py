@@ -1180,6 +1180,10 @@ class MemberMeView(AccountMeView):
         except ProfilePhotoProcessingError as exc:
             raise ValidationError({'photo': [str(exc)]}) from exc
 
+        member.refresh_from_db()
+        if hasattr(member, '_required_values_cache'):
+            delattr(member, '_required_values_cache')
+
         after = _snapshot_profile_values(member, changed_keys)
         changed_fields = [k for k in changed_keys if before.get(k) != after.get(k)]
         if changed_fields:

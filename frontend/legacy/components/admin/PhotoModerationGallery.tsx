@@ -5,6 +5,8 @@ import { useId, useState } from 'react';
 import ProfileImage from '@/components/profile/ProfileImage';
 import type { MemberPhoto } from '../../services/photoApi';
 import { AdminStatusBadge } from './AdminUI';
+import AdminPhotoLightbox, { LightboxPhoto } from './AdminPhotoLightbox';
+import { Maximize2 } from 'lucide-react';
 
 interface PhotoModerationGalleryProps {
   photos: MemberPhoto[];
@@ -29,6 +31,16 @@ export default function PhotoModerationGallery({
 }: PhotoModerationGalleryProps) {
   const reasonIdPrefix = useId();
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const lightboxPhotos: LightboxPhoto[] = photos.map((p, idx) => ({
+    id: p.id,
+    src: `/api/proxy/profile-photos/${p.id}/image/`,
+    alt: `Profile photo ${idx + 1}`,
+    is_primary: p.is_primary,
+    status: p.status,
+    uploaded_at: p.updated_at,
+  }));
 
   if (!photos.length) {
     return (
@@ -48,15 +60,26 @@ export default function PhotoModerationGallery({
 
         return (
           <article key={photo.id} className="photo-moderation-card">
-            <ProfileImage
-              photoId={photo.id}
-              variant="image"
-              updatedAt={photo.updated_at}
-              alt={`Profile photo ${index + 1}`}
-              size="full"
-              aspectRatio="4:5"
-              shape="rounded"
-            />
+            <div
+              className="relative cursor-zoom-in group/photo overflow-hidden rounded-xl"
+              onClick={() => setLightboxIndex(index)}
+              title="Click anywhere to zoom full resolution photo"
+            >
+              <ProfileImage
+                photoId={photo.id}
+                variant="image"
+                updatedAt={photo.updated_at}
+                alt={`Profile photo ${index + 1}`}
+                size="full"
+                aspectRatio="4:5"
+                shape="rounded"
+              />
+              <div className="absolute inset-0 bg-black/25 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center transition-opacity">
+                <span className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm shadow-md">
+                  <Maximize2 className="h-3.5 w-3.5" /> Zoom
+                </span>
+              </div>
+            </div>
 
             <div className="photo-moderation-meta">
               <AdminStatusBadge status={status} />
@@ -130,6 +153,21 @@ export default function PhotoModerationGallery({
           </article>
         );
       })}
+
+      <AdminPhotoLightbox
+        isOpen={lightboxIndex !== null}
+        photos={lightboxPhotos}
+        currentIndex={lightboxIndex ?? 0}
+        memberName="Photo Moderation"
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={(idx) => setLightboxIndex(idx)}
+        onApprove={canApprove ? (photoId) => onApprove(photoId) : undefined}
+        onReject={canReject ? (photoId) => {
+          const reason = reasons[photoId] || 'Photo does not meet guidelines.';
+          onReject(photoId, reason);
+        } : undefined}
+        isActionBusy={Boolean(busyPhotoId)}
+      />
     </div>
   );
 }

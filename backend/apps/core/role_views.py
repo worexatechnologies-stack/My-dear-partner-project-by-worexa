@@ -1423,6 +1423,66 @@ class AdminUserActionView(ScopedAPIView):
             notify_members_of_account_unavailability(member=member, action=action)
         return ApiResponse(data=MemberSerializer(member, context={'request': request}).data)
 
+    @transaction.atomic
+    def put(self, request, user_id):
+        self._require_permission(request, 'members.manage')
+        member = get_object_or_404(Member.objects.select_for_update(), pk=user_id)
+        check_object_scope(request.user, member, branch_path='branch')
+        from apps.accounts.serializers import MemberProfileUpdateSerializer
+        from apps.accounts.views import _snapshot_profile_values
+
+        data = request.data.copy()
+        if 'hobbies' in data and isinstance(data['hobbies'], str):
+            data['hobbies'] = [h.strip() for h in data['hobbies'].split(',') if h.strip()]
+
+        flags = {}
+        for flag_name in ('is_active', 'is_premium', 'is_mobile_verified'):
+            if flag_name in data:
+                flags[flag_name] = data.pop(flag_name)
+
+        # Ignore read-only / metadata keys that frontend might send
+        for read_only_key in ('photo', 'photos', 'documents', 'id', 'user_id', 'member_id', 'created_at', 'updated_at'):
+            data.pop(read_only_key, None)
+
+        changed_keys = [k for k in data.keys()]
+        before = _snapshot_profile_values(member, changed_keys)
+
+        serializer = MemberProfileUpdateSerializer(
+            member,
+            data=data,
+            partial=True,
+            context={'member': member},
+        )
+        serializer.is_valid(raise_exception=True)
+        member = serializer.save()
+
+        flag_fields = []
+        for flag_name, flag_val in flags.items():
+            if flag_val is not None:
+                setattr(member, flag_name, bool(flag_val))
+                flag_fields.append(flag_name)
+        if flag_fields:
+            member.save(update_fields=flag_fields)
+
+        member.refresh_from_db()
+        if hasattr(member, '_required_values_cache'):
+            delattr(member, '_required_values_cache')
+
+        after = _snapshot_profile_values(member, changed_keys)
+        changed_fields = [k for k in changed_keys if before.get(k) != after.get(k)]
+        if changed_fields:
+            audit(
+                request, request.user, action='MEMBER_PROFILE_EDITED', module='members',
+                target_type='MEMBER', target_id=member.pk,
+                old_data={k: before.get(k) for k in changed_fields},
+                new_data={k: after.get(k) for k in changed_fields},
+            )
+
+        return ApiResponse(
+            data=MemberSerializer(member, context={'request': request}).data,
+            message='Member updated successfully.',
+        )
+
 class AdminGrantMembershipView(ScopedAPIView):
     allowed_account_types = (AccountType.SUPER_ADMIN, AccountType.ADMIN)
     required_permission = 'members.manage'
@@ -1739,6 +1799,10 @@ class AdminVerificationListView(ScopedAPIView):
 
         if requested_type == ProfileVerificationRequest.VerificationType.FULL_PROFILE:
             self._sync_full_profile_verifications()
+        elif requested_type == ProfileVerificationRequest.VerificationType.PROFILE_PHOTO:
+            self._sync_profile_photo_verifications()
+        elif requested_type == ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT:
+            self._sync_identity_document_verifications()
 
         queryset = ProfileVerificationRequest.objects.select_related('member')
         queryset = apply_scope_filter(request.user, queryset, branch_path='member__branch')
@@ -1772,6 +1836,61 @@ class AdminVerificationListView(ScopedAPIView):
             )
             for member in pending_members
         ], ignore_conflicts=True)
+
+    @staticmethod
+    def _sync_profile_photo_verifications():
+        from apps.accounts.models import Member
+        from apps.profiles.models import ProfilePhoto
+        active_statuses = {
+            ProfileVerificationRequest.Status.PENDING_REVIEW,
+            ProfileVerificationRequest.Status.IN_REVIEW,
+            ProfileVerificationRequest.Status.CHANGES_REQUESTED,
+        }
+        pending_members = Member.objects.filter(
+            profile_photos__status=ProfilePhoto.Status.PENDING,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).exclude(
+            verification_requests__verification_type=ProfileVerificationRequest.VerificationType.PROFILE_PHOTO,
+            verification_requests__status__in=active_statuses,
+        ).distinct()
+        ProfileVerificationRequest.objects.bulk_create([
+            ProfileVerificationRequest(
+                member=member,
+                verification_type=ProfileVerificationRequest.VerificationType.PROFILE_PHOTO,
+                status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+            )
+            for member in pending_members
+        ], ignore_conflicts=True)
+
+    @staticmethod
+    def _sync_identity_document_verifications():
+        from apps.accounts.models import Member, MemberDocument
+        from apps.core.models import ProfileVerificationDocument
+        active_statuses = {
+            ProfileVerificationRequest.Status.PENDING_REVIEW,
+            ProfileVerificationRequest.Status.IN_REVIEW,
+            ProfileVerificationRequest.Status.CHANGES_REQUESTED,
+        }
+        pending_members = Member.objects.filter(
+            documents__status=MemberDocument.Status.PENDING,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).exclude(
+            verification_requests__verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+            verification_requests__status__in=active_statuses,
+        ).distinct()
+        for member in pending_members:
+            req, _ = ProfileVerificationRequest.objects.get_or_create(
+                member=member,
+                verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+                status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+            )
+            for doc in member.documents.filter(status=MemberDocument.Status.PENDING):
+                ProfileVerificationDocument.objects.get_or_create(
+                    verification_request=req,
+                    member_document=doc,
+                )
 
 class AdminVerificationDetailView(ScopedAPIView):
     allowed_account_types = (AccountType.SUPER_ADMIN, AccountType.ADMIN)
