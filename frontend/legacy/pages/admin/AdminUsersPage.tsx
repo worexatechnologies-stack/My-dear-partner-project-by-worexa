@@ -30,6 +30,8 @@ interface PendingAction {
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
+  { value: 'active', label: 'Active Members' },
+  { value: 'suspended', label: 'Suspended Members' },
   { value: 'not_started', label: 'Not Started' },
   { value: 'draft', label: 'Draft' },
   { value: 'pending_review', label: 'Pending Review' },
@@ -52,6 +54,9 @@ export default function AdminUsersPage() {
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [gender, setGender] = useState(searchParams.get('gender') || '');
+  const [verified, setVerified] = useState(searchParams.get('verified') || '');
+  const [period, setPeriod] = useState(searchParams.get('period') || '');
   const [ordering, setOrdering] = useState(searchParams.get('ordering') || '-date_joined');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,6 +64,26 @@ export default function AdminUsersPage() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Sync state when URL search params change
+  useEffect(() => {
+    const paramStatus = searchParams.get('status') || '';
+    const paramSearch = searchParams.get('search') || '';
+    const paramPage = Number(searchParams.get('page')) || 1;
+    const paramOrdering = searchParams.get('ordering') || '-date_joined';
+    const paramGender = searchParams.get('gender') || '';
+    const paramVerified = searchParams.get('verified') || '';
+    const paramPeriod = searchParams.get('period') || '';
+
+    setStatus(paramStatus);
+    setSearch(paramSearch);
+    setSearchInput(paramSearch);
+    setPage(paramPage);
+    setOrdering(paramOrdering);
+    setGender(paramGender);
+    setVerified(paramVerified);
+    setPeriod(paramPeriod);
+  }, [searchParams]);
 
   // Detail view
   const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
@@ -70,7 +95,16 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await getAdminUsers({ page, search, status, ordering, pageSize: PAGE_SIZE });
+      const data = await getAdminUsers({
+        page,
+        search,
+        status: status || undefined,
+        ordering,
+        gender: gender || undefined,
+        is_verified: verified || undefined,
+        period: period || undefined,
+        pageSize: PAGE_SIZE,
+      });
       setUsers(data.results || []);
       setCount(data.count || 0);
     } catch {
@@ -78,7 +112,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, status, ordering]);
+  }, [page, search, status, ordering, gender, verified, period]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -137,12 +171,54 @@ export default function AdminUsersPage() {
 
       {/* Summary cards */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <SummaryCard icon={Users} label="Total Members" value={summary.total} color="rose" />
-        <SummaryCard icon={Shield} label="Pending Profile" value={summary.pendingProfile} color="amber" />
-        <SummaryCard icon={Camera} label="Pending Photo" value={summary.pendingPhoto} color="purple" />
-        <SummaryCard icon={FileText} label="Pending Document" value={summary.pendingDoc} color="indigo" />
-        <SummaryCard icon={CheckCircle2} label="Verified" value={summary.verified} color="emerald" />
-        <SummaryCard icon={Ban} label="Suspended" value={summary.suspended} color="red" />
+        <SummaryCard
+          icon={Users}
+          label="Total Members"
+          value={summary.total}
+          color="rose"
+          title="View all members"
+          onClick={() => { setStatus(''); setGender(''); setVerified(''); setPeriod(''); setSearch(''); setSearchInput(''); setPage(1); }}
+        />
+        <SummaryCard
+          icon={Shield}
+          label="Pending Profile"
+          value={summary.pendingProfile}
+          color="amber"
+          title="Review profile approvals"
+          onClick={() => navigate(isSuper ? '/super-admin/profile-verifications' : '/admin/profile-verifications')}
+        />
+        <SummaryCard
+          icon={Camera}
+          label="Pending Photo"
+          value={summary.pendingPhoto}
+          color="purple"
+          title="Review photo approvals"
+          onClick={() => navigate(isSuper ? '/super-admin/photo-verifications' : '/admin/photo-verifications')}
+        />
+        <SummaryCard
+          icon={FileText}
+          label="Pending Document"
+          value={summary.pendingDoc}
+          color="indigo"
+          title="Review document verifications"
+          onClick={() => navigate(isSuper ? '/super-admin/document-verifications' : '/admin/document-verifications')}
+        />
+        <SummaryCard
+          icon={CheckCircle2}
+          label="Verified"
+          value={summary.verified}
+          color="emerald"
+          title="Filter verified profiles"
+          onClick={() => { setVerified('true'); setStatus(''); setPage(1); }}
+        />
+        <SummaryCard
+          icon={Ban}
+          label="Suspended"
+          value={summary.suspended}
+          color="red"
+          title="Filter suspended users"
+          onClick={() => { setStatus('suspended'); setPage(1); }}
+        />
       </div>
 
       {/* Filters */}
@@ -181,6 +257,58 @@ export default function AdminUsersPage() {
           <Search className="h-4 w-4" /> Search
         </button>
       </div>
+
+      {/* Active Filter Chips */}
+      {(status || gender || verified || period || search) && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-rose-50/60 border border-rose-100 px-3 py-2 text-xs">
+          <span className="font-semibold text-rose-900">Active filters:</span>
+          {status && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
+              Status: {status.replace(/_/g, ' ')}
+              <button type="button" onClick={() => { setStatus(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          {gender && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
+              Gender: {gender}
+              <button type="button" onClick={() => { setGender(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          {verified && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
+              Verified only
+              <button type="button" onClick={() => { setVerified(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          {period && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
+              Joined: {period}
+              <button type="button" onClick={() => { setPeriod(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          {search && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
+              Search: &quot;{search}&quot;
+              <button type="button" onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setStatus('');
+              setGender('');
+              setVerified('');
+              setPeriod('');
+              setSearch('');
+              setSearchInput('');
+              setPage(1);
+            }}
+            className="ml-auto text-xs font-semibold text-rose-700 hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (
@@ -392,23 +520,42 @@ export default function AdminUsersPage() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+function SummaryCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+  title,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  value: number;
+  color: string;
+  title?: string;
+  onClick?: () => void;
+}) {
   const colorClasses: Record<string, string> = {
-    blue: 'bg-rose-50 border-rose-200 text-rose-700',
-    amber: 'bg-amber-50 border-amber-200 text-amber-700',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700',
-    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-    red: 'bg-red-50 border-red-200 text-red-700',
+    rose: 'bg-rose-50 border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-100/60',
+    amber: 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-300 hover:bg-amber-100/60',
+    purple: 'bg-purple-50 border-purple-200 text-purple-700 hover:border-purple-300 hover:bg-purple-100/60',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100/60',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100/60',
+    red: 'bg-red-50 border-red-200 text-red-700 hover:border-red-300 hover:bg-red-100/60',
   };
   return (
-    <div className={`flex items-center gap-3 rounded-xl border p-4 ${colorClasses[color] || 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : ''} ${colorClasses[color] || 'bg-slate-50 border-slate-200 text-slate-700'}`}
+    >
       <Icon className="h-8 w-8 flex-shrink-0" />
       <div>
         <p className="text-2xl font-bold">{value}</p>
         <p className="text-xs font-medium">{label}</p>
       </div>
-    </div>
+    </button>
   );
 }
 

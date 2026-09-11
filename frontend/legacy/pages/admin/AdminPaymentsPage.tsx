@@ -1,7 +1,7 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from '@/lib/router-compat';
+import { useLocation, useSearchParams } from '@/lib/router-compat';
 import { BadgeCheck, Banknote, CreditCard, Filter, RefreshCw, Search, WalletCards } from 'lucide-react';
 import { getAdminTransactionsPage, type AdminTransaction } from '../../services/adminService';
 import {
@@ -12,14 +12,20 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 export default function AdminPaymentsPage() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const membershipMode = location.pathname.endsWith('/memberships');
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(searchParams.get('status') || '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const paramStatus = searchParams.get('status') || '';
+    if (paramStatus) setStatus(paramStatus.toLowerCase());
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,15 +79,45 @@ export default function AdminPaymentsPage() {
         actions={<button type="button" className="admin-btn admin-btn-secondary" onClick={load}><RefreshCw /> Refresh</button>}
       />
       <div className="admin-mini-stat-grid">
-        <article><span className="green"><Banknote /></span><p><small>Visible value</small><strong>{formatAdminMoney(summary.value)}</strong></p></article>
-        <article><span className="blue">{membershipMode ? <BadgeCheck /> : <CreditCard />}</span><p><small>{membershipMode ? 'Active memberships' : 'Successful payments'}</small><strong>{summary.active}</strong></p></article>
-        <article><span className="amber"><WalletCards /></span><p><small>Pending records</small><strong>{summary.pending}</strong></p></article>
-        <article><span className="wine"><CreditCard /></span><p><small>Total records</small><strong>{count.toLocaleString('en-IN')}</strong></p></article>
+        <article style={{ cursor: 'pointer' }} onClick={() => setStatus('')} title="Show all transactions">
+          <span className="green"><Banknote /></span>
+          <p><small>Visible value</small><strong>{formatAdminMoney(summary.value)}</strong></p>
+        </article>
+        <article style={{ cursor: 'pointer' }} onClick={() => setStatus('paid')} title="Filter successful payments">
+          <span className="blue">{membershipMode ? <BadgeCheck /> : <CreditCard />}</span>
+          <p><small>{membershipMode ? 'Active memberships' : 'Successful payments'}</small><strong>{summary.active}</strong></p>
+        </article>
+        <article style={{ cursor: 'pointer' }} onClick={() => setStatus('pending')} title="Filter pending payments">
+          <span className="amber"><WalletCards /></span>
+          <p><small>Pending records</small><strong>{summary.pending}</strong></p>
+        </article>
+        <article style={{ cursor: 'pointer' }} onClick={() => setStatus('')} title="Show all records">
+          <span className="wine"><CreditCard /></span>
+          <p><small>Total records</small><strong>{count.toLocaleString('en-IN')}</strong></p>
+        </article>
       </div>
       <AdminPanel className="admin-table-panel">
         <div className="admin-table-toolbar">
           <div className="admin-search-field"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search member, plan or reference" /></div>
-          <div className="admin-filter-row"><label><Filter /><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="paid">Paid</option><option value="captured">Captured</option><option value="created">Created</option><option value="authorized">Authorized</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="partially_refunded">Partially refunded</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label></div>
+          <div className="admin-filter-row">
+            <label>
+              <Filter />
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">All statuses</option>
+                <option value="successful">Successful</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="captured">Captured</option>
+                <option value="created">Created</option>
+                <option value="authorized">Authorized</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+                <option value="partially_refunded">Partially refunded</option>
+                <option value="expired">Expired</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
         </div>
         {error && <div className="admin-inline-error">{error}</div>}
         {transactions.length ? (

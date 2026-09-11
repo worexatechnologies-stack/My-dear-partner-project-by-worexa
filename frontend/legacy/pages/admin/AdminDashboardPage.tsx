@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
-  Activity, BadgeCheck, Banknote, CalendarDays, CheckCircle2, CircleDollarSign,
+  Activity, ArrowUpRight, BadgeCheck, Banknote, CalendarDays, CheckCircle2, CircleDollarSign,
   Clock3, CreditCard, FileCheck2, FileImage, Flag, Headphones, HeartHandshake,
   LoaderCircle, RefreshCw, ShieldAlert, TicketCheck, UserRoundCheck, Users,
 } from 'lucide-react';
+import { Link, useLocation } from '@/lib/router-compat';
 import { useAuth, type AdminRole } from '../../contexts/AuthContext';
 import {
   getAdminDashboard, type AdminDashboard, type AdminDashboardStats,
@@ -48,6 +49,9 @@ const roleStats: Record<AdminRole, StatDefinition[]> = {
     stat('pending_tickets', 'Pending tickets', TicketCheck, 'amber'),
     stat('open_complaints', 'Open complaints', Headphones, 'red'),
     stat('reported_profiles', 'Reported profiles', Flag, 'red'),
+    stat('pending_photo_approvals', 'Photo approvals', FileImage, 'amber'),
+    stat('pending_document_verification', 'Document checks', FileCheck2, 'rose'),
+    stat('active_memberships', 'Active memberships', BadgeCheck, 'green'),
   ],
   ADMIN: [
     stat('total_users', 'Total users', Users, 'wine'),
@@ -63,6 +67,55 @@ const roleStats: Record<AdminRole, StatDefinition[]> = {
     stat('reported_profiles', 'Reported profiles', Flag, 'red'),
   ],
 };
+
+function getStatRoute(key: keyof AdminDashboardStats, basePath: string): string {
+  switch (key) {
+    case 'total_users':
+      return `${basePath}/members`;
+    case 'active_users':
+      return `${basePath}/members?status=active`;
+    case 'pending_profile_approvals':
+      return `${basePath}/profile-verifications`;
+    case 'verified_users':
+      return `${basePath}/members?verified=true`;
+    case 'suspended_users':
+      return `${basePath}/members?status=suspended`;
+    case 'new_today':
+      return `${basePath}/members?period=today`;
+    case 'new_this_month':
+      return `${basePath}/members?period=month`;
+    case 'male_profiles':
+      return `${basePath}/members?gender=male`;
+    case 'female_profiles':
+      return `${basePath}/members?gender=female`;
+    case 'premium_users':
+    case 'active_memberships':
+      return `${basePath}/memberships`;
+    case 'expired_memberships':
+      return `${basePath}/memberships?status=expired`;
+    case 'total_revenue':
+    case 'revenue_this_month':
+      return `${basePath}/memberships/payments`;
+    case 'pending_payments':
+      return `${basePath}/memberships/payments?status=pending`;
+    case 'successful_payments':
+      return `${basePath}/memberships/payments?status=successful`;
+    case 'failed_payments':
+      return `${basePath}/memberships/payments?status=failed`;
+    case 'pending_tickets':
+      return `${basePath}/support-tickets`;
+    case 'open_complaints':
+      return `${basePath}/complaints`;
+    case 'reported_profiles':
+      return `${basePath}/reported-profiles`;
+    case 'pending_photo_approvals':
+      return `${basePath}/photo-verifications`;
+    case 'pending_document_verification':
+      return `${basePath}/document-verifications`;
+    default:
+      return `${basePath}/members`;
+  }
+}
 
 const roleCopy: Record<AdminRole, { eyebrow: string; title: string; description: string }> = {
   SUPER_ADMIN: {
@@ -162,7 +215,9 @@ export default function AdminDashboardPage() {
     debounceMs: 400,
   });
 
+  const location = useLocation();
   const role = dashboard?.role || initialRole;
+  const basePath = location.pathname.startsWith('/super-admin') || role === 'SUPER_ADMIN' ? '/super-admin' : '/admin';
   const copy = roleCopy[role];
   const visibleStats = roleStats[role];
   const charts = useMemo(() => dashboard?.charts || { registrations: [], revenue: [], memberships: [] }, [dashboard]);
@@ -227,68 +282,118 @@ export default function AdminDashboardPage() {
       <div className="admin-stat-grid">
         {visibleStats.map(({ key, label, icon: Icon, tone, money }) => {
           const value = dashboard?.stats[key] ?? 0;
+          const href = getStatRoute(key, basePath);
           return (
-            <article className="admin-stat-card" key={key}>
+            <Link
+              to={href}
+              className="admin-stat-card admin-stat-card--clickable"
+              key={key}
+              title={`View ${label}`}
+              aria-label={`View ${label}: ${money ? formatAdminMoney(value) : Number(value).toLocaleString('en-IN')}`}
+            >
               <span className={`admin-stat-icon ${tone}`}><Icon /></span>
-              <div><strong>{money ? formatAdminMoney(value) : Number(value).toLocaleString('en-IN')}</strong><p>{label}</p></div>
-            </article>
+              <div>
+                <strong>{money ? formatAdminMoney(value) : Number(value).toLocaleString('en-IN')}</strong>
+                <p>{label}</p>
+              </div>
+              <ArrowUpRight className="admin-stat-arrow" aria-hidden="true" />
+            </Link>
           );
         })}
       </div>
 
       <div className="admin-chart-grid">
-        <AdminPanel title="User registrations" subtitle="Registration volume for the selected period">
+        <AdminPanel
+          title="User registrations"
+          subtitle="Registration volume for the selected period"
+          action={<Link to={`${basePath}/members`} className="admin-panel-action-link">View members &rarr;</Link>}
+        >
           <AdminBarChart points={charts.registrations} empty="No registration history in this period." />
         </AdminPanel>
         {role === 'SUPER_ADMIN' && (
-          <AdminPanel title="Revenue trend" subtitle="Recognised membership revenue">
+          <AdminPanel
+            title="Revenue trend"
+            subtitle="Recognised membership revenue"
+            action={<Link to={`${basePath}/memberships/payments`} className="admin-panel-action-link">View payments &rarr;</Link>}
+          >
             <AdminBarChart points={charts.revenue} money empty="No revenue history in this period." />
           </AdminPanel>
         )}
-        <AdminPanel title="Membership mix" subtitle="Members by active plan">
+        <AdminPanel
+          title="Membership mix"
+          subtitle="Members by active plan"
+          action={<Link to={`${basePath}/memberships`} className="admin-panel-action-link">View plans &rarr;</Link>}
+        >
           <AdminDistribution points={charts.memberships} />
         </AdminPanel>
       </div>
 
       <div className="admin-dashboard-recent-grid">
-        <AdminPanel title="Recent registrations" subtitle="Latest members visible to your role">
+        <AdminPanel
+          title="Recent registrations"
+          subtitle="Latest members visible to your role"
+          action={<Link to={`${basePath}/members`} className="admin-panel-action-link">View all &rarr;</Link>}
+        >
           {dashboard?.recent_users.length ? (
             <div className="admin-compact-list">
               {dashboard.recent_users.slice(0, 6).map((member) => (
-                <div key={member.id}>
+                <Link
+                  to={`${basePath}/members/${member.id}`}
+                  key={member.id}
+                  className="admin-compact-list-item"
+                  title={`Open profile for ${member.full_name || member.email}`}
+                >
                   <span className="admin-list-avatar">{(member.full_name || member.email).slice(0, 1).toUpperCase()}</span>
                   <p><strong>{member.full_name || 'Unnamed member'}</strong><small>{member.email}</small></p>
                   <AdminStatusBadge status={member.is_verified ? 'Verified' : 'Pending'} />
-                </div>
+                </Link>
               ))}
             </div>
           ) : <AdminEmptyState title="No recent users" description="Recent members will appear here." />}
         </AdminPanel>
 
-        <AdminPanel title="Recent ticket activity" subtitle="Latest support work in your scope">
+        <AdminPanel
+          title="Recent ticket activity"
+          subtitle="Latest support work in your scope"
+          action={<Link to={`${basePath}/support-tickets`} className="admin-panel-action-link">View all &rarr;</Link>}
+        >
           {dashboard?.recent_tickets.length ? (
             <div className="admin-compact-list">
               {dashboard.recent_tickets.slice(0, 6).map((ticket) => (
-                <div key={ticket.id}>
+                <Link
+                  to={`${basePath}/support-tickets/${ticket.id}`}
+                  key={ticket.id}
+                  className="admin-compact-list-item"
+                  title={`Open ticket ${ticket.ticket_number}`}
+                >
                   <span className="admin-list-avatar ticket"><TicketCheck /></span>
-                  <p><strong>{ticket.subject}</strong><small>{ticket.ticket_number} Â· {ticket.user?.full_name || 'Unassigned user'}</small></p>
+                  <p><strong>{ticket.subject}</strong><small>{ticket.ticket_number} · {ticket.user?.full_name || 'Unassigned user'}</small></p>
                   <AdminStatusBadge status={ticket.status} />
-                </div>
+                </Link>
               ))}
             </div>
           ) : <AdminEmptyState title="No recent tickets" description="New support activity will appear here." />}
         </AdminPanel>
 
         {role === 'SUPER_ADMIN' && (
-          <AdminPanel title="Recent payments" subtitle="Latest membership transactions">
+          <AdminPanel
+            title="Recent payments"
+            subtitle="Latest membership transactions"
+            action={<Link to={`${basePath}/memberships/payments`} className="admin-panel-action-link">View all &rarr;</Link>}
+          >
             {dashboard?.recent_payments.length ? (
               <div className="admin-compact-list">
                 {dashboard.recent_payments.slice(0, 6).map((payment) => (
-                  <div key={payment.id}>
+                  <Link
+                    to={`${basePath}/memberships/payments`}
+                    key={payment.id}
+                    className="admin-compact-list-item"
+                    title={`View payment details`}
+                  >
                     <span className="admin-list-avatar money"><CreditCard /></span>
-                    <p><strong>{payment.user || payment.email}</strong><small>{payment.plan} Â· {formatAdminDate(payment.date)}</small></p>
+                    <p><strong>{payment.user || payment.email}</strong><small>{payment.plan} · {formatAdminDate(payment.date)}</small></p>
                     <b>{formatAdminMoney(payment.amount)}</b>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : <AdminEmptyState title="No recent payments" description="New transactions will appear here." />}
@@ -296,11 +401,23 @@ export default function AdminDashboardPage() {
         )}
 
         {role === 'SUPER_ADMIN' && (
-          <AdminPanel title="Recent admin activity" subtitle="Latest privileged actions">
+          <AdminPanel
+            title="Recent admin activity"
+            subtitle="Latest privileged actions"
+            action={<Link to={`${basePath}/activity`} className="admin-panel-action-link">View all &rarr;</Link>}
+          >
             {dashboard?.recent_activity.length ? (
               <div className="admin-activity-preview">
                 {dashboard.recent_activity.slice(0, 6).map((item) => (
-                  <div key={item.id}><span><Activity /></span><p><strong>{item.admin_name}</strong> {item.description || item.action}<small>{formatAdminDate(item.created_at, true)}</small></p></div>
+                  <Link
+                    to={`${basePath}/activity`}
+                    key={item.id}
+                    className="admin-activity-preview-item"
+                    title="View admin audit trail"
+                  >
+                    <span><Activity /></span>
+                    <p><strong>{item.admin_name}</strong> {item.description || item.action}<small>{formatAdminDate(item.created_at, true)}</small></p>
+                  </Link>
                 ))}
               </div>
             ) : <AdminEmptyState title="No recent activity" description="Administrative actions will appear here." />}

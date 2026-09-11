@@ -1193,8 +1193,24 @@ class AdminUserListView(ScopedAPIView):
         requested_status = request.query_params.get('status')
         if requested_status == 'deleted':
             queryset = Member.objects.filter(deleted_at__isnull=False).select_related('profile', 'preferences')
+        elif requested_status in ('active', 'ACTIVE'):
+            queryset = queryset.filter(is_active=True)
+        elif requested_status in ('suspended', 'SUSPENDED'):
+            queryset = queryset.filter(is_active=False)
         elif requested_status:
             queryset = queryset.filter(profile_status=requested_status)
+        gender = request.query_params.get('gender')
+        if gender:
+            queryset = queryset.filter(gender__iexact=gender)
+        is_verified = request.query_params.get('is_verified') or request.query_params.get('verified')
+        if is_verified is not None and str(is_verified).strip() != '':
+            val = str(is_verified).lower() in ('true', '1', 'yes')
+            queryset = queryset.filter(is_verified=val)
+        period = request.query_params.get('period')
+        if period == 'today':
+            queryset = queryset.filter(created_at__date=today)
+        elif period == 'month':
+            queryset = queryset.filter(created_at__year=today.year, created_at__month=today.month)
         ordering = request.query_params.get('ordering', '-date_joined')
         order_field = self.ORDERING_FIELDS.get(ordering)
         if order_field:
@@ -2377,9 +2393,16 @@ class AdminPaymentListView(ScopedAPIView):
     def get(self, request):
         queryset = PaymentOrder.objects.select_related('user', 'membership_plan').order_by('-created_at')
         
-        status_filter = request.query_params.get('status', '').strip()
+        status_filter = request.query_params.get('status', '').strip().lower()
         if status_filter:
-            queryset = queryset.filter(status=status_filter)
+            if status_filter in ('successful', 'paid', 'success'):
+                queryset = queryset.filter(status__in=['paid', 'captured', 'authorized'])
+            elif status_filter in ('pending',):
+                queryset = queryset.filter(status__in=['created', 'checkout_opened', 'attempted'])
+            elif status_filter in ('failed',):
+                queryset = queryset.filter(status__in=['failed', 'cancelled', 'expired'])
+            else:
+                queryset = queryset.filter(status__iexact=status_filter)
             
         search = request.query_params.get('search', '').strip()
         if search:
