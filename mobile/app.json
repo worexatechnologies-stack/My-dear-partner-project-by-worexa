@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.mydearpartner.app",
+      "bundleIdentifier": "org.reactjs.native.example.MyDearPartner",
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true
     },
