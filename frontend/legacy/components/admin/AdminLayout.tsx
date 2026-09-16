@@ -5,8 +5,7 @@ import SmartImage from '@/components/shared/smart-image';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from '@/lib/router-compat';
 import {
-  ChevronDown, ChevronLeft, ChevronRight,
-  HeartHandshake, LogOut, Menu, Search, ShieldCheck, UserRound, X,
+  ChevronDown, HeartHandshake, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, UserRound, X,
 } from 'lucide-react';
 import {
   adminNavigation, adminNavSections, canAccessAdminItem, findAdminNavItem, normalizeAdminPath,
@@ -177,10 +176,15 @@ function AdminLayoutInner({ children }: { children?: ReactNode }) {
       <button type="button" className={`admin-drawer-backdrop ${mobileOpen ? 'visible' : ''}`} onClick={() => setMobileOpen(false)} aria-label="Close navigation" />
       <aside className={`admin-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="admin-brand-row">
-          <Link to={dashboardPath} className="admin-brand flex items-center gap-2.5" aria-label="My Dear Partner admin dashboard">
-            <img src="/images/main-logo.png" alt="My Dear Partner Logo" className="w-8 h-8 object-contain" />
-            <div><strong>My Dear <span className="brand-accent">Partner</span></strong><small>Control centre</small></div>
+          <Link to={dashboardPath} className="admin-brand" aria-label="My Dear Partner admin dashboard">
+            <img src="/images/main-logo.png" alt="My Dear Partner Logo" className="admin-brand-logo" style={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0 }} />
+            <strong>My Dear <span className="brand-accent">Partner</span></strong>
           </Link>
+          {/* Desktop collapse toggle */}
+          <button type="button" className="admin-collapse-btn" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+          </button>
+          {/* Mobile close button */}
           <button type="button" className="admin-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu"><X /></button>
         </div>
 
@@ -216,10 +220,19 @@ function AdminLayoutInner({ children }: { children?: ReactNode }) {
         </nav>
 
         <div className="admin-sidebar-footer">
-          <div className="admin-security-note"><ShieldCheck /><span><strong>Secure session</strong><small>Permission checks active</small></span></div>
-          <button type="button" className="admin-collapse-btn" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            {collapsed ? <ChevronRight /> : <ChevronLeft />}
+          <button
+            type="button"
+            className="admin-nav-link"
+            onClick={handleLogout}
+            style={{ width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <LogOut />
+            <span>Sign Out</span>
           </button>
+          <div className="admin-security-note">
+            <ShieldCheck />
+            <span><strong>Secure session</strong></span>
+          </div>
         </div>
       </aside>
 
