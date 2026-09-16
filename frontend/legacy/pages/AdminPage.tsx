@@ -56,11 +56,12 @@ export default function AdminPage() {
         <Route path="reports" element={guarded('/admin/reports', <AdminReportsPage />)} />
 
         {/* Management */}
-        <Route path="staff-activity" element={guarded('/admin/staff-activity', <AdminStaffActivityPage />)} />
+        <Route path="admin-activity" element={guarded('/admin/admin-activity', <AdminStaffActivityPage />)} />
+        <Route path="staff-activity" element={<Navigate to="/admin/admin-activity" replace />} />
         <Route path="admin-accounts" element={guarded('/admin/admin-accounts', <AdminAccountsManagementPage />)} />
         <Route path="activity" element={guarded('/admin/activity', <AdminActivityPage />)} />
         <Route path="settings" element={guarded('/admin/settings', <AdminSystemPage mode="settings" />)} />
-        <Route path="backups" element={guarded('/admin/backups', <AdminSystemPage mode="backups" />)} />
+        <Route path="backups" element={<Navigate to="/admin/settings" replace />} />
 
         {/* Fallback Redirections */}
         <Route path="users" element={<Navigate to="/admin/members" replace />} />

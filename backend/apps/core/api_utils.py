@@ -327,7 +327,7 @@ def notify(recipient, *, notification_type, title, message, link_url='', related
 
 def paginated_response(request, queryset, serializer_class, *, context=None, message='Request completed successfully.'):
     try:
-        requested_size = int(request.query_params.get('page_size', 10))
+        requested_size = int(request.query_params.get('page_size') or request.query_params.get('pageSize') or 10)
     except (TypeError, ValueError):
         requested_size = 10
     page_size = max(1, min(requested_size, 100))

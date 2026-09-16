@@ -32,12 +32,9 @@ const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'active', label: 'Active Members' },
   { value: 'suspended', label: 'Suspended Members' },
-  { value: 'not_started', label: 'Not Started' },
-  { value: 'draft', label: 'Draft' },
   { value: 'pending_review', label: 'Pending Review' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
-  { value: 'changes_requested', label: 'Changes Requested' },
   { value: 'deleted', label: 'Soft Deleted (Trash)' },
 ];
 
@@ -124,7 +121,7 @@ export default function AdminUsersPage() {
       pendingProfile: all.filter(u => u.profile_status === 'pending_review').length,
       pendingPhoto: all.filter(u => u.photo_status === 'pending_review').length,
       pendingDoc: all.filter(u => u.document_status === 'pending_review').length,
-      verified: all.filter(u => u.is_verified).length,
+      verified: all.filter(u => u.profile_status === 'approved').length,
       suspended: all.filter(u => !u.is_active).length,
     };
   }, [users, count]);

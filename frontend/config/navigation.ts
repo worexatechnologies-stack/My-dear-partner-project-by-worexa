@@ -51,7 +51,7 @@ export const adminNavSections = [
   { label: 'Workspace', items: ['/admin/dashboard'] as const },
   { label: 'Operations', items: ['/admin/members', '/admin/profiles', '/admin/photos', '/admin/documents', '/admin/memberships', '/admin/memberships/payments', '/admin/memberships/refunds'] as const },
   { label: 'Support', items: ['/admin/tickets', '/admin/contact-enquiries', '/admin/complaints', '/admin/reported-profiles'] as const },
-  { label: 'Management', items: ['/admin/staff-activity', '/admin/reports', '/admin/audit-logs', '/admin/settings', '/admin/backups'] as const },
+  { label: 'Management', items: ['/admin/admin-activity', '/admin/reports', '/admin/audit-logs', '/admin/settings'] as const },
 ] as const;
 
 export const adminNavigation: NavItem[] = [
@@ -67,11 +67,10 @@ export const adminNavigation: NavItem[] = [
   { label: 'Contact Enquiries', icon: MessageSquareMore, href: '/admin/contact-enquiries', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['tickets.view_all'] },
   { label: 'Complaints', icon: Megaphone, href: '/admin/complaints', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['complaints.view_all'] },
   { label: 'Reported Profiles', icon: Flag, href: '/admin/reported-profiles', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['profile_reports.manage'] },
-  { label: 'Staff Activity', icon: BriefcaseBusiness, href: '/admin/staff-activity', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
+  { label: 'Admin Activity', icon: BriefcaseBusiness, href: '/admin/admin-activity', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
   { label: 'Reports', icon: ReceiptText, href: '/admin/reports', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['reports.view'] },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs', allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['activity.view_all'] },
   { label: 'Settings', icon: Settings, href: '/admin/settings', allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['settings.manage'] },
-  { label: 'Backups', icon: Building2, href: '/admin/backups', allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['backups.manage'] },
 ];
 
 export const superAdminNavigation: NavItem[] = [
@@ -89,11 +88,10 @@ export const superAdminNavigation: NavItem[] = [
   { label: 'Reported Profiles', icon: Flag, href: '/super-admin/reported-profiles', allowedRoles: ['SUPER_ADMIN'] },
 
   { label: 'Admin Accounts', icon: UserCog, href: '/super-admin/admin-accounts', allowedRoles: ['SUPER_ADMIN'] },
-  { label: 'Staff Activity', icon: BriefcaseBusiness, href: '/super-admin/staff-activity', allowedRoles: ['SUPER_ADMIN'] },
+  { label: 'Admin Activity', icon: BriefcaseBusiness, href: '/super-admin/admin-activity', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Reports', icon: ReceiptText, href: '/super-admin/reports', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Audit Logs', icon: Activity, href: '/super-admin/audit-logs', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Settings', icon: Settings, href: '/super-admin/settings', allowedRoles: ['SUPER_ADMIN'] },
-  { label: 'Backups', icon: FileText, href: '/super-admin/backups', allowedRoles: ['SUPER_ADMIN'] },
 ];
 
 export const staffNavigation: NavItem[] = [];

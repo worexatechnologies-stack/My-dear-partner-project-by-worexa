@@ -179,7 +179,7 @@ function AdminLayoutInner({ children }: { children?: ReactNode }) {
         <div className="admin-brand-row">
           <Link to={dashboardPath} className="admin-brand flex items-center gap-2.5" aria-label="My Dear Partner admin dashboard">
             <img src="/images/main-logo.png" alt="My Dear Partner Logo" className="w-8 h-8 object-contain" />
-            <div><strong>My Dear <span className="text-pink-500">Partner</span></strong><small>Control centre</small></div>
+            <div><strong>My Dear <span className="brand-accent">Partner</span></strong><small>Control centre</small></div>
           </Link>
           <button type="button" className="admin-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu"><X /></button>
         </div>

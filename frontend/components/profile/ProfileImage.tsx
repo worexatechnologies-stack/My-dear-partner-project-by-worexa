@@ -38,6 +38,7 @@ export interface ProfileImageProps {
   priority?: boolean;
   fallback?: ProfileImageFallback;
   fallbackMessage?: string;
+  watermark?: boolean;
   onLoad?: () => void;
   onError?: (error: Error) => void;
 }
@@ -146,6 +147,7 @@ export default function ProfileImage({
   priority: _priority,
   fallback = 'neutral',
   fallbackMessage = 'Photo not yet approved',
+  watermark,
   onLoad,
   onError,
 }: ProfileImageProps) {
@@ -220,6 +222,8 @@ export default function ProfileImage({
       : 'rounded-lg';
   const placeholderClass = placeholderClasses(gender);
   const showFallback = !displaySource || failed;
+  const isSmall = size === 'xs' || size === 'sm';
+  const showWatermark = watermark !== false && !isCircle && !isSmall && !className?.includes('rounded-full');
 
   return (
     <div
@@ -277,7 +281,7 @@ export default function ProfileImage({
           {failed && alt ? <span className="sr-only">{alt} is unavailable.</span> : null}
         </div>
       )}
-      {!showFallback ? (
+      {!showFallback && showWatermark ? (
         <span className="member-photo-watermark" aria-hidden="true">
           Protected &bull; My Dear Partner
         </span>

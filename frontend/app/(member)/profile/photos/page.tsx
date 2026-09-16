@@ -42,38 +42,6 @@ function selectedFileError(file: File): string | null {
   return null;
 }
 
-const MIN_PHOTO_WIDTH = 600;
-const MIN_PHOTO_HEIGHT = 750;
-
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const width = img.naturalWidth;
-      const height = img.naturalHeight;
-      URL.revokeObjectURL(url);
-      resolve({ width, height });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('unreadable'));
-    };
-    img.src = url;
-  });
-}
-
-async function imageDimensionError(file: File): Promise<string | null> {
-  try {
-    const { width, height } = await readImageDimensions(file);
-    if (width < MIN_PHOTO_WIDTH || height < MIN_PHOTO_HEIGHT) {
-      return `Image must be at least ${MIN_PHOTO_WIDTH} × ${MIN_PHOTO_HEIGHT} px (your image is ${width} × ${height} px).`;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 function uploadErrorMessage(error: unknown, action: keyof typeof ACTION_MESSAGES = 'photo_upload'): string {
   if (!error || typeof error !== 'object') return ACTION_MESSAGES[action] ?? ACTION_MESSAGES.photo_upload;
@@ -156,13 +124,6 @@ export default function PhotosPage() {
       return;
     }
 
-    const dimError = await imageDimensionError(file);
-    if (dimError) {
-      setError(dimError);
-      clearSelectedFile();
-      return;
-    }
-
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
     setError('');
@@ -190,13 +151,6 @@ export default function PhotosPage() {
     const validationError = selectedFileError(file);
     if (validationError) {
       setError(validationError);
-      setReplaceTargetId(null);
-      return;
-    }
-
-    const dimError = await imageDimensionError(file);
-    if (dimError) {
-      setError(dimError);
       setReplaceTargetId(null);
       return;
     }
@@ -246,8 +200,8 @@ export default function PhotosPage() {
   };
 
   const handleSetPrimary = async (photo: MemberPhoto) => {
-    if (photo.status !== 'approved') {
-      setError('Only approved photos can be set as primary.');
+    if (photo.status === 'rejected') {
+      setError('Rejected photos cannot be set as primary.');
       return;
     }
     setOpenMenuId(null);
@@ -453,10 +407,23 @@ export default function PhotosPage() {
                     />
 
                     {photo.is_primary ? (
-                      <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
-                        <Star className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-white shadow-lg">
+                        <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                         Primary
                       </div>
+                    ) : photo.status !== 'rejected' ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetPrimary(photo);
+                        }}
+                        className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur-md transition-all hover:bg-amber-500 hover:text-white shadow-md"
+                        title="Set this photo as primary"
+                      >
+                        <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                        Set as primary
+                      </button>
                     ) : null}
 
                     <div className="absolute right-3 top-3">{getStatusBadge(photo.status)}</div>
@@ -480,7 +447,7 @@ export default function PhotosPage() {
                       <button
                         type="button"
                         onClick={(e) => toggleMenu(e, photo.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100 focus:opacity-100"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-opacity hover:bg-black/70 focus:opacity-100"
                         aria-label="Photo actions"
                       >
                         <MoreVertical className="h-4 w-4" aria-hidden="true" />
@@ -497,8 +464,8 @@ export default function PhotosPage() {
                             Preview
                           </button>
 
-                          {/* Set as primary — only for approved non-primary photos */}
-                          {!photo.is_primary && photo.status === 'approved' ? (
+                          {/* Set as primary — available for any non-primary non-rejected photo */}
+                          {!photo.is_primary && photo.status !== 'rejected' ? (
                             <button
                               type="button"
                               onClick={() => handleSetPrimary(photo)}
@@ -601,7 +568,7 @@ export default function PhotosPage() {
           <h2 className="mb-3 font-bold text-rose-900">Photo guidelines</h2>
           <ul className="space-y-2 text-sm text-rose-800">
             <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Upload clear, recent photos of yourself.</span></li>
-            <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Photos must be at least 600 × 750 pixels.</span></li>
+            <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Photos of any resolution are accepted.</span></li>
             <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>JPEG, PNG, and WebP are accepted up to 10 MB.</span></li>
             <li className="flex items-start gap-2"><X className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" /><span>No group photos, blurry images, or inappropriate content.</span></li>
           </ul>

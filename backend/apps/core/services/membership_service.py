@@ -43,7 +43,6 @@ class MembershipService:
         return getattr(settings, 'PAYMENT_MODE', 'disabled')
     
     @staticmethod
-    @transaction.atomic
     def activate_plan(member, plan_slug, actor=None, source='member_request'):
         """
         Activate a membership plan for a member.
@@ -57,159 +56,159 @@ class MembershipService:
         Returns:
             tuple: (success: bool, message: str, membership: MemberMembership or None)
         """
-        # Validate plan exists and is active
-        plan = get_object_or_404(MembershipPlan, slug=plan_slug, is_active=True)
-        
-        # Lock the member record
-        member = Member.objects.select_for_update().get(pk=member.pk)
-        
-        # Deactivate any existing active membership in MemberMembership
-        MemberMembership.objects.filter(
-            member=member,
-            is_active=True
-        ).update(is_active=False, status=MemberMembership.MembershipStatus.EXPIRED)
+        with transaction.atomic():
+            # Validate plan exists and is active
+            plan = get_object_or_404(MembershipPlan, slug=plan_slug, is_active=True)
+            
+            # Lock the member record
+            member = Member.objects.select_for_update().get(pk=member.pk)
+            
+            # Deactivate any existing active membership in MemberMembership
+            MemberMembership.objects.filter(
+                member=member,
+                is_active=True
+            ).update(is_active=False, status=MemberMembership.MembershipStatus.EXPIRED)
 
-        # Deactivate any existing active membership in MembershipPurchase
-        MembershipPurchase.objects.filter(
-            user=member,
-            status='active'
-        ).update(status='expired', expires_at=timezone.now())
-        
-        # Calculate start and end dates
-        start_date = timezone.now()
-        duration_days = plan.duration_days or 30
-        end_date = start_date + timedelta(days=duration_days) if duration_days else None
-        
-        # Create or update membership
-        membership = MemberMembership.objects.create(
-            member=member,
-            plan=plan,
-            start_date=start_date,
-            end_date=end_date,
-            started_at=start_date,
-            expires_at=end_date,
-            is_active=True,
-            status=MemberMembership.MembershipStatus.ACTIVE,
-        )
+            # Deactivate any existing active membership in MembershipPurchase
+            MembershipPurchase.objects.filter(
+                user=member,
+                status='active'
+            ).update(status='expired', expires_at=timezone.now())
+            
+            # Calculate start and end dates
+            start_date = timezone.now()
+            duration_days = plan.duration_days or 30
+            end_date = start_date + timedelta(days=duration_days) if duration_days else None
+            
+            # Create or update membership
+            membership = MemberMembership.objects.create(
+                member=member,
+                plan=plan,
+                start_date=start_date,
+                end_date=end_date,
+                started_at=start_date,
+                expires_at=end_date,
+                is_active=True,
+                status=MemberMembership.MembershipStatus.ACTIVE,
+            )
 
-        # Create MembershipPurchase record
-        MembershipPurchase.objects.create(
-            user=member,
-            membership_plan=plan,
-            price_snapshot=plan.price,
-            currency=plan.currency,
-            duration_days_snapshot=duration_days,
-            starts_at=start_date,
-            expires_at=end_date,
-            status='active',
-            activated_at=start_date,
-        )
-        
-        # Update member's premium status
-        member.is_premium = True
-        member.save(update_fields=['is_premium', 'updated_at'])
-        
-        # Create approved membership request for audit trail
-        MembershipRequest.objects.create(
-            user=member,
-            selected_plan=plan,
-            status=MembershipRequest.Status.APPROVED,
-            requested_at=start_date,
-            approved_at=start_date,
-            approved_by_id=actor.pk if actor else None,
-            start_date=start_date,
-            expiry_date=end_date,
-            is_active=True,
-        )
-        
-        # Log audit event
-        from apps.core.api_utils import audit
-        audit(
-            request=None,
-            actor=actor or member,
-            action='MEMBERSHIP_ACTIVATED',
-            module='memberships',
-            target_type='MEMBER',
-            target_id=member.pk,
-            new_data={
-                'plan_slug': plan.slug,
-                'plan_name': plan.name,
-                'duration_days': duration_days,
-                'source': source,
-                'activation_mode': MembershipService.get_activation_mode(),
-            }
-        )
-        
-        return (
-            True,
-            f'{plan.name} plan activated successfully. Valid until {end_date.strftime("%B %d, %Y") if end_date else "indefinite"}.',
-            membership
-        )
+            # Create MembershipPurchase record
+            MembershipPurchase.objects.create(
+                user=member,
+                membership_plan=plan,
+                price_snapshot=plan.price,
+                currency=plan.currency,
+                duration_days_snapshot=duration_days,
+                starts_at=start_date,
+                expires_at=end_date,
+                status='active',
+                activated_at=start_date,
+            )
+            
+            # Update member's premium status
+            member.is_premium = True
+            member.save(update_fields=['is_premium', 'updated_at'])
+            
+            # Create approved membership request for audit trail
+            MembershipRequest.objects.create(
+                user=member,
+                selected_plan=plan,
+                status=MembershipRequest.Status.APPROVED,
+                requested_at=start_date,
+                approved_at=start_date,
+                approved_by_id=actor.pk if actor else None,
+                start_date=start_date,
+                expiry_date=end_date,
+                is_active=True,
+            )
+            
+            # Log audit event
+            from apps.core.api_utils import audit
+            audit(
+                request=None,
+                actor=actor or member,
+                action='MEMBERSHIP_ACTIVATED',
+                module='memberships',
+                target_type='MEMBER',
+                target_id=member.pk,
+                new_data={
+                    'plan_slug': plan.slug,
+                    'plan_name': plan.name,
+                    'duration_days': duration_days,
+                    'source': source,
+                    'activation_mode': MembershipService.get_activation_mode(),
+                }
+            )
+            
+            return (
+                True,
+                f'{plan.name} plan activated successfully. Valid until {end_date.strftime("%B %d, %Y") if end_date else "indefinite"}.',
+                membership
+            )
 
     @staticmethod
-    @transaction.atomic
     def grant_custom_membership(member, plan_slug, duration_months=12, actor=None, reason='Admin Direct Grant'):
         """
         Admin action to grant a specific plan (Gold, Elite, Premium, Silver, etc.) for a custom duration
         (1 month, 6 months, 1 year, 2 years, 3 years, etc.) without requiring payment.
         """
-        plan = MembershipPlan.objects.filter(slug__iexact=str(plan_slug or '').strip(), is_active=True).first()
-        if not plan:
-            return False, 'The selected membership plan is unavailable. Refresh the page and choose an active plan.', None
-        member = Member.objects.select_for_update().get(pk=member.pk)
-        
-        # Deactivate existing active memberships
-        MemberMembership.objects.filter(member=member, is_active=True).update(
-            is_active=False, status=MemberMembership.MembershipStatus.EXPIRED
-        )
-        MembershipPurchase.objects.filter(user=member, status='active').update(
-            status='expired', expires_at=timezone.now()
-        )
+        with transaction.atomic():
+            plan = MembershipPlan.objects.filter(slug__iexact=str(plan_slug or '').strip(), is_active=True).first()
+            if not plan:
+                return False, 'The selected membership plan is unavailable. Refresh the page and choose an active plan.', None
+            member = Member.objects.select_for_update().get(pk=member.pk)
+            
+            # Deactivate existing active memberships
+            MemberMembership.objects.filter(member=member, is_active=True).update(
+                is_active=False, status=MemberMembership.MembershipStatus.EXPIRED
+            )
+            MembershipPurchase.objects.filter(user=member, status='active').update(
+                status='expired', expires_at=timezone.now()
+            )
 
-        start_date = timezone.now()
-        try:
-            months = int(duration_months) if duration_months else 12
-        except (TypeError, ValueError):
-            return False, 'Choose a valid membership duration.', None
-        if months not in (1, 3, 6, 12, 24, 36):
-            return False, 'Choose a membership duration between 1 and 36 months.', None
-        duration_days = months * 30
-        end_date = start_date + timedelta(days=duration_days)
+            start_date = timezone.now()
+            try:
+                months = int(duration_months) if duration_months else 12
+            except (TypeError, ValueError):
+                return False, 'Choose a valid membership duration.', None
+            if months not in (1, 3, 6, 12, 24, 36):
+                return False, 'Choose a membership duration between 1 and 36 months.', None
+            duration_days = months * 30
+            end_date = start_date + timedelta(days=duration_days)
 
-        membership = MemberMembership.objects.create(
-            member=member,
-            plan=plan,
-            start_date=start_date,
-            end_date=end_date,
-            started_at=start_date,
-            expires_at=end_date,
-            is_active=True,
-            status=MemberMembership.MembershipStatus.ACTIVE,
-        )
+            membership = MemberMembership.objects.create(
+                member=member,
+                plan=plan,
+                start_date=start_date,
+                end_date=end_date,
+                started_at=start_date,
+                expires_at=end_date,
+                is_active=True,
+                status=MemberMembership.MembershipStatus.ACTIVE,
+            )
 
-        MembershipPurchase.objects.create(
-            user=member,
-            membership_plan=plan,
-            price_snapshot=0,
-            currency=plan.currency,
-            duration_days_snapshot=duration_days,
-            starts_at=start_date,
-            expires_at=end_date,
-            status='active',
-            activated_at=start_date,
-        )
+            MembershipPurchase.objects.create(
+                user=member,
+                membership_plan=plan,
+                price_snapshot=0,
+                currency=plan.currency,
+                duration_days_snapshot=duration_days,
+                starts_at=start_date,
+                expires_at=end_date,
+                status='active',
+                activated_at=start_date,
+            )
 
-        member.is_premium = True
-        member.save(update_fields=['is_premium', 'updated_at'])
+            member.is_premium = True
+            member.save(update_fields=['is_premium', 'updated_at'])
 
-        return (
-            True,
-            f'{plan.name} granted for {months} month(s) until {end_date.strftime("%B %d, %Y")}.',
-            membership
-        )
+            return (
+                True,
+                f'{plan.name} granted for {months} month(s) until {end_date.strftime("%B %d, %Y")}.',
+                membership
+            )
     
     @staticmethod
-    @transaction.atomic
     def deactivate_membership(member, reason='manual_deactivation', actor=None):
         """
         Deactivate a member's current membership.
@@ -222,44 +221,45 @@ class MembershipService:
         Returns:
             tuple: (success: bool, message: str)
         """
-        member = Member.objects.select_for_update().get(pk=member.pk)
-        
-        active_memberships = MemberMembership.objects.filter(
-            member=member,
-            is_active=True
-        )
-        
-        active_purchases = MembershipPurchase.objects.filter(
-            user=member,
-            status='active'
-        )
-        
-        if not active_memberships.exists() and not active_purchases.exists():
-            return False, 'No active membership to deactivate.'
-        
-        count = active_memberships.update(is_active=False, status=MemberMembership.MembershipStatus.EXPIRED)
-        active_purchases.update(status='cancelled', cancelled_at=timezone.now(), cancellation_reason=reason)
-        
-        # Update member's premium status
-        member.is_premium = False
-        member.save(update_fields=['is_premium', 'updated_at'])
-        
-        # Log audit event
-        from apps.core.api_utils import audit
-        audit(
-            request=None,
-            actor=actor or member,
-            action='MEMBERSHIP_DEACTIVATED',
-            module='memberships',
-            target_type='MEMBER',
-            target_id=member.pk,
-            new_data={
-                'reason': reason,
-                'deactivated_count': count,
-            }
-        )
-        
-        return True, f'{count} membership(s) deactivated successfully.'
+        with transaction.atomic():
+            member = Member.objects.select_for_update().get(pk=member.pk)
+            
+            active_memberships = MemberMembership.objects.filter(
+                member=member,
+                is_active=True
+            )
+            
+            active_purchases = MembershipPurchase.objects.filter(
+                user=member,
+                status='active'
+            )
+            
+            if not active_memberships.exists() and not active_purchases.exists():
+                return False, 'No active membership to deactivate.'
+            
+            count = active_memberships.update(is_active=False, status=MemberMembership.MembershipStatus.EXPIRED)
+            active_purchases.update(status='cancelled', cancelled_at=timezone.now(), cancellation_reason=reason)
+            
+            # Update member's premium status
+            member.is_premium = False
+            member.save(update_fields=['is_premium', 'updated_at'])
+            
+            # Log audit event
+            from apps.core.api_utils import audit
+            audit(
+                request=None,
+                actor=actor or member,
+                action='MEMBERSHIP_DEACTIVATED',
+                module='memberships',
+                target_type='MEMBER',
+                target_id=member.pk,
+                new_data={
+                    'reason': reason,
+                    'deactivated_count': count,
+                }
+            )
+            
+            return True, f'{count} membership(s) deactivated successfully.'
     
     @staticmethod
     def get_active_membership(member):

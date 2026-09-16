@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from '@/lib/router-compat';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -391,6 +392,11 @@ export function AdminConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => event.key === 'Escape' && onCancel();
@@ -398,8 +404,8 @@ export function AdminConfirmDialog({
     return () => window.removeEventListener('keydown', close);
   }, [open, onCancel]);
 
-  if (!open) return null;
-  return (
+  if (!open || !mounted || typeof document === 'undefined') return null;
+  return createPortal(
     <div className="admin-modal-backdrop" role="presentation" onMouseDown={(event) => event.currentTarget === event.target && onCancel()}>
       <div className="admin-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="admin-confirm-title">
         <span className={`admin-confirm-icon ${dangerous ? 'danger' : ''}`}><AlertTriangle /></span>
@@ -412,7 +418,8 @@ export function AdminConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -429,14 +436,20 @@ export function AdminModal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [open, onClose]);
-  if (!open) return null;
-  return (
+
+  if (!open || !mounted || typeof document === 'undefined') return null;
+  return createPortal(
     <div className="admin-modal-backdrop" role="presentation" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
       <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
         <header>
@@ -449,7 +462,8 @@ export function AdminModal({
         </header>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 

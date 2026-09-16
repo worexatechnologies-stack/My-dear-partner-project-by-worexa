@@ -51,8 +51,8 @@ class ImageProcessingService:
     """Validate, normalize, crop, and compress a profile photo in memory."""
 
     MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-    MIN_WIDTH = 600
-    MIN_HEIGHT = 750
+    MIN_WIDTH = 1
+    MIN_HEIGHT = 1
     MAX_DECODED_PIXELS = 40_000_000
 
     MAIN_WIDTH = 1200
@@ -79,7 +79,7 @@ class ImageProcessingService:
         cls,
         upload: UploadedFile,
         *,
-        enforce_minimum_dimensions: bool = True,
+        enforce_minimum_dimensions: bool = False,
     ) -> tuple[str, tuple[int, int]]:
         """Validate byte size, the actual Pillow format, and decodability.
 
@@ -154,7 +154,7 @@ class ImageProcessingService:
             width < cls.MIN_WIDTH or height < cls.MIN_HEIGHT
         ):
             raise ProfilePhotoProcessingError(
-                "Image must be at least 600 × 750 pixels before processing."
+                f"Image must be at least {cls.MIN_WIDTH} × {cls.MIN_HEIGHT} pixels before processing."
             )
         return actual_format, (width, height)
 
@@ -164,7 +164,7 @@ class ImageProcessingService:
         upload: UploadedFile,
         *,
         focal_point: tuple[float, float] | None = None,
-        enforce_minimum_dimensions: bool = True,
+        enforce_minimum_dimensions: bool = False,
     ) -> ProcessedProfilePhoto:
         """Return 4:5 main and thumbnail WebPs with no source metadata."""
         cls.validate_upload(upload, enforce_minimum_dimensions=enforce_minimum_dimensions)

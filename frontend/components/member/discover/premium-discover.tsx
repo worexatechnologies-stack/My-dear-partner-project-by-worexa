@@ -81,6 +81,35 @@ function extractPhoto(u: unknown): string {
   }
   return '';
 }
+
+interface SidebarMemberItem {
+  photo: string;
+  href: string;
+  name: string;
+}
+
+function extractMember(u: unknown, fallbackHref: string = '/profile'): SidebarMemberItem | null {
+  if (!u || typeof u !== 'object') return null;
+  const o = u as Record<string, any>;
+  const photo = extractPhoto(o);
+  if (!photo) return null;
+
+  const target = o.profile || o.sender || o.member || o.user || o.viewer || o;
+  let href = profileHref(target);
+  if (href === '/profile' && target !== o) {
+    href = profileHref(o);
+  }
+  if (href === '/profile') {
+    const fallbackId = o.profile_id || o.viewer_id || o.sender_id || o.user_id || target?.user_id || target?.id;
+    if (fallbackId) href = `/profile/${fallbackId}`;
+  }
+  if (href === '/profile') {
+    href = fallbackHref;
+  }
+  const name = String(target?.full_name || target?.first_name || target?.name || o?.name || 'Member');
+
+  return { photo, href, name };
+}
 function matchesFilters(p: Profile, f: Filters, tab: FeedTab) {
   const a = p.age || 0;
   // The default 21–45 age range is a gentle suggested floor, not a hard gate —
@@ -457,10 +486,11 @@ const CSS = `
 
 /* Avatars row */
 .rp-avatars { display:flex; align-items:center; margin:0.375rem 0; }
-.rp-avatar { width:2.125rem; height:2.125rem; border-radius:50%; border:2px solid white; overflow:hidden; background:#f8eef1; margin-left:-0.5rem; flex-shrink:0; }
+.rp-avatar { width:2.125rem; height:2.125rem; border-radius:50%; border:2px solid white; overflow:hidden; background:#f8eef1; margin-left:-0.5rem; flex-shrink:0; cursor:pointer; text-decoration:none; display:block; position:relative; transition:transform 0.18s ease, box-shadow 0.18s ease; }
 .rp-avatar:first-child { margin-left:0; }
 .rp-avatar img { width:100%; height:100%; object-fit:cover; }
-.rp-avatar-more { display:flex; align-items:center; justify-content:center; font-size:0.625rem; font-weight:800; color:#e11d48; background:#fdf3f6; }
+.rp-avatar:hover { transform:scale(1.12); z-index:10; box-shadow:0 4px 12px rgba(225,29,72,0.22); }
+.rp-avatar-more { display:flex; align-items:center; justify-content:center; font-size:0.625rem; font-weight:800; color:#e11d48; background:#fdf3f6; text-decoration:none; }
 .rp-badge { display:inline-flex; align-items:center; justify-content:center; min-width:1.25rem; height:1.25rem; padding:0 0.3rem; border-radius:9999px; background:#8e3d58; color:white; font-size:0.5rem; font-weight:700; }
 .rp-link  { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.5625rem; font-weight:800; color:#b64a68; text-decoration:none; margin-top:0.25rem; }
 .rp-link:hover { color:#8e3d58; }
@@ -960,10 +990,18 @@ function FilterDialog({ open, onClose, filters, onApply, onReset }: {
 
 function RightPanel({ completion, visitors, matches, isPremium, planName }: {
   completion: number; isPremium: boolean; planName: string;
-  visitors: { count: number; photos: string[] };
-  matches: { count: number; photos: string[] };
+  visitors: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
+  matches: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
 }) {
   const completionMsg = completion >= 90 ? 'Almost done!' : completion >= 70 ? 'Almost there!' : 'Looking good!';
+
+  const visitorList: SidebarMemberItem[] = visitors.items && visitors.items.length > 0
+    ? visitors.items
+    : (visitors.photos || []).map((src) => ({ photo: src, href: '/visitors', name: 'Visitor' }));
+
+  const matchList: SidebarMemberItem[] = matches.items && matches.items.length > 0
+    ? matches.items
+    : (matches.photos || []).map((src) => ({ photo: src, href: '/interests/received', name: 'Match' }));
 
   return (
     <div>
@@ -990,10 +1028,22 @@ function RightPanel({ completion, visitors, matches, isPremium, planName }: {
 
         {visitors.count > 0 && (
           <div className="rp-avatars">
-            {visitors.photos.slice(0, 4).map((src, i) => (
-              <div key={i} className="rp-avatar"><SmartImage src={src} alt="Visitor" className="w-full h-full object-cover" /></div>
+            {visitorList.slice(0, 4).map((item, i) => (
+              <Link
+                key={i}
+                href={item.href}
+                className="rp-avatar block"
+                title={`View ${item.name}'s profile`}
+                aria-label={`View ${item.name}'s profile`}
+              >
+                <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
+              </Link>
             ))}
-            {visitors.count > 4 && <div className="rp-avatar rp-avatar-more">+{visitors.count - 4}</div>}
+            {visitors.count > 4 && (
+              <Link href="/visitors" className="rp-avatar rp-avatar-more" title="View all visitors">
+                +{visitors.count - 4}
+              </Link>
+            )}
           </div>
         )}
         <Link href="/visitors" className="rp-view-btn">View All Visitors</Link>
@@ -1009,10 +1059,22 @@ function RightPanel({ completion, visitors, matches, isPremium, planName }: {
 
         {matches.count > 0 && (
           <div className="rp-avatars">
-            {matches.photos.slice(0, 4).map((src, i) => (
-              <div key={i} className="rp-avatar"><SmartImage src={src} alt="Match" className="w-full h-full object-cover" /></div>
+            {matchList.slice(0, 4).map((item, i) => (
+              <Link
+                key={i}
+                href={item.href}
+                className="rp-avatar block"
+                title={`View ${item.name}'s profile`}
+                aria-label={`View ${item.name}'s profile`}
+              >
+                <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
+              </Link>
             ))}
-            {matches.count > 4 && <div className="rp-avatar rp-avatar-more">+{matches.count - 4}</div>}
+            {matches.count > 4 && (
+              <Link href="/interests/received" className="rp-avatar rp-avatar-more" title="View all matches">
+                +{matches.count - 4}
+              </Link>
+            )}
           </div>
         )}
         <Link href="/interests/received" className="rp-view-btn">View All Matches</Link>
@@ -1100,9 +1162,20 @@ export function PremiumDiscover() {
   const interested = useRef(new Set<string>());
   const shortlisted = useRef(new Set<string>());
   const hidden = useRef(loadDismissedIds());
+  const [dismissedVersion, setDismissedVersion] = useState(0);
+
+  const resetDismissed = useCallback(() => {
+    hidden.current.clear();
+    saveDismissedIds(hidden.current);
+    setIdx(0);
+    setDragOffset({ x: 0, y: 0 });
+    setFlingDir(null);
+    setDismissedVersion((v) => v + 1);
+  }, []);
+
   const ptrRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const [visitors, setVisitors] = useState<{ count: number; photos: string[] }>({ count: 0, photos: [] });
-  const [matches, setMatches] = useState<{ count: number; photos: string[] }>({ count: 0, photos: [] });
+  const [visitors, setVisitors] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
+  const [matches, setMatches] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
 
   /* ── Load profiles ── */
   useEffect(() => {
@@ -1159,26 +1232,38 @@ export function PremiumDiscover() {
           : Array.isArray(vd)
           ? vd
           : [];
-        setVisitors({ count: vs.length, photos: vs.map((v) => extractPhoto(v)).filter(Boolean) });
+        const visitorItems = vs
+          .map((v) => extractMember(v, '/visitors'))
+          .filter((m): m is SidebarMemberItem => Boolean(m?.photo));
+        setVisitors({
+          count: (vd as { total_unique_visitors?: number })?.total_unique_visitors ?? vs.length,
+          items: visitorItems,
+          photos: visitorItems.map((v) => v.photo),
+        });
 
         const rs = Array.isArray((incoming as { results?: unknown[] })?.results)
           ? (incoming as { results: unknown[] }).results
           : Array.isArray(incoming)
           ? incoming
           : [];
-        setMatches({ count: rs.length, photos: rs.map((r) => extractPhoto(r)).filter(Boolean) });
+        const matchItems = rs
+          .map((r) => extractMember(r, '/interests/received'))
+          .filter((m): m is SidebarMemberItem => Boolean(m?.photo));
+        setMatches({
+          count: rs.length,
+          items: matchItems,
+          photos: matchItems.map((m) => m.photo),
+        });
 
         for (const interest of outgoing ?? []) {
           const receiverId = interest?.receiver?.id || interest?.receiver?.user_id || interest?.receiver_id;
           if (receiverId) {
             interested.current.add(String(receiverId));
-            hidden.current.add(String(receiverId));
           }
         }
         for (const profile of shortlists.results ?? []) {
           if (profile.id) shortlisted.current.add(profile.id);
         }
-        saveDismissedIds(hidden.current);
       } catch {
         /* best-effort */
       }
@@ -1188,11 +1273,31 @@ export function PremiumDiscover() {
     };
   }, []);
 
+  /* Reset active index whenever filters change */
+  useEffect(() => {
+    setIdx(0);
+    setDragOffset({ x: 0, y: 0 });
+    setFlingDir(null);
+  }, [filters, tab]);
+
   /* ── Deck ── */
-  const deck = useMemo(
-    () => profiles.filter((p) => !hidden.current.has(p.id)).filter((p) => matchesFilters(p, filters, tab)),
+  const matchingProfiles = useMemo(
+    () => profiles.filter((p) => matchesFilters(p, filters, tab)),
     [profiles, filters, tab]
   );
+
+  const deck = useMemo(() => {
+    const unswiped = matchingProfiles.filter((p) => !hidden.current.has(p.id));
+    if (unswiped.length > 0) return unswiped;
+    // If all matching profiles were dismissed in a previous session, auto-recycle
+    // so Discover never becomes a permanently empty screen
+    if (matchingProfiles.length > 0 && hidden.current.size > 0) {
+      hidden.current.clear();
+      saveDismissedIds(hidden.current);
+      return matchingProfiles;
+    }
+    return unswiped;
+  }, [matchingProfiles, dismissedVersion]);
 
   const appendMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -1533,10 +1638,7 @@ export function PremiumDiscover() {
                       <button
                         type="button"
                         className="d-end-btn-primary"
-                        onClick={() => {
-                          setIdx(0);
-                          setDragOffset({ x: 0, y: 0 });
-                        }}
+                        onClick={resetDismissed}
                       >
                         <RotateCcw size={16} /> Review Deck Again
                       </button>
@@ -1610,7 +1712,7 @@ export function PremiumDiscover() {
                         onClick={() => {
                           setFilters(DEFAULT_FILTERS);
                           setTab('all');
-                          setIdx(0);
+                          resetDismissed();
                         }}
                       >
                         Reset Filters
@@ -1659,7 +1761,7 @@ export function PremiumDiscover() {
           onReset={() => {
             setFilters(DEFAULT_FILTERS);
             setTab('all');
-            setIdx(0);
+            resetDismissed();
           }}
         />
       </div>

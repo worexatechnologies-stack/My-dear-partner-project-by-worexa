@@ -16,6 +16,7 @@ type SmartImageProps = Omit<ImageProps, 'src' | 'width' | 'height'> & {
   fallbackMessage?: string;
   aspectRatio?: ProfileImageAspectRatio;
   shape?: ProfileImageShape;
+  watermark?: boolean;
 };
 
 function isPrivateProfilePhotoUrl(source: string): boolean {
@@ -57,6 +58,7 @@ export default function SmartImage({
   unoptimized,
   onError,
   className,
+  watermark,
   priority,
   style,
   ...props
@@ -68,6 +70,7 @@ export default function SmartImage({
   const hasLayoutClasses = Boolean(className?.match(/(?:^|\s)[wh]-/));
   const finalAspectRatio = resolveAspectRatio(className, aspectRatio);
   const finalShape = resolveShape(className, shape);
+  const effectiveWatermark = watermark ?? (finalShape === 'circle' || className?.includes('rounded-full') ? false : undefined);
 
   if (userId) {
     return (
@@ -77,6 +80,7 @@ export default function SmartImage({
         size="auto"
         aspectRatio={finalAspectRatio}
         shape={finalShape}
+        watermark={effectiveWatermark}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}
@@ -95,6 +99,7 @@ export default function SmartImage({
         size="auto"
         aspectRatio={finalAspectRatio}
         shape={finalShape}
+        watermark={effectiveWatermark}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}
@@ -115,6 +120,7 @@ export default function SmartImage({
         size="auto"
         aspectRatio={finalAspectRatio}
         shape={finalShape}
+        watermark={effectiveWatermark}
         className={className}
         style={style ?? (hasLayoutClasses ? undefined : { width, height })}
         priority={priority}

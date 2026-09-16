@@ -508,142 +508,145 @@ export default function AdminAccountsManagementPage() {
 
       {/* ─────────────────────────── Create Admin Modal ─────────────────────────── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
                 <Shield className="w-5 h-5 text-indigo-600" /> Create Admin Profile
               </h3>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg leading-none"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 font-bold leading-none transition-colors cursor-pointer"
+                aria-label="Close dialog"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {createError && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl">
+              <div className="mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl shrink-0">
                 {createError}
               </div>
             )}
 
-            <form onSubmit={handleCreateAdmin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ullas Gowda"
-                  value={newAdmin.fullName}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, fullName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+            <form onSubmit={handleCreateAdmin} className="flex-1 overflow-y-auto pt-3.5 pr-1 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ullas Gowda"
+                    value={newAdmin.fullName}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, fullName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. ullas.admin@mydearpartner.com"
-                  value={newAdmin.email}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. ullas.admin@mydearpartner.com"
+                    value={newAdmin.email}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number (Optional)</label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 9876543210"
-                  value={newAdmin.phone}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number (Optional)</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={newAdmin.phone}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Account Role *</label>
-                <select
-                  value={newAdmin.role}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value as 'ADMIN' | 'SUPER_ADMIN' })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
-                >
-                  <option value="ADMIN">Admin</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
-                </select>
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Account Role *</label>
+                  <select
+                    value={newAdmin.role}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value as 'ADMIN' | 'SUPER_ADMIN' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+                  >
+                    <option value="ADMIN">Admin</option>
+                    <option value="SUPER_ADMIN">Super Admin</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Admin ID / Employee Code (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. ADM-00045"
-                  value={newAdmin.employeeCode}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, employeeCode: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Admin ID / Employee Code (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ADM-00045"
+                    value={newAdmin.employeeCode}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, employeeCode: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
-                <div className="flex items-center gap-3">
-                  {newAdmin.photo && (
-                    <img src={newAdmin.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
-                  )}
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    <Camera size={14} /> Choose File
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handlePhotoFileChange(e, (url) => setNewAdmin({ ...newAdmin, photo: url }))}
-                    />
-                  </label>
-                  {newAdmin.photo && (
-                    <button type="button" onClick={() => setNewAdmin({ ...newAdmin, photo: '' })} className="text-xs text-red-500 hover:underline">Remove</button>
-                  )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Initial Password *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Minimum 8 characters"
+                    value={newAdmin.password}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Bio / Role Notes (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior Regional Verification Manager"
+                    value={newAdmin.bio}
+                    onChange={(e) => setNewAdmin({ ...newAdmin, bio: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Profile Photo (Optional)</label>
+                  <div className="flex items-center gap-3">
+                    {newAdmin.photo && (
+                      <img src={newAdmin.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
+                    )}
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <Camera size={14} /> Choose File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handlePhotoFileChange(e, (url) => setNewAdmin({ ...newAdmin, photo: url }))}
+                      />
+                    </label>
+                    {newAdmin.photo && (
+                      <button type="button" onClick={() => setNewAdmin({ ...newAdmin, photo: '' })} className="text-xs text-red-500 hover:underline">Remove</button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Bio / Role Notes (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Regional Verification Manager"
-                  value={newAdmin.bio}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, bio: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Minimum 8 characters"
-                  value={newAdmin.password}
-                  onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl transition-all"
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingAdmin}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {creatingAdmin ? 'Creating...' : 'Create Admin Profile'}
                 </button>
@@ -655,105 +658,108 @@ export default function AdminAccountsManagementPage() {
 
       {/* ─────────────────────────── Edit Admin Profile Modal ─────────────────────────── */}
       {editTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-indigo-600" /> Edit Admin Profile
               </h3>
               <button
                 type="button"
                 onClick={() => setEditTarget(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg leading-none"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 font-bold leading-none transition-colors cursor-pointer"
+                aria-label="Close dialog"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {editError && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl">
+              <div className="mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl shrink-0">
                 {editError}
               </div>
             )}
 
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+            <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto pt-3.5 pr-1 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.fullName}
+                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Admin ID / Employee Code</label>
-                <input
-                  type="text"
-                  placeholder="e.g. ADM-101"
-                  value={editForm.employeeCode}
-                  onChange={(e) => setEditForm({ ...editForm, employeeCode: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Admin ID / Employee Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ADM-101"
+                    value={editForm.employeeCode}
+                    onChange={(e) => setEditForm({ ...editForm, employeeCode: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number</label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 9876543210"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Profile Photo</label>
-                <div className="flex items-center gap-3">
-                  {editForm.photo && (
-                    <img src={editForm.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
-                  )}
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    <Camera size={14} /> Choose File
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handlePhotoFileChange(e, (url) => setEditForm({ ...editForm, photo: url }))}
-                    />
-                  </label>
-                  {editForm.photo && (
-                    <button type="button" onClick={() => setEditForm({ ...editForm, photo: '' })} className="text-xs text-red-500 hover:underline">Remove</button>
-                  )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Profile Photo</label>
+                  <div className="flex items-center gap-3">
+                    {editForm.photo && (
+                      <img src={editForm.photo} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
+                    )}
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <Camera size={14} /> Choose File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handlePhotoFileChange(e, (url) => setEditForm({ ...editForm, photo: url }))}
+                      />
+                    </label>
+                    {editForm.photo && (
+                      <button type="button" onClick={() => setEditForm({ ...editForm, photo: '' })} className="text-xs text-red-500 hover:underline">Remove</button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Bio / Role Notes</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior Support Admin Specialist"
+                    value={editForm.bio}
+                    onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Bio / Role Notes</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Support Admin Specialist"
-                  value={editForm.bio}
-                  onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditTarget(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl transition-all"
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updatingAdmin}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {updatingAdmin ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -765,26 +771,27 @@ export default function AdminAccountsManagementPage() {
 
       {/* ─────────────────────────── Password Reset Modal ─────────────────────────── */}
       {resetTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-md w-full p-6 my-auto max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 shrink-0">
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-indigo-600" /> Reset Password
               </h3>
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg leading-none"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 font-bold text-lg leading-none cursor-pointer"
+                aria-label="Close dialog"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 mb-4">
+            <p className="text-xs text-slate-600 mb-4 shrink-0">
               Enter a new password for <strong>{resetTarget.full_name}</strong>.
             </p>
 
-            <form onSubmit={handleResetPassword} className="space-y-4">
+            <form onSubmit={handleResetPassword} className="space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
                 <input
@@ -797,18 +804,18 @@ export default function AdminAccountsManagementPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setResetTarget(null)}
-                  className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl"
+                  className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={resettingPassword}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm disabled:opacity-50"
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {resettingPassword ? 'Saving...' : 'Update Password'}
                 </button>
@@ -819,9 +826,9 @@ export default function AdminAccountsManagementPage() {
       )}
       {/* ─────────────────────────── Admin Full Details Modal ─────────────────────────── */}
       {detailAccount && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-lg w-full p-6 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg overflow-hidden shrink-0">
                   {detailAccount.photo ? (
@@ -855,7 +862,7 @@ export default function AdminAccountsManagementPage() {
               </button>
             </div>
 
-            <div className="py-4 space-y-4 text-xs">
+            <div className="py-4 space-y-4 text-xs flex-1 overflow-y-auto pr-1">
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin ID / Employee Code</span>
@@ -970,7 +977,7 @@ export default function AdminAccountsManagementPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between gap-2 pt-4 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -1016,8 +1023,8 @@ export default function AdminAccountsManagementPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full my-auto overflow-hidden animate-in fade-in zoom-in duration-150">
             <div className="p-5 border-b border-slate-100">
               <div className="flex items-center gap-2 text-rose-600">
                 <Trash2 className="w-5 h-5" />

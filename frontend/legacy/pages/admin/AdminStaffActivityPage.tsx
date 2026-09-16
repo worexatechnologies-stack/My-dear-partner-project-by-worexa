@@ -125,7 +125,7 @@ export default function AdminStaffActivityPage() {
       setCount(data.count);
       setPage(targetPage);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Staff activity could not be loaded.');
+      setError(err instanceof Error ? err.message : 'Admin activity could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -151,15 +151,15 @@ export default function AdminStaffActivityPage() {
   const totalPhotosApproved = performanceData.reduce((acc, s) => acc + (s.summary?.photos_approved || 0), 0);
   const totalDocsApproved = performanceData.reduce((acc, s) => acc + (s.summary?.documents_approved || 0), 0);
 
-  if (loading && !items.length) return <AdminLoading label="Loading staff activity & performance analytics..." />;
+  if (loading && !items.length) return <AdminLoading label="Loading admin activity & performance analytics..." />;
   if (error && !items.length) return <AdminErrorState message={error} onRetry={() => loadWithPage(page)} />;
 
   return (
     <>
       <AdminPageHeader
         eyebrow="Management & Analytics"
-        title={isSuperAdmin ? "Staff Activity & Performance" : "My Activity & Performance"}
-        description={isSuperAdmin ? "Monitor staff operational activity, custom date performance metrics, support tickets solved, and profile verification approvals." : "Monitor your operational activity, performance metrics, tickets solved, and verification approvals."}
+        title={isSuperAdmin ? "Admin Activity & Performance" : "My Activity & Performance"}
+        description={isSuperAdmin ? "Monitor admin operational activity, custom date performance metrics, support tickets solved, and profile verification approvals." : "Monitor your operational activity, performance metrics, tickets solved, and verification approvals."}
         actions={
           <button type="button" className="admin-btn admin-btn-secondary" onClick={() => { loadWithPage(page); loadAnalytics(); }}>
             <RefreshCw /> Refresh Data
@@ -221,14 +221,14 @@ export default function AdminStaffActivityPage() {
 
             {performanceData.length > 0 && isSuperAdmin && (
               <div className="flex items-center gap-2">
-                <label htmlFor="staff-selector-input" className="text-xs font-bold text-slate-500">Staff:</label>
+                <label htmlFor="staff-selector-input" className="text-xs font-bold text-slate-500">Admin:</label>
                 <select
                   id="staff-selector-input"
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="all">All Staff Members ({performanceData.length})</option>
+                  <option value="all">All Admin Accounts ({performanceData.length})</option>
                   {performanceData.map((staff) => (
                     <option key={staff.id} value={staff.id}>
                       {staff.full_name} ({staff.admin_id || 'Admin'})
@@ -444,7 +444,7 @@ export default function AdminStaffActivityPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search staff name, email, phone, ID, or action..."
+              placeholder="Search admin name, email, phone, ID, or action..."
             />
           </div>
           <div className="admin-filter-row">
@@ -487,7 +487,7 @@ export default function AdminStaffActivityPage() {
                   <tr key={item.id}>
                     <td data-label="Done by">
                       <div className="space-y-0.5">
-                        <div className="font-bold text-slate-900">{item.actor_name || item.admin_name || 'Admin Staff'}</div>
+                        <div className="font-bold text-slate-900">{item.actor_name || item.admin_name || 'Admin'}</div>
                         <div className="text-[11px] text-slate-500 font-mono">
                           {item.actor_role || item.role?.replaceAll('_', ' ') || 'ADMIN'}
                         </div>
@@ -538,7 +538,7 @@ export default function AdminStaffActivityPage() {
             </table>
           </div>
         ) : (
-          <AdminEmptyState title="No staff activity" description="No staff activity found for the selected filter." />
+          <AdminEmptyState title="No admin activity" description="No admin activity found for the selected filter." />
         )}
         <AdminPagination page={page} count={count} pageSize={20} onPageChange={loadWithPage} />
       </AdminPanel>

@@ -51,6 +51,7 @@ const routes: Record<string, RouteEntry> = {
   'message-audit': { component: MessageAudit, permission: 'message_audit.view' },
   complaints: { component: Complaints, permission: 'complaints.view_all' },
   'reported-profiles': { component: ReportedProfiles, permission: 'profile_reports.manage' },
+  'admin-activity': { component: StaffActivity, permission: 'staff.activity' },
   'staff-activity': { component: StaffActivity, permission: 'staff.activity' },
   'admin-accounts': { component: AdminAccounts },
   'admin_accounts': { component: AdminAccounts },

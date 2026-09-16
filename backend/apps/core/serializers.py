@@ -3,7 +3,7 @@ from pathlib import Path
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.accounts.models import Member, MemberPreference, MemberProfile
+from apps.accounts.models import Member, MemberDocument, MemberPreference, MemberProfile
 from apps.profiles.models import ProfilePhoto
 from apps.profiles.photo_permissions import can_view_profile_photo
 from apps.profiles.serializers import ProfilePhotoSerializer, photo_endpoint_urls
@@ -802,6 +802,14 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
     profile_photos = serializers.SerializerMethodField()
     verification_documents = serializers.SerializerMethodField()
     history = VerificationHistorySerializer(many=True, read_only=True)
+    photo_status = serializers.SerializerMethodField()
+    document_status = serializers.SerializerMethodField()
+    has_photo = serializers.SerializerMethodField()
+    has_document = serializers.SerializerMethodField()
+    has_bio = serializers.SerializerMethodField()
+    is_ready = serializers.SerializerMethodField()
+    pending_document = serializers.SerializerMethodField()
+    pending_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfileVerificationRequest
@@ -810,6 +818,8 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
             'submitted_at', 'reviewed_at', 'approved_at', 'rejected_at',
             'rejection_reason', 'escalation_reason', 'current_assignment',
             'profile_photos', 'verification_documents', 'history', 'created_at', 'updated_at',
+            'photo_status', 'document_status', 'has_photo', 'has_document', 'has_bio',
+            'is_ready', 'pending_document', 'pending_photo',
         )
 
     def get_member(self, obj):
@@ -819,15 +829,84 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
         assignment = obj.assignments.filter(is_current=True).select_related('assigned_to_staff').first()
         return VerificationAssignmentSerializer(assignment).data if assignment else None
 
+    def get_photo_status(self, obj):
+        return getattr(obj.member, 'photo_status', 'not_started') if obj.member else 'not_started'
+
+    def get_document_status(self, obj):
+        return getattr(obj.member, 'document_status', 'not_started') if obj.member else 'not_started'
+
+    def get_has_photo(self, obj):
+        if not obj.member:
+            return False
+        return (
+            getattr(obj.member, 'photo_status', '') == 'approved'
+            or ProfilePhoto.objects.active().filter(user_id=obj.member_id, status=ProfilePhoto.Status.APPROVED).exists()
+        )
+
+    def get_has_document(self, obj):
+        if not obj.member:
+            return False
+        return (
+            getattr(obj.member, 'document_status', '') == 'approved'
+            or MemberDocument.objects.filter(member_id=obj.member_id, status=MemberDocument.Status.APPROVED).exists()
+        )
+
+    def get_has_bio(self, obj):
+        if not obj.member:
+            return False
+        profile = getattr(obj.member, 'profile', None)
+        bio = str(getattr(profile, 'about', '') or getattr(obj.member, 'about_me', '') or '').strip()
+        return len(bio) >= 5
+
+    def get_is_ready(self, obj):
+        return self.get_has_photo(obj) and self.get_has_document(obj) and self.get_has_bio(obj)
+
+    def get_pending_document(self, obj):
+        if not obj.member:
+            return None
+        doc = MemberDocument.objects.filter(member_id=obj.member_id, status=MemberDocument.Status.PENDING).order_by('-uploaded_at').first()
+        if doc:
+            return {
+                'id': str(doc.id),
+                'document_type': doc.document_type,
+                'status': doc.status,
+            }
+        return None
+
+    def get_pending_photo(self, obj):
+        if not obj.member:
+            return None
+        photo = ProfilePhoto.objects.active().filter(user_id=obj.member_id, status=ProfilePhoto.Status.PENDING).order_by('-created_at').first()
+        if photo:
+            return {
+                'id': str(photo.id),
+                'status': photo.status,
+            }
+        return None
+
     def get_profile_photos(self, obj):
         """Expose binary-free, actionable photos on photo-verification work only."""
         if obj.verification_type != ProfileVerificationRequest.VerificationType.PROFILE_PHOTO:
             return []
-        photos = (
-            ProfilePhoto.objects.without_binary()
-            .filter(user_id=obj.member_id, status=ProfilePhoto.Status.PENDING)
-            .order_by('display_order', 'created_at')
-        )
+        base = ProfilePhoto.objects.active().without_binary().filter(user_id=obj.member_id)
+        if obj.status in {
+            ProfileVerificationRequest.Status.PENDING_REVIEW,
+            ProfileVerificationRequest.Status.IN_REVIEW,
+            ProfileVerificationRequest.Status.CHANGES_REQUESTED,
+        }:
+            photos = base.filter(status=ProfilePhoto.Status.PENDING).order_by('-is_primary', 'display_order', 'created_at')
+            if not photos.exists():
+                photos = base.order_by('-is_primary', 'display_order', 'created_at')
+        elif obj.status == ProfileVerificationRequest.Status.APPROVED:
+            photos = base.filter(status=ProfilePhoto.Status.APPROVED).order_by('-is_primary', 'display_order', 'created_at')
+            if not photos.exists():
+                photos = base.order_by('-is_primary', 'display_order', 'created_at')
+        elif obj.status == ProfileVerificationRequest.Status.REJECTED:
+            photos = base.filter(status=ProfilePhoto.Status.REJECTED).order_by('-is_primary', 'display_order', 'created_at')
+            if not photos.exists():
+                photos = base.order_by('-is_primary', 'display_order', 'created_at')
+        else:
+            photos = base.order_by('-is_primary', 'display_order', 'created_at')
         return ProfilePhotoSerializer(photos, many=True, context=self.context).data
 
     def get_verification_documents(self, obj):

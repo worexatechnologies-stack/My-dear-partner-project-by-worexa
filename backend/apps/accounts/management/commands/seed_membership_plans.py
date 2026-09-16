@@ -2,7 +2,6 @@ from django.db import connection, transaction
 from django.core.management.base import BaseCommand
 from apps.core.models import MembershipPlan, MembershipRequest, Payment
 
-
 class Command(BaseCommand):
     help = 'Creates missing default membership plans without overwriting Super Admin changes.'
 

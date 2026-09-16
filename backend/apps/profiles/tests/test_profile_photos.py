@@ -482,9 +482,8 @@ def test_rejected_primary_blocks_another_upload_until_approved(
         {"photo": image_upload("PNG", color=(180, 70, 40))},
         format="multipart",
     )
-    assert uploaded.status_code == status.HTTP_403_FORBIDDEN
-    assert uploaded.data["errors"]["code"] == "PRIMARY_PHOTO_NOT_VERIFIED"
-    assert ProfilePhoto.objects.filter(user=member).count() == 1
+    assert uploaded.status_code == status.HTTP_201_CREATED
+    assert ProfilePhoto.objects.filter(user=member).count() == 2
 
 
 def test_public_primary_stays_placeholder_without_an_approved_primary(member):

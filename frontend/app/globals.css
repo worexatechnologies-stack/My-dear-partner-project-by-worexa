@@ -138,15 +138,30 @@ img[data-protected-photo="true"] {
   display: block;
   transform: none;
   pointer-events: none;
-  color: rgba(255, 255, 255, .7);
-  font-size: clamp(.55rem, 1.4vw, .8rem);
+  color: rgba(255, 255, 255, .75);
+  font-size: clamp(.5rem, 1.2vw, .75rem);
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
   text-transform: uppercase;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 92%;
+  margin: 0 auto;
 }
+
+/* Never render watermarks inside circular avatars, small thumbnails, or sidebar widgets */
+.rp-avatar .member-photo-watermark,
+.member-photo-protected.rounded-full .member-photo-watermark,
+.member-photo-protected.w-8 .member-photo-watermark,
+.member-photo-protected.w-12 .member-photo-watermark,
+.rounded-full .member-photo-watermark,
+.avatar .member-photo-watermark {
+  display: none !important;
+}
+
 @media print {
   .member-photo-protected,
   img[data-protected-photo="true"] { display: none !important; }

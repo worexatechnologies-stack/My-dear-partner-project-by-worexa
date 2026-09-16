@@ -560,12 +560,12 @@ class MemberLoginView(APIView):
                 account=None,
                 identifier=identifier,
                 login_status=LoginStatus.FAILED,
-                failure_reason='Invalid credentials',
+                failure_reason='Account does not exist',
                 request=request,
             )
             return ApiResponse(
                 success=False,
-                message='Unable to sign in with the supplied credentials.',
+                message='Account does not exist with this email or mobile number.',
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         _clear_expired_login_lock(member)
@@ -592,7 +592,7 @@ class MemberLoginView(APIView):
                 account=member,
                 identifier=identifier,
                 login_status=LoginStatus.LOCKED if is_locked else LoginStatus.FAILED,
-                failure_reason='Invalid credentials',
+                failure_reason='Incorrect password',
                 request=request,
             )
             if is_locked:
@@ -606,7 +606,7 @@ class MemberLoginView(APIView):
                 success=False,
                 data={'attempts_remaining': attempts_remaining},
                 message=(
-                    'Unable to sign in with the supplied credentials. '
+                    f'Incorrect password. '
                     f'{attempts_remaining} attempt{"s" if attempts_remaining != 1 else ""} remaining.'
                 ),
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -805,10 +805,10 @@ class AdministrativeLoginView(APIView):
                 account=None,
                 identifier=email,
                 login_status=LoginStatus.FAILED,
-                failure_reason='Invalid credentials',
+                failure_reason='Account does not exist',
                 request=request,
             )
-            return ApiResponse(success=False, message='Unable to sign in.', status=status.HTTP_401_UNAUTHORIZED)
+            return ApiResponse(success=False, message='Account does not exist with this email.', status=status.HTTP_401_UNAUTHORIZED)
         if not account.is_active or account.deleted_at is not None:
             record_login_activity(
                 account_type=self.account_type,
@@ -847,12 +847,12 @@ class AdministrativeLoginView(APIView):
                     account=account,
                     identifier=email,
                     login_status=LoginStatus.FAILED,
-                    failure_reason='Invalid credentials',
+                    failure_reason='Incorrect password',
                     request=request,
                 )
                 return ApiResponse(
                     success=False,
-                    message='Unable to sign in.',
+                    message='Incorrect password.',
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
 
@@ -863,7 +863,7 @@ class AdministrativeLoginView(APIView):
                 account=account,
                 identifier=email,
                 login_status=login_status,
-                failure_reason='Invalid credentials',
+                failure_reason='Incorrect password',
                 request=request,
             )
             if is_locked:
@@ -876,7 +876,7 @@ class AdministrativeLoginView(APIView):
             return ApiResponse(
                 success=False,
                 data={'attempts_remaining': attempts_remaining},
-                message=f'Unable to sign in. {attempts_remaining} attempt{"s" if attempts_remaining != 1 else ""} remaining.',
+                message=f'Incorrect password. {attempts_remaining} attempt{"s" if attempts_remaining != 1 else ""} remaining.',
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 

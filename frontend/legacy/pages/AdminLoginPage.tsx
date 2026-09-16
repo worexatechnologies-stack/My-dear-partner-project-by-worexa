@@ -1,8 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useNavigate, useSearchParams } from '@/lib/router-compat';
-import { ArrowRight, LockKeyhole, ShieldCheck, Lock, AlertTriangle, Key } from 'lucide-react';
+import {
+  ShieldCheck, Crown, Eye, EyeOff, AlertCircle, ArrowRight,
+  Lock, ArrowLeft, KeyRound
+} from 'lucide-react';
 import { TwoFactorRequiredError, useAuth } from '../contexts/AuthContext';
 import type { AccountType } from '../services/apiClient';
 
@@ -12,12 +16,6 @@ interface AdministrativeLoginPageProps {
   dashboardPath?: string;
 }
 
-const labels: Record<Exclude<AccountType, 'MEMBER'>, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-};
-
-
 export default function AdminLoginPage({
   accountType = 'ADMIN',
   title,
@@ -26,24 +24,26 @@ export default function AdminLoginPage({
   const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
   const [error, setError] = useState('');
   const [mismatchInfo, setMismatchInfo] = useState<{ portal: string; url: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const label = title || labels[accountType];
+
+  const isSuper = accountType === 'SUPER_ADMIN';
+  const roleLabel = title || (isSuper ? 'Super Admin' : 'Admin');
+  const portalName = isSuper ? 'Super Admin Portal' : 'Admin Portal';
+
   const requested = searchParams.get('next');
   const destination = requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : dashboardPath;
-
   const alreadySignedIn = isAuthenticated && user?.account_type === accountType;
 
   useEffect(() => {
     if (!alreadySignedIn) return;
-    // Ensure the correct role cookie is available to Next middleware, then do
-    // a document navigation so a restored App Router login segment cannot
-    // leave an authenticated administrator stuck on this screen.
     document.cookie = `mdp_portal=${accountType}; path=/; max-age=31536000; SameSite=Lax`;
     window.location.replace(destination);
   }, [accountType, alreadySignedIn, destination]);
@@ -54,13 +54,13 @@ export default function AdminLoginPage({
     setMismatchInfo(null);
     setSubmitting(true);
     try {
-      await login(email, password, accountType, accountType === 'ADMIN' && needsTwoFactor ? otp : undefined);
+      await login(email.trim(), password, accountType, accountType === 'ADMIN' && needsTwoFactor ? otp : undefined);
       document.cookie = `mdp_portal=${accountType}; path=/; max-age=31536000; SameSite=Lax`;
       window.location.replace(destination);
     } catch (caught) {
       if (caught instanceof TwoFactorRequiredError && accountType === 'ADMIN') {
         setNeedsTwoFactor(true);
-        setError('Verification code sent. Enter the code to authenticate.');
+        setError('A 6-digit verification code has been sent. Please enter it below.');
       } else {
         const isMismatch = caught && typeof caught === 'object' && 'data' in caught && (caught as any).data?.code === 'ACCOUNT_PORTAL_MISMATCH';
         if (isMismatch) {
@@ -71,7 +71,7 @@ export default function AdminLoginPage({
             url: mismatchData.correct_login_url,
           });
         } else {
-          setError(caught instanceof Error ? caught.message : 'Unable to sign in.');
+          setError(caught instanceof Error ? caught.message : 'Invalid email or password. Please try again.');
         }
       }
     } finally {
@@ -80,170 +80,210 @@ export default function AdminLoginPage({
   };
 
   if (alreadySignedIn) {
-    return <main className="min-h-screen bg-slate-950 flex items-center justify-center text-sm font-semibold text-slate-200">Opening your workspace…</main>;
+    return (
+      <main className="min-h-screen bg-[#faf7f5] flex items-center justify-center p-6 text-center">
+        <div>
+          <div className="w-10 h-10 border-2 border-[#8e3d58] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-[#230914]">Opening {roleLabel} Console…</h1>
+          <p className="mt-1 text-sm text-slate-500">Authenticated. Preparing your workspace.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-gray-900 flex items-center justify-center p-4 md:p-8 selection:bg-indigo-500 selection:text-white">
-      {/* Glow effects */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-purple-900/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-900/30 rounded-full blur-3xl pointer-events-none" />
+    <main className="min-h-screen bg-[#faf7f5] text-slate-900 flex flex-col justify-between py-10 px-4 sm:px-6 selection:bg-[#f3b8cb] selection:text-[#5a1b30]">
+      {/* Top Bar / Logo */}
+      <header className="w-full max-w-md mx-auto flex items-center justify-between pb-6">
+        <Link href="/" className="inline-flex items-center gap-2.5 text-decoration-none group">
+          <img
+            src="/images/main-logo.png"
+            alt="My Dear Partner"
+            className="w-9 h-9 object-contain group-hover:scale-105 transition-transform"
+          />
+          <span className="font-extrabold text-lg tracking-tight text-[#230914]">
+            My Dear <span className="text-[#8e3d58]">Partner</span>
+          </span>
+        </Link>
 
-      {/* Main split-screen container */}
-      <section className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-800 max-w-5xl w-full min-h-[640px] grid grid-cols-1 md:grid-cols-2 relative z-10">
-        
-        {/* Left column: Visual security shield info */}
-        <div className="bg-gradient-to-br from-[#1e1b4b] via-[#110c2e] to-[#040114] text-white p-8 md:p-12 flex flex-col justify-between relative overflow-hidden">
-          {/* Subtle grid layer */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
-          {/* Glowing orbs */}
-          <div className="absolute top-10 right-10 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#8e3d58] transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Member Login</span>
+        </Link>
+      </header>
 
-          <div className="relative z-10 flex items-center gap-3">
-            <img src="/images/main-logo.png" alt="My Dear Partner Logo" className="w-10 h-10 object-contain" />
-            <b className="font-display font-black text-xl tracking-tight text-white">My Dear <span className="text-pink-500">Partner</span></b>
-          </div>
-
-          <div className="relative z-10 my-12">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
-              Restricted Portal
-            </span>
-            <h2 className="text-4xl md:text-5xl font-black font-display tracking-tight leading-none mt-4 text-white">
-              Protect trust.<br />
-              <span className="font-serif italic font-normal text-indigo-200">Work within your role.</span>
-            </h2>
-            <p className="text-sm text-gray-400 leading-relaxed mt-6 max-w-sm">
-              This dashboard access point checks only the administrative databases and opens your dedicated, role-based configuration console.
-            </p>
-          </div>
-
-          <div className="relative z-10 space-y-3 pt-6 border-t border-white/10">
-            {accountType === 'ADMIN' && (
-              <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
-                <LockKeyhole className="w-4.5 h-4.5 text-indigo-400" />
-                <span>Multi-Factor Authentication &amp; 2FA Protection</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
-              <Lock className="w-4.5 h-4.5 text-indigo-400" />
-              <span>Session Log Auditing &amp; Permission Checking Active</span>
+      {/* Main Form Container */}
+      <div className="w-full max-w-md mx-auto my-auto">
+        <div className="bg-white rounded-3xl border border-[#ede3e7] p-8 sm:p-10 shadow-[0_12px_40px_-15px_rgba(40,15,25,0.08)]">
+          {/* Badge & Title */}
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#fdf2f5] border border-[#f5d5df] text-[#8e3d58] text-xs font-bold uppercase tracking-wider mb-4">
+              {isSuper ? (
+                <>
+                  <Crown className="w-3.5 h-3.5 text-[#b45309]" />
+                  <span>Super Admin Portal</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#8e3d58]" />
+                  <span>Admin Portal</span>
+                </>
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Right column: Interactive login form */}
-        <div className="p-8 md:p-12 flex flex-col justify-between bg-white relative">
-          
-          <div className="flex items-center justify-between text-xs font-bold text-gray-500 border-b border-gray-100 pb-4">
-            <span>SECURE GATEWAY</span>
-            <span className="text-indigo-600 font-bold uppercase tracking-wider">{label} Mode</span>
-          </div>
-
-          <div className="my-auto py-8">
-            <span className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center shadow-sm mb-6 border border-indigo-100">
-              <LockKeyhole className="w-6 h-6" />
-            </span>
-            <span className="text-[10px] font-black text-indigo-600 block uppercase tracking-widest">{label} ACCESS</span>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight mt-2">Sign in to your workspace</h1>
-            <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-              Use the official administrator email and password issued for this administrative tier.
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#230914]">
+              {roleLabel} Sign In
+            </h1>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+              {isSuper
+                ? 'Sign in with your super-admin credentials to manage governance, security, and system settings.'
+                : 'Sign in to access member management, verification queues, and profile moderation.'}
             </p>
+          </div>
 
-            <form onSubmit={submit} className="mt-8 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2" htmlFor={`${accountType}-email`}>
-                  Official email address
-                </label>
-                <input
-                  id={`${accountType}-email`}
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="admin@example.com"
-                  required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none text-sm transition-all font-semibold bg-gray-50/30"
-                />
-              </div>
+          {/* Form */}
+          <form onSubmit={submit} className="space-y-4">
+            {/* Email field */}
+            <div>
+              <label
+                htmlFor={`${accountType}-email`}
+                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+              >
+                Work Email Address
+              </label>
+              <input
+                id={`${accountType}-email`}
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={isSuper ? 'superadmin@mydearpartner.com' : 'admin@mydearpartner.com'}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-[#fcfbfc] border border-[#e5dce0] text-slate-900 placeholder-slate-400 text-sm font-medium outline-none transition-all focus:border-[#8e3d58] focus:bg-white focus:ring-2 focus:ring-[#8e3d58]/10"
+              />
+            </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2" htmlFor={`${accountType}-password`}>
+            {/* Password field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label
+                  htmlFor={`${accountType}-password`}
+                  className="block text-xs font-bold text-slate-700 uppercase tracking-wider"
+                >
                   Password
                 </label>
+              </div>
+              <div className="relative">
                 <input
                   id={`${accountType}-password`}
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none text-sm transition-all font-semibold bg-gray-50/30"
+                  className="w-full pl-4 pr-11 py-3 rounded-xl bg-[#fcfbfc] border border-[#e5dce0] text-slate-900 placeholder-slate-400 text-sm font-medium outline-none transition-all focus:border-[#8e3d58] focus:bg-white focus:ring-2 focus:ring-[#8e3d58]/10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+            </div>
 
-              {accountType === 'ADMIN' && needsTwoFactor && (
-                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <label className="block text-[10px] font-bold text-indigo-700 uppercase tracking-wider" htmlFor="super-admin-otp">
-                      Two-factor code (MFA)
-                    </label>
-                  </div>
-                  <input
-                    id="super-admin-otp"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(event) => setOtp(event.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
-                    required
-                    className="w-full px-4 py-3 rounded-xl border border-indigo-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none text-center text-lg font-black tracking-widest bg-white"
-                  />
+            {/* 2FA Field */}
+            {accountType === 'ADMIN' && needsTwoFactor && (
+              <div className="p-4 rounded-xl bg-[#fdf5f7] border border-[#f3ccd7] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="admin-otp" className="text-xs font-bold text-[#8e3d58] uppercase tracking-wider flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Authentication Code (MFA)</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-mono">6 digits</span>
                 </div>
+                <input
+                  id="admin-otp"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  required
+                  autoFocus
+                  className="w-full px-4 py-2.5 rounded-lg bg-white border border-[#e5dce0] text-slate-900 placeholder-slate-300 text-center text-lg font-mono font-bold tracking-widest outline-none focus:border-[#8e3d58] focus:ring-2 focus:ring-[#8e3d58]/10"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Enter the 6-digit code sent to your registered authenticator or phone.
+                </p>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-medium leading-relaxed flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Mismatch Card */}
+            {mismatchInfo && (
+              <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl space-y-2.5">
+                <p className="text-xs font-semibold">
+                  This account belongs to another role workspace.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(mismatchInfo.url)}
+                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>Go to {mismatchInfo.portal.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} Login</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={submitting || (accountType === 'ADMIN' && needsTwoFactor && otp.length !== 6)}
+              className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-white text-sm font-bold shadow-md transition-all active:scale-[0.99] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2 ${
+                isSuper
+                  ? 'bg-[#7a1832] hover:bg-[#631126] shadow-[#7a1832]/20'
+                  : 'bg-[#8e3d58] hover:bg-[#783048] shadow-[#8e3d58]/20'
+              }`}
+            >
+              {submitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Signing in…</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
               )}
+            </button>
+          </form>
 
-              {error && (
-                <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-900 rounded-r-lg text-xs leading-relaxed flex gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {mismatchInfo && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-                  <p className="text-[11px] text-amber-900 leading-normal font-semibold">
-                    This account is registered for another role workspace.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigate(mismatchInfo.url)}
-                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
-                  >
-                    Go to {mismatchInfo.portal.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} login
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting || (accountType === 'ADMIN' && needsTwoFactor && otp.length !== 6)}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-indigo-700 to-purple-800 hover:from-indigo-800 hover:to-purple-950 text-white font-bold rounded-xl text-sm transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-950/15 hover:shadow-indigo-950/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? 'Authenticating gateway...' : 'Open dashboard'}
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-
-          <div className="flex items-start gap-3 border-t border-gray-100 pt-6 text-[10px] leading-normal text-gray-400">
-            <Lock className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
-            <span>
-              <strong>Identity Gate:</strong> Logins are audited. Unauthorized connection attempts violate security compliance rules.
-            </span>
-          </div>
 
         </div>
-      </section>
+      </div>
+
+      {/* Clean Footer */}
+      <footer className="w-full max-w-md mx-auto pt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+        <Lock className="w-3.5 h-3.5" />
+        <span>My Dear Partner Internal Platform • Authorized Use Only</span>
+      </footer>
     </main>
   );
 }

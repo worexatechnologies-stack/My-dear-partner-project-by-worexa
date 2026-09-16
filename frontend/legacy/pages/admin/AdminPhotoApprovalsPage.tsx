@@ -18,6 +18,7 @@ import {
   Shield,
   CheckCircle2,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchApi } from '../../services/apiClient';
@@ -89,7 +90,9 @@ const PRESET_REJECTION_REASONS = [
 ];
 
 export default function AdminPhotoApprovalsPage() {
-  const { hasAdminPermission } = useAuth();
+  const { hasAdminPermission, user } = useAuth();
+  const isSuper = user?.role === 'SUPER_ADMIN' || user?.account_type === 'SUPER_ADMIN' || (user as any)?.is_super_admin;
+  const basePath = isSuper ? '/super-admin' : '/admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [verifications, setVerifications] = useState<PhotoVerification[]>([]);
   const [count, setCount] = useState(0);
@@ -113,11 +116,13 @@ export default function AdminPhotoApprovalsPage() {
     photos: LightboxPhoto[];
     currentIndex: number;
     memberName: string;
+    memberId?: string;
   }>({
     isOpen: false,
     photos: [],
     currentIndex: 0,
     memberName: '',
+    memberId: undefined,
   });
 
   // Assign modal state
@@ -272,9 +277,12 @@ export default function AdminPhotoApprovalsPage() {
     const list: LightboxPhoto[] = [];
     for (const v of verifications) {
       const memberName = v.member?.full_name || 'Member';
+      const memberId = v.member?.id || (v as any).member_id;
       for (const photo of v.profile_photos) {
         list.push({
           id: photo.id,
+          member_id: memberId,
+          member_name: memberName,
           src: `/api/proxy/profile-photos/${photo.id}/image/`,
           alt: `${memberName}'s photo`,
           is_primary: photo.is_primary,
@@ -286,7 +294,7 @@ export default function AdminPhotoApprovalsPage() {
     return list;
   }, [verifications]);
 
-  const openZoomForPhoto = (photoId: string, memberName: string) => {
+  const openZoomForPhoto = (photoId: string, memberName: string, memberId?: string) => {
     const idx = allLightboxPhotos.findIndex((p) => p.id === photoId);
     if (idx >= 0) {
       setLightboxState({
@@ -294,6 +302,7 @@ export default function AdminPhotoApprovalsPage() {
         photos: allLightboxPhotos,
         currentIndex: idx,
         memberName,
+        memberId,
       });
     } else {
       setLightboxState({
@@ -301,6 +310,8 @@ export default function AdminPhotoApprovalsPage() {
         photos: [
           {
             id: photoId,
+            member_id: memberId,
+            member_name: memberName,
             src: `/api/proxy/profile-photos/${photoId}/image/`,
             alt: `${memberName}'s photo`,
             status: 'PENDING',
@@ -308,6 +319,7 @@ export default function AdminPhotoApprovalsPage() {
         ],
         currentIndex: 0,
         memberName,
+        memberId,
       });
     }
   };
@@ -452,7 +464,7 @@ export default function AdminPhotoApprovalsPage() {
                   {hasPhotos && primaryPhoto ? (
                     <div
                       className="aspect-[4/5] bg-slate-100 relative overflow-hidden cursor-zoom-in group/photo"
-                      onClick={() => openZoomForPhoto(primaryPhoto.id, memberName)}
+                      onClick={() => openZoomForPhoto(primaryPhoto.id, memberName, v.member?.id || (v as any).member_id)}
                       title="Click anywhere to zoom photo"
                     >
                       <img
@@ -507,12 +519,25 @@ export default function AdminPhotoApprovalsPage() {
                   {/* Card details */}
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
-                      <h3 className="font-bold text-slate-900 text-sm truncate" title={memberName}>
-                        {memberName}
-                      </h3>
-                      <p className="text-xs text-slate-500 truncate mt-0.5" title={memberEmail}>
-                        {memberEmail}
-                      </p>
+                      <a
+                        href={(v.member?.id || (v as any).member_id) ? `${basePath}/members/${v.member?.id || (v as any).member_id}` : '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group/member block cursor-pointer text-left"
+                        title={`View ${memberName}'s account`}
+                        onClick={(e) => {
+                          if (!v.member?.id && !(v as any).member_id) e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <h3 className="font-bold text-slate-900 group-hover/member:text-indigo-600 text-sm truncate flex items-center gap-1 transition-colors" title={memberName}>
+                          {memberName}
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover/member:opacity-100 transition-opacity text-indigo-500 shrink-0" />
+                        </h3>
+                        <p className="text-xs text-slate-500 group-hover/member:text-slate-700 truncate mt-0.5 transition-colors" title={memberEmail}>
+                          {memberEmail}
+                        </p>
+                      </a>
 
                       <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
                         <span className="flex items-center gap-1">
@@ -636,8 +661,23 @@ export default function AdminPhotoApprovalsPage() {
 
                       {/* Member Info */}
                       <td className="py-3 px-4">
-                        <p className="font-bold text-slate-900">{memberName}</p>
-                        <p className="text-slate-500 text-[11px] mt-0.5">{v.member?.email || '—'}</p>
+                        <a
+                          href={(v.member?.id || (v as any).member_id) ? `${basePath}/members/${v.member?.id || (v as any).member_id}` : '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group/member block cursor-pointer text-left"
+                          title={`View ${memberName}'s account`}
+                          onClick={(e) => {
+                            if (!v.member?.id && !(v as any).member_id) e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                        >
+                          <p className="font-bold text-slate-900 group-hover/member:text-indigo-600 flex items-center gap-1 transition-colors">
+                            {memberName}
+                            <ExternalLink size={11} className="opacity-0 group-hover/member:opacity-100 text-indigo-500 transition-opacity" />
+                          </p>
+                          <p className="text-slate-500 text-[11px] mt-0.5">{v.member?.email || '—'}</p>
+                        </a>
                       </td>
 
                       {/* Priority */}
@@ -733,6 +773,7 @@ export default function AdminPhotoApprovalsPage() {
         photos={lightboxState.photos}
         currentIndex={lightboxState.currentIndex}
         memberName={lightboxState.memberName}
+        memberId={lightboxState.memberId}
         onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
         onIndexChange={(newIdx) => setLightboxState((prev) => ({ ...prev, currentIndex: newIdx }))}
         onApprove={(photoId) => handleApprovePhoto(photoId)}

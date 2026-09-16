@@ -1205,7 +1205,14 @@ class AdminUserListView(ScopedAPIView):
         is_verified = request.query_params.get('is_verified') or request.query_params.get('verified')
         if is_verified is not None and str(is_verified).strip() != '':
             val = str(is_verified).lower() in ('true', '1', 'yes')
-            queryset = queryset.filter(is_verified=val)
+            if val:
+                queryset = queryset.filter(profile_status=Member.ProfileStatus.APPROVED)
+            else:
+                queryset = queryset.exclude(profile_status=Member.ProfileStatus.APPROVED)
+        mobile_verified = request.query_params.get('is_mobile_verified') or request.query_params.get('mobile_verified')
+        if mobile_verified is not None and str(mobile_verified).strip() != '':
+            m_val = str(mobile_verified).lower() in ('true', '1', 'yes')
+            queryset = queryset.filter(is_mobile_verified=m_val)
         period = request.query_params.get('period')
         if period == 'today':
             queryset = queryset.filter(created_at__date=today)
@@ -1310,7 +1317,15 @@ class AdminUserActionView(ScopedAPIView):
             # requirements); regular admins must complete them first. The
             # outcome is checked so a failed approval is not reported as a
             # success that leaves the "Approve Profile" button on screen.
-            force = str(request.user.account_type) == AccountType.SUPER_ADMIN
+            is_super = (
+                str(getattr(request.user, 'account_type', '')) == str(AccountType.SUPER_ADMIN)
+                or getattr(request.user, 'role', '') == 'SUPER_ADMIN'
+                or getattr(request.user, 'admin_role', '') == 'SUPER_ADMIN'
+                or bool(getattr(request.user, 'is_superuser', False))
+            )
+            force = bool(request.data.get('force')) if is_super else False
+            if is_super and 'force' not in request.data:
+                force = True
             ok, message = AccountVerificationService.approve_profile(member, request.user, reason, force=force)
             if not ok:
                 return bad_request(message)
@@ -1441,7 +1456,11 @@ class AdminUserActionView(ScopedAPIView):
 
     @transaction.atomic
     def put(self, request, user_id):
-        self._require_permission(request, 'members.manage')
+        if (
+            str(request.user.account_type) != AccountType.SUPER_ADMIN
+            and not getattr(request.user, 'is_superuser', False)
+        ):
+            raise PermissionDenied('Only super admin can edit member profiles.')
         member = get_object_or_404(Member.objects.select_for_update(), pk=user_id)
         check_object_scope(request.user, member, branch_path='branch')
         from apps.accounts.serializers import MemberProfileUpdateSerializer
@@ -1526,7 +1545,7 @@ class AdminGrantMembershipView(ScopedAPIView):
             actor=request.user,
             reason=f'Admin grant ({duration_months} months)',
         )
-        if not success:
+        if not success or not membership:
             return bad_request(message)
         
         return ApiResponse(message=message, data={

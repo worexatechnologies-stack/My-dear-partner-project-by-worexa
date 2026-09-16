@@ -19,6 +19,7 @@ import {
   Shield,
   Clock,
   User,
+  ExternalLink,
 } from 'lucide-react';
 import { getAccessToken } from '../../services/apiClient';
 
@@ -260,12 +261,37 @@ export default function AdminDocumentLightbox({
         >
           {/* Member & Document info */}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-white shadow-md">
-              {(currentDoc.member_name || 'M')[0].toUpperCase()}
-            </div>
+            {currentDoc.member_id ? (
+              <a
+                href={`/admin/members/${currentDoc.member_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-white shadow-md hover:scale-105 transition cursor-pointer shrink-0"
+                title={`View ${currentDoc.member_name || 'Member'}'s account`}
+              >
+                {(currentDoc.member_name || 'M')[0].toUpperCase()}
+              </a>
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-white shadow-md shrink-0">
+                {(currentDoc.member_name || 'M')[0].toUpperCase()}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">{currentDoc.member_name || 'Member'}</h3>
+                {currentDoc.member_id ? (
+                  <a
+                    href={`/admin/members/${currentDoc.member_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-bold text-white hover:text-indigo-300 flex items-center gap-1.5 transition cursor-pointer"
+                    title={`View ${currentDoc.member_name || 'Member'}'s account`}
+                  >
+                    {currentDoc.member_name || 'Member'}
+                    <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                  </a>
+                ) : (
+                  <h3 className="text-sm font-bold text-white">{currentDoc.member_name || 'Member'}</h3>
+                )}
                 <span className="rounded-md bg-indigo-500/20 border border-indigo-400/30 px-2 py-0.5 text-[11px] font-semibold text-indigo-300">
                   {currentDoc.document_type || 'DOCUMENT'}
                 </span>

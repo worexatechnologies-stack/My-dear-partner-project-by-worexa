@@ -54,7 +54,8 @@ export default function SuperAdminPage() {
         <Route path="complaints" element={<AdminComplaintsPage />} />
         <Route path="reported-profiles" element={<AdminReportedProfilesPage />} />
 
-        <Route path="staff-activity" element={<AdminStaffActivityPage />} />
+        <Route path="admin-activity" element={<AdminStaffActivityPage />} />
+        <Route path="staff-activity" element={<Navigate to="/super-admin/admin-activity" replace />} />
         <Route path="admin-accounts" element={<AdminAccountsManagementPage />} />
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="activity" element={<AdminActivityPage />} />

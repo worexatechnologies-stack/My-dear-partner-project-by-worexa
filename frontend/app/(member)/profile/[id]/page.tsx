@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
@@ -20,6 +20,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Crown,
+  Eye,
   Flag,
   GraduationCap,
   Heart,
@@ -120,6 +121,7 @@ export default function ProfilePage() {
   const [shortlisted, setShortlisted] = useState(false);
   const [interestInfo, setInterestInfo] = useState<InterestInfo>({ state: null, interestId: null });
   const interestState = interestInfo.state;
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | null>(null);
   const [showMessageTerms, setShowMessageTerms] = useState(false);
@@ -132,7 +134,54 @@ export default function ProfilePage() {
 
   const isOwnProfile = Boolean(memberId && user?.id === memberId);
 
+  const photos: MemberPhoto[] = useMemo(() => {
+    if (!profileData?.profile) return [];
+    const prof = profileData.profile;
+    const profUser = (prof.user || {}) as any;
+    if (Array.isArray(prof.photos) && prof.photos.length > 0) {
+      return prof.photos;
+    }
+    if (profUser.primary_photo?.id) {
+      return [profUser.primary_photo];
+    }
+    return [];
+  }, [profileData]);
+
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (photos.length > 0) {
+      const pIdx = photos.findIndex((p) => p.is_primary);
+      if (pIdx >= 0) {
+        setSelectedPhotoIndex(pIdx);
+      }
+    }
+  }, [photos]);
+
+  useEffect(() => {
+    if (lightboxIndex === null || photos.length === 0) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightboxIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setLightboxIndex((prev) => {
+          if (prev === null) return null;
+          const newIdx = (prev - 1 + photos.length) % photos.length;
+          setSelectedPhotoIndex(newIdx);
+          return newIdx;
+        });
+      } else if (e.key === 'ArrowRight') {
+        setLightboxIndex((prev) => {
+          if (prev === null) return null;
+          const newIdx = (prev + 1) % photos.length;
+          setSelectedPhotoIndex(newIdx);
+          return newIdx;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, photos.length]);
   useEffect(() => {
     if (!memberId) return;
     let cancelled = false;
@@ -304,16 +353,12 @@ export default function ProfilePage() {
     income?: string;
   };
   const profileUser = profile.user as typeof profile.user & { is_verified?: boolean; is_premium?: boolean; work_location?: string };
-  const photos: MemberPhoto[] = Array.isArray(profile.photos) && profile.photos.length > 0
-    ? profile.photos
-    : profileUser.primary_photo?.id
-      ? [profileUser.primary_photo]
-      : [];
-  const primaryPhoto = photos[0];
-  const primaryPhotoUrl = primaryPhoto?.image_url || primaryPhoto?.thumbnail_url || profileUser.photo;
+  const safeSelectedIdx = selectedPhotoIndex < photos.length ? selectedPhotoIndex : 0;
+  const currentSelectedPhoto = photos[safeSelectedIdx] || photos[0];
+  const currentSelectedPhotoUrl = currentSelectedPhoto?.image_url || currentSelectedPhoto?.thumbnail_url || profileUser.photo;
   const location = [profile.location?.city, profile.location?.state].filter(Boolean).join(', ') || 'Location private';
   const matchScore = profile.compatibility_score;
-  const currentPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
+  const currentLightboxPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
   const isMatched = interestState === 'ACCEPTED';
   const interestLabel = isMatched
     ? 'Matched'
@@ -363,14 +408,46 @@ export default function ProfilePage() {
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(330px,430px)_minmax(0,1fr)] lg:gap-7">
           <aside className="lg:sticky lg:top-4 space-y-4">
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative aspect-[4/5] max-h-[calc(100dvh-10rem)] min-h-[28rem] overflow-hidden rounded-2xl bg-[#18232d] shadow-[0_18px_45px_rgba(23,35,45,0.18)] lg:aspect-[4/5] lg:max-h-[calc(100dvh-12rem)] lg:min-h-0">
-              {primaryPhotoUrl ? (
-                <SmartImage src={primaryPhotoUrl} alt={profileUser.full_name || 'Member'} className="h-full w-full object-contain" />
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              role={photos.length > 0 ? "button" : undefined}
+              tabIndex={photos.length > 0 ? 0 : undefined}
+              onClick={() => {
+                if (photos.length > 0) setLightboxIndex(safeSelectedIdx);
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && photos.length > 0) {
+                  e.preventDefault();
+                  setLightboxIndex(safeSelectedIdx);
+                }
+              }}
+              className={`relative aspect-[4/5] max-h-[calc(100dvh-10rem)] min-h-[28rem] overflow-hidden rounded-2xl bg-[#18232d] shadow-[0_18px_45px_rgba(23,35,45,0.18)] lg:aspect-[4/5] lg:max-h-[calc(100dvh-12rem)] lg:min-h-0 select-none ${
+                photos.length > 0 ? 'cursor-pointer group' : ''
+              }`}
+              title={photos.length > 0 ? "Click to view full photo" : undefined}
+            >
+              {currentSelectedPhotoUrl ? (
+                <SmartImage
+                  src={currentSelectedPhotoUrl}
+                  alt={profileUser.full_name || 'Member'}
+                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-white/40"><UserRound className="h-16 w-16" /></div>
               )}
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/15" />
-              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+
+              {/* Click to view hover overlay */}
+              {photos.length > 0 && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-black/75 px-4 py-2 text-xs font-extrabold text-white shadow-2xl backdrop-blur-md border border-white/20">
+                    <Eye className="h-4 w-4 text-rose-400" /> View full photo
+                  </span>
+                </div>
+              )}
+
+              <div className="absolute left-4 top-4 flex flex-wrap gap-2 pointer-events-none">
                 {(profile.is_verified || profileUser.is_verified) && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1.5 text-[11px] font-bold text-[#267255] backdrop-blur">
                     <BadgeCheck className="h-3.5 w-3.5" /> Verified
@@ -383,11 +460,19 @@ export default function ProfilePage() {
                 )}
               </div>
               {photos.length > 0 && (
-                <button type="button" onClick={() => setLightboxIndex(0)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur" aria-label={`View ${photos.length} photos`}>
-                  <Camera className="h-3.5 w-3.5" /> {photos.length}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex(safeSelectedIdx);
+                  }}
+                  className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/50 hover:bg-black/75 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur transition-all"
+                  aria-label={`View ${photos.length} photos`}
+                >
+                  <Camera className="h-3.5 w-3.5" /> {safeSelectedIdx + 1}/{photos.length}
                 </button>
               )}
-              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 p-5 text-white sm:p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
                 <h1 className="break-words text-3xl font-black leading-tight bg-gradient-to-r from-white via-rose-100 to-amber-100 bg-clip-text text-transparent drop-shadow-md">
                   {profileUser.full_name || 'Member'}
                 </h1>
@@ -401,13 +486,34 @@ export default function ProfilePage() {
             </motion.div>
 
             {photos.length > 1 && (
-              <div className="grid grid-cols-5 gap-2">
-                {photos.slice(0, 5).map((photo, index) => (
-                  <button key={photo.id || index} type="button" onClick={() => setLightboxIndex(index)} aria-label={`View photo ${index + 1}`} className="relative aspect-square overflow-hidden rounded-xl bg-slate-200">
-                    <SmartImage src={photo.thumbnail_url || photo.image_url} alt={`Profile photo ${index + 1}`} className="h-full w-full object-cover" />
-                    {index === 4 && photos.length > 5 && <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-sm font-bold text-white">+{photos.length - 5}</span>}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 scrollbar-thin">
+                {photos.map((photo, index) => {
+                  const isSelected = safeSelectedIdx === index;
+                  return (
+                    <button
+                      key={photo.id || index}
+                      type="button"
+                      onClick={() => setSelectedPhotoIndex(index)}
+                      onDoubleClick={() => setLightboxIndex(index)}
+                      aria-label={`Select photo ${index + 1}`}
+                      title="Click to switch photo, double-click to view full size"
+                      className={`relative aspect-square h-16 w-16 sm:h-18 sm:w-18 shrink-0 overflow-hidden rounded-xl bg-slate-200 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'ring-3 ring-[#a91d4c] ring-offset-2 scale-105 shadow-lg border-2 border-white'
+                          : 'opacity-70 hover:opacity-100 hover:scale-[1.03] border border-slate-300'
+                      }`}
+                    >
+                      <SmartImage
+                        src={photo.thumbnail_url || photo.image_url}
+                        alt={`Profile photo ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                      {isSelected && (
+                        <div className="absolute inset-0 bg-[#a91d4c]/15 pointer-events-none" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -671,26 +777,132 @@ export default function ProfilePage() {
 
 
 
-      <AnimatePresence>
-        {currentPhoto && lightboxIndex !== null && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/95 p-4" role="dialog" aria-modal="true" aria-label="Profile photo viewer">
-            <div className="absolute right-4 top-4 z-10 flex items-center gap-3">
-              <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-white">{lightboxIndex + 1} / {photos.length}</span>
-              <button type="button" onClick={() => setLightboxIndex(null)} aria-label="Close photo viewer" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><X className="h-5 w-5" /></button>
+      {mounted && currentLightboxPhoto && lightboxIndex !== null && createPortal(
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-black/95 p-3 sm:p-6 backdrop-blur-md select-none"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Profile photo viewer"
+            onClick={() => setLightboxIndex(null)}
+          >
+            {/* Top Bar */}
+            <div
+              className="w-full flex items-center justify-between z-20 shrink-0 max-w-5xl px-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-black tracking-wider text-white shadow-md backdrop-blur-md border border-white/20">
+                  {lightboxIndex + 1} / {photos.length}
+                </span>
+                {photos[lightboxIndex]?.is_primary && (
+                  <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 px-3 py-1 text-[11px] font-extrabold backdrop-blur-md">
+                    Primary Photo
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(null)}
+                aria-label="Close photo viewer"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/30 hover:scale-105 active:scale-95 transition-all shadow-xl backdrop-blur-md border border-white/20 cursor-pointer"
+              >
+                <X className="h-6 w-6" />
+              </button>
             </div>
-            <div className="member-photo-protected relative flex h-full w-full items-center justify-center" onContextMenu={(event) => event.preventDefault()}>
-              <img src={currentPhoto.image_url || currentPhoto.thumbnail_url || undefined} alt={`Profile photo ${lightboxIndex + 1}`} data-protected-photo="true" draggable={false} className="max-h-[88dvh] max-w-[92dvw] rounded-lg object-contain" />
-              <span className="member-photo-watermark" aria-hidden="true">Protected &bull; My Dear Partner</span>
+
+            {/* Center Stage: Photo with Prev/Next buttons */}
+            <div
+              className="relative flex-1 w-full max-w-5xl flex items-center justify-center min-h-0 my-2 px-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIdx = (lightboxIndex - 1 + photos.length) % photos.length;
+                    setLightboxIndex(newIdx);
+                    setSelectedPhotoIndex(newIdx);
+                  }}
+                  aria-label="Previous photo"
+                  className="absolute left-2 sm:left-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 hover:scale-110 active:scale-95 border border-white/25 shadow-2xl transition-all backdrop-blur-md cursor-pointer"
+                >
+                  <ChevronLeft className="h-7 w-7" />
+                </button>
+              )}
+
+              <div
+                className="member-photo-protected relative flex items-center justify-center max-h-[72vh] sm:max-h-[78vh] max-w-[88vw] rounded-2xl overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] border border-white/15 bg-black/50"
+                onContextMenu={(event) => event.preventDefault()}
+              >
+                <img
+                  src={currentLightboxPhoto.image_url || currentLightboxPhoto.thumbnail_url || undefined}
+                  alt={`Profile photo ${lightboxIndex + 1}`}
+                  data-protected-photo="true"
+                  draggable={false}
+                  className="max-h-[72vh] sm:max-h-[78vh] max-w-[88vw] w-auto h-auto object-contain select-none"
+                />
+                <span className="member-photo-watermark" aria-hidden="true">Protected &bull; My Dear Partner</span>
+              </div>
+
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newIdx = (lightboxIndex + 1) % photos.length;
+                    setLightboxIndex(newIdx);
+                    setSelectedPhotoIndex(newIdx);
+                  }}
+                  aria-label="Next photo"
+                  className="absolute right-2 sm:right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 hover:scale-110 active:scale-95 border border-white/25 shadow-2xl transition-all backdrop-blur-md cursor-pointer"
+                >
+                  <ChevronRight className="h-7 w-7" />
+                </button>
+              )}
             </div>
+
+            {/* Bottom Strip: Photo Switcher Thumbnails */}
             {photos.length > 1 && (
-              <>
-                <button type="button" onClick={() => setLightboxIndex((lightboxIndex - 1 + photos.length) % photos.length)} aria-label="Previous photo" className="absolute left-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 sm:left-7"><ChevronLeft className="h-6 w-6" /></button>
-                <button type="button" onClick={() => setLightboxIndex((lightboxIndex + 1) % photos.length)} aria-label="Next photo" className="absolute right-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 sm:right-7"><ChevronRight className="h-6 w-6" /></button>
-              </>
+              <div
+                className="w-full max-w-xl z-20 shrink-0 flex items-center justify-center gap-2.5 overflow-x-auto py-2 px-4 scrollbar-none"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {photos.map((photo, index) => {
+                  const isCurrent = lightboxIndex === index;
+                  return (
+                    <button
+                      key={photo.id || index}
+                      type="button"
+                      onClick={() => {
+                        setLightboxIndex(index);
+                        setSelectedPhotoIndex(index);
+                      }}
+                      className={`relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'border-rose-500 scale-110 ring-2 ring-rose-400/60 shadow-xl'
+                          : 'border-white/30 opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
+                      aria-label={`Switch to photo ${index + 1}`}
+                    >
+                      <SmartImage
+                        src={photo.thumbnail_url || photo.image_url}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {upgradeFeature && <UpgradeModal feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
 

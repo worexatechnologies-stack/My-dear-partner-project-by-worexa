@@ -7,8 +7,9 @@
 export function profileHref(payload: unknown): string {
   const item = (payload ?? {}) as Record<string, any>;
   const slug = item?.slug || item?.profile_slug;
-  const id = item?.id || item?.user_id || item?.profile_id;
+  const rawId = item?.id ?? item?.user_id ?? item?.profile_id;
   if (typeof slug === 'string' && slug.trim()) return `/profile/${slug.trim()}`;
-  if (typeof id === 'string' && id.trim()) return `/profile/${id.trim()}`;
+  if (typeof rawId === 'string' && rawId.trim()) return `/profile/${rawId.trim()}`;
+  if (typeof rawId === 'number' && Number.isFinite(rawId)) return `/profile/${rawId}`;
   return '/profile';
 }

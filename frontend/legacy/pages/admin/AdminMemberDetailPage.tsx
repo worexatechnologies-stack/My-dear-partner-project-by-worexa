@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from '@/lib/router-compat';
 import {
   ArrowLeft, BadgeCheck, Ban, Camera, CreditCard, Edit3, FileText,
   Heart, Info, LoaderCircle, Mail, MapPin, Phone, Shield, User,
   CheckCircle2, XCircle, Clock, AlertTriangle, Star, Trash2,
-  Check, X, Save, Eye, ShieldCheck, RotateCcw, Maximize2,
+  Check, X, Save, Eye, ShieldCheck, RotateCcw, Maximize2, ShieldAlert,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
 import { fetchApi } from '../../services/apiClient';
-import ProtectedDocumentViewer from '@/components/documents/ProtectedDocumentViewer';
+import AdminDocumentLightbox, { LightboxDocument } from '../../components/admin/AdminDocumentLightbox';
 import AdminPhotoLightbox, { LightboxPhoto } from '../../components/admin/AdminPhotoLightbox';
 import { getAdminUsers, updateAdminUser, type AdminUserAction } from '../../services/adminService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +21,15 @@ import {
   AdminPageHeader, AdminPagination, AdminPanel, AdminStatusBadge, AdminToast,
   formatAdminDate,
 } from '../../components/admin/AdminUI';
+
+function ClientPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted || typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+}
 
 type MemberDetail = {
   member: Record<string, unknown>;
@@ -64,6 +74,13 @@ export default function AdminMemberDetailPage({
   const { user: currentUser, hasAdminPermission } = useAuth();
   const navigate = useNavigate();
   const isSuper = typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin');
+  const isSuperAdmin =
+    currentUser?.role === 'SUPER_ADMIN' ||
+    currentUser?.account_type === 'SUPER_ADMIN' ||
+    currentUser?.admin_role === 'SUPER_ADMIN' ||
+    Boolean(currentUser?.is_superuser) ||
+    Boolean((currentUser as any)?.is_super_admin) ||
+    isSuper;
   const basePath = isSuper ? '/super-admin/members' : '/admin/members';
 
   const handleBack = (e?: React.MouseEvent) => {
@@ -94,7 +111,38 @@ export default function AdminMemberDetailPage({
   const [photoAction, setPhotoAction] = useState<{ photoId: string; approve: boolean } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
-  const [viewDoc, setViewDoc] = useState<{ id: string; type: string } | null>(null);
+
+  // Document moderation states
+  const [rejectDocTarget, setRejectDocTarget] = useState<{ id: string; type: string } | null>(null);
+  const [docRejectReason, setDocRejectReason] = useState('');
+
+  // Document lightbox state
+  const [docLightboxOpen, setDocLightboxOpen] = useState(false);
+  const [docLightboxIndex, setDocLightboxIndex] = useState(0);
+  const [docLightboxDocs, setDocLightboxDocs] = useState<LightboxDocument[]>([]);
+
+  const openDocLightbox = (targetDoc: any) => {
+    const all = (detail?.documents || []) as any[];
+    const mapped: LightboxDocument[] = all.map((d) => ({
+      id: d.id,
+      document_type: d.document_type || d.document_type_display || 'Document',
+      display_name: d.document_type_display || d.document_type || 'Document',
+      original_file_name: d.original_file_name || d.document_type || 'document',
+      mime_type: d.mime_type || 'application/pdf',
+      file_size: d.file_size || 0,
+      status: d.status || 'PENDING',
+      rejection_reason: d.rejection_reason,
+      uploaded_at: d.uploaded_at || '',
+      reviewer_name: d.reviewer_name || null,
+    }));
+    const idx = mapped.findIndex((d) => d.id === targetDoc.id);
+    setDocLightboxDocs(mapped);
+    setDocLightboxIndex(idx >= 0 ? idx : 0);
+    setDocLightboxOpen(true);
+  };
+
+  // Missing requirements popup modal state
+  const [missingReqModal, setMissingReqModal] = useState<{ message: string } | null>(null);
 
   // Confirm dialogs
   const [confirmAction, setConfirmAction] = useState<{ user: string; action: string; label: string; description: string; dangerous: boolean } | null>(null);
@@ -231,6 +279,10 @@ export default function AdminMemberDetailPage({
   };
 
   const startEdit = () => {
+    if (!isSuperAdmin) {
+      setToast({ message: 'Only Super Admins can edit member profiles.', tone: 'error' });
+      return;
+    }
     if (!m) return;
     setEditData({
       first_name: m.first_name || '',
@@ -337,16 +389,65 @@ export default function AdminMemberDetailPage({
     }
   };
 
-  const performAction = async (action: string) => {
+  const handleApproveDocument = async (docId: string, andApproveProfile: boolean = false) => {
     setActionBusy(true);
     try {
-      await updateAdminUser(memberId, action as AdminUserAction);
+      await fetchApi(`/admin/documents/${docId}/approve/`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setToast({ message: 'Document approved successfully.', tone: 'success' });
+      setMissingReqModal(null);
+      if (andApproveProfile) {
+        await updateAdminUser(memberId, 'approve_profile' as AdminUserAction);
+        setToast({ message: 'Document and Profile approved successfully!', tone: 'success' });
+      }
+      await load();
+    } catch (err: any) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to approve document.', tone: 'error' });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleRejectDocumentConfirm = async () => {
+    if (!rejectDocTarget || !docRejectReason.trim()) return;
+    setActionBusy(true);
+    try {
+      await fetchApi(`/admin/documents/${rejectDocTarget.id}/reject/`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: docRejectReason.trim() }),
+      });
+      setToast({ message: 'Document marked as rejected.', tone: 'success' });
+      setRejectDocTarget(null);
+      setDocRejectReason('');
+      await load();
+    } catch (err: any) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to reject document.', tone: 'error' });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const performAction = async (action: string, force: boolean = false) => {
+    setActionBusy(true);
+    try {
+      if (force) {
+        await updateAdminUser(memberId, { action: action as AdminUserAction, force: true } as any);
+      } else {
+        await updateAdminUser(memberId, action as AdminUserAction);
+      }
       setToast({ message: 'Action completed.', tone: 'success' });
       setConfirmAction(null);
-      load();
-    } catch (err) {
+      setMissingReqModal(null);
+      await load();
+    } catch (err: any) {
       const message = err instanceof Error && err.message ? err.message : 'Action failed.';
-      setToast({ message, tone: 'error' });
+      if (action === 'approve_profile' && (message.toLowerCase().includes('missing') || message.toLowerCase().includes('requirement'))) {
+        setMissingReqModal({ message });
+      } else {
+        setToast({ message, tone: 'error' });
+      }
     } finally {
       setActionBusy(false);
     }
@@ -417,7 +518,7 @@ export default function AdminMemberDetailPage({
               </button>
             </div>
           ) : (
-            (hasAdminPermission('members.manage') || isSuper) && (
+            isSuperAdmin && (
               <button
                 type="button"
                 onClick={startEdit}
@@ -526,7 +627,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Account Information</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -552,7 +653,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Personal & Lifestyle Information</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -584,7 +685,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Religious & Astrology Information</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -604,7 +705,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Professional & Education Information</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -625,7 +726,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Family Details</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -646,7 +747,7 @@ export default function AdminMemberDetailPage({
             <div className="admin-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">Partner Preferences</h2>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
                     <Edit3 className="h-3.5 w-3.5" /> Edit
                   </button>
@@ -685,7 +786,7 @@ export default function AdminMemberDetailPage({
         )}
 
         {activeTab === 'profile' && (
-          editing ? (
+          editing && isSuperAdmin ? (
             <div className="space-y-6">
               {/* Top Action Bar */}
               <div className="admin-panel flex flex-wrap items-center justify-between gap-3 bg-rose-50/50 border-rose-200">
@@ -932,7 +1033,7 @@ export default function AdminMemberDetailPage({
                   <h2 className="text-lg font-bold text-slate-900">Member Profile Details</h2>
                   <p className="text-xs text-slate-500">Comprehensive profile, astrology, family, and partner preference data.</p>
                 </div>
-                {(hasAdminPermission('members.manage') || isSuper) && (
+                {isSuperAdmin && (
                   <button onClick={startEdit} className="admin-btn admin-btn-primary flex items-center gap-2">
                     <Edit3 className="h-4 w-4" /> Edit Profile
                   </button>
@@ -1141,18 +1242,53 @@ export default function AdminMemberDetailPage({
                         <p className="text-xs text-slate-500">Uploaded: {formatAdminDate(doc.uploaded_at)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setViewDoc({ id: doc.id, type: doc.document_type })} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
-                        <Eye className="h-3.5 w-3.5" /> View
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => openDocLightbox(doc)}
+                        className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-slate-500" /> View
                       </button>
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        doc.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                        doc.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                        'bg-amber-100 text-amber-800'
+
+                      {/* Document Approval & Rejection buttons */}
+                      {doc.status !== 'APPROVED' && (
+                        <button
+                          type="button"
+                          disabled={actionBusy}
+                          onClick={() => handleApproveDocument(doc.id)}
+                          className="flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                          title="Approve this document"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Approve
+                        </button>
+                      )}
+
+                      {doc.status !== 'REJECTED' && (
+                        <button
+                          type="button"
+                          disabled={actionBusy}
+                          onClick={() => {
+                            setRejectDocTarget({ id: doc.id, type: doc.document_type });
+                            setDocRejectReason('');
+                          }}
+                          className="flex items-center gap-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                          title="Reject this document"
+                        >
+                          <X className="h-3.5 w-3.5" /> Reject
+                        </button>
+                      )}
+
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        doc.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                        doc.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                        'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}>{doc.status}</span>
+
                       {doc.rejection_reason && (
-                        <span className="text-xs text-red-600" title={doc.rejection_reason}>
-                          <AlertTriangle className="h-4 w-4" />
+                        <span className="text-xs text-rose-600 flex items-center gap-1 font-medium bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200" title={doc.rejection_reason}>
+                          <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+                          <span className="max-w-[200px] truncate">{doc.rejection_reason}</span>
                         </span>
                       )}
                     </div>
@@ -1289,56 +1425,71 @@ export default function AdminMemberDetailPage({
 
       {/* Grant Membership Plan Modal */}
       {showGrantModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowGrantModal(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                <CreditCard className="w-5 h-5" />
+        <ClientPortal>
+          <div
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+            onClick={() => setShowGrantModal(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold shrink-0">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Grant Membership Plan</h3>
+                  <p className="text-xs text-slate-500">Assign a paid plan to {m?.full_name as string || 'member'} without payment.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Grant Membership Plan</h3>
-                <p className="text-xs text-slate-500">Assign a paid plan to {m.full_name as string} without payment.</p>
-              </div>
-            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Select Membership Plan</label>
-                <select
-                  value={selectedPlanSlug}
-                  onChange={e => setSelectedPlanSlug(e.target.value)}
-                  disabled={plansLoading || !grantablePlans.length}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-sm font-medium focus:border-purple-500 outline-none"
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Select Membership Plan</label>
+                  <select
+                    value={selectedPlanSlug}
+                    onChange={e => setSelectedPlanSlug(e.target.value)}
+                    disabled={plansLoading || !grantablePlans.length}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-semibold focus:border-purple-500 outline-none"
+                  >
+                    {plansLoading && <option>Loading plans…</option>}
+                    {!plansLoading && !grantablePlans.length && <option>No active membership plans available</option>}
+                    {grantablePlans.map((plan) => (
+                      <option key={plan.id} value={plan.slug}>{plan.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Select Duration</label>
+                  <select
+                    value={selectedDurationMonths}
+                    onChange={e => setSelectedDurationMonths(Number(e.target.value))}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-semibold focus:border-purple-500 outline-none"
+                  >
+                    <option value={1}>1 Month (Trial / Short)</option>
+                    <option value={6}>6 Months</option>
+                    <option value={12}>1 Year (12 Months)</option>
+                    <option value={24}>2 Years (24 Months)</option>
+                    <option value={36}>3 Years (36 Months)</option>
+                  </select>
+                </div>
+
+                <div className="p-3 bg-purple-50/70 rounded-xl text-xs text-purple-900 font-medium border border-purple-100 flex items-start gap-2">
+                  <span className="text-purple-600 font-bold">✓</span>
+                  <span>Bypasses payment gate. Grants immediate premium entitlements to the member.</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowGrantModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  {plansLoading && <option>Loading plans…</option>}
-                  {!plansLoading && !grantablePlans.length && <option>No active membership plans available</option>}
-                  {grantablePlans.map((plan) => (
-                    <option key={plan.id} value={plan.slug}>{plan.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Select Duration</label>
-                <select
-                  value={selectedDurationMonths}
-                  onChange={e => setSelectedDurationMonths(Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-sm font-medium focus:border-purple-500 outline-none"
-                >
-                  <option value={1}>1 Month (Trial / Short)</option>
-                  <option value={6}>6 Months</option>
-                  <option value={12}>1 Year (12 Months)</option>
-                  <option value={24}>2 Years (24 Months)</option>
-                  <option value={36}>3 Years (36 Months)</option>
-                </select>
-              </div>
-
-              <div className="p-3 bg-purple-50 rounded-xl text-xs text-purple-900 font-medium border border-purple-100">
-                ✓ Bypasses payment gate. Grants immediate premium entitlements to the member.
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowGrantModal(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
+                  Cancel
+                </button>
                 <button
                   type="button"
                   disabled={actionBusy || plansLoading || !selectedPlanSlug}
@@ -1362,78 +1513,301 @@ export default function AdminMemberDetailPage({
                       setActionBusy(false);
                     }
                   }}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
+                  {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
                   Confirm & Grant Plan
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </ClientPortal>
       )}
 
       {/* Photo approve/reject modal */}
-      {photoAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setPhotoAction(null); setRejectionReason(''); }}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">
-              {photoAction.approve ? 'Approve Photo' : 'Reject Photo'}
-            </h3>
-            {!photoAction.approve && (
-              <div className="mb-4">
-                <label className="mb-1 block text-sm font-medium text-slate-700">Rejection Reason</label>
-                <textarea
-                  value={rejectionReason}
-                  onChange={e => setRejectionReason(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 p-2 text-sm"
-                  rows={3}
-                  placeholder="Required: explain why this photo is rejected"
-                />
+      {photoAction && (() => {
+        const targetPhoto = photos.find((p: any) => p.id === photoAction.photoId);
+        const PHOTO_REJECT_PRESETS = [
+          'Blurry or low resolution',
+          'Group photo / not individual',
+          'Face obscured or not clear',
+          'Inappropriate or offensive',
+          'Watermark or text overlay',
+          'Celebrity or fake photo',
+        ];
+
+        return (
+          <ClientPortal>
+            <div
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+              onClick={() => { setPhotoAction(null); setRejectionReason(''); }}
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                      photoAction.approve ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                    }`}>
+                      {photoAction.approve ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base">
+                        {photoAction.approve ? 'Approve Member Photo' : 'Reject Member Photo'}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {photoAction.approve
+                          ? 'Verify and publish this photo to the member profile'
+                          : 'Provide feedback so the member can upload a suitable replacement'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setPhotoAction(null); setRejectionReason(''); }}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Photo Preview & Details */}
+                <div className="flex items-start gap-4 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="h-28 w-24 rounded-xl overflow-hidden bg-slate-200 shrink-0 border border-slate-200 relative shadow-xs">
+                    <img
+                      src={`/api/proxy/profile-photos/${photoAction.photoId}/thumbnail/`}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    {Boolean(targetPhoto?.is_primary) && (
+                      <span className="absolute top-1 left-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 truncate">
+                        {m?.full_name as string || 'Member'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        ID: <span className="font-mono text-slate-500">{String(photoAction.photoId).slice(0, 10)}…</span>
+                      </p>
+                    </div>
+                    {photoAction.approve ? (
+                      <div className="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-100 text-[11px] text-emerald-800 leading-relaxed font-medium">
+                        ✓ Once approved, this photo will be live and visible to matched members across the platform.
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-lg bg-rose-50/80 border border-rose-100 text-[11px] text-rose-800 leading-relaxed font-medium">
+                        The photo will be rejected and removed from pending reviews. The feedback below will be shown to the member.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rejection Form with Presets */}
+                {!photoAction.approve && (
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quick Reason Tags:</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PHOTO_REJECT_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setRejectionReason(preset)}
+                            className={`text-[11px] px-2.5 py-1 rounded-lg border transition font-medium cursor-pointer ${
+                              rejectionReason === preset
+                                ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Reason Details <span className="text-rose-500">*</span>:
+                      </label>
+                      <textarea
+                        value={rejectionReason}
+                        onChange={e => setRejectionReason(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none min-h-[75px]"
+                        placeholder="Required: explain why this photo was rejected..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => { setPhotoAction(null); setRejectionReason(''); }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={performPhotoAction}
+                    disabled={actionBusy || (!photoAction.approve && !rejectionReason.trim())}
+                    className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5 text-white ${
+                      photoAction.approve ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                    }`}
+                  >
+                    {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+                    {photoAction.approve ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                    {photoAction.approve ? 'Approve Photo' : 'Confirm Rejection'}
+                  </button>
+                </div>
               </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => { setPhotoAction(null); setRejectionReason(''); }} className="admin-btn">Cancel</button>
-              <button onClick={performPhotoAction} disabled={actionBusy} className={`admin-btn ${photoAction.approve ? 'admin-btn-primary' : 'admin-btn-danger'} flex items-center gap-2`}>
-                {actionBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                {photoAction.approve ? 'Approve' : 'Reject'}
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          </ClientPortal>
+        );
+      })()}
 
       {/* Profile review (reject / request changes) reason modal */}
-      {profileReview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setProfileReview(null); setProfileReviewReason(''); }}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="mb-1 text-lg font-semibold text-slate-900">{profileReview.label}</h3>
-            <p className="mb-3 text-sm text-slate-500">
-              {profileReview.action === 'reject_profile'
-                ? 'Enter a rejection reason. The member will see this feedback.'
-                : 'Explain what changes the member must make before approval.'}
-            </p>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Reason <span className="text-rose-600">*</span></label>
-            <textarea
-              value={profileReviewReason}
-              onChange={e => setProfileReviewReason(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 p-2 text-sm"
-              rows={4}
-              placeholder="Required — describe what needs to change..."
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => { setProfileReview(null); setProfileReviewReason(''); }} className="admin-btn">Cancel</button>
-              <button
-                onClick={() => void performProfileReview()}
-                disabled={!profileReviewReason.trim() || actionBusy}
-                className={`admin-btn ${profileReview.action === 'reject_profile' ? 'admin-btn-danger' : 'admin-btn-primary'} flex items-center gap-2`}
+      {profileReview && (() => {
+        const isReject = profileReview.action === 'reject_profile';
+        const REVIEW_PRESETS = isReject
+          ? [
+              'Inappropriate or offensive content',
+              'Fake or unverifiable profile',
+              'Commercial or promotional account',
+              'Duplicate profile account',
+              'Violates community terms of service',
+            ]
+          : [
+              'Upload a clear, recent profile photo',
+              'Complete "About Me" bio & hobbies',
+              'Fill in career & education details',
+              'Provide valid family background',
+              'Specify partner preference criteria',
+            ];
+
+        return (
+          <ClientPortal>
+            <div
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+              onClick={() => { setProfileReview(null); setProfileReviewReason(''); }}
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
+                onClick={e => e.stopPropagation()}
               >
-                {actionBusy && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                Confirm
-              </button>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                      isReject ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
+                    }`}>
+                      {isReject ? <XCircle className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base">{profileReview.label}</h3>
+                      <p className="text-xs text-slate-500">
+                        {isReject
+                          ? 'Enter a rejection reason. The member will see this feedback.'
+                          : 'Explain what changes the member must make before approval.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setProfileReview(null); setProfileReviewReason(''); }}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Member Preview Strip */}
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                  <div>
+                    <span className="text-slate-500">Member: </span>
+                    <strong className="text-slate-900">{m?.full_name as string || 'Unnamed'}</strong>
+                    <span className="text-slate-400 ml-1.5">({m?.email as string})</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                    ID: {memberId.slice(0, 8)}…
+                  </span>
+                </div>
+
+                {/* Preset Suggestions */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quick Suggestions:</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {REVIEW_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setProfileReviewReason(preset)}
+                        className={`text-[11px] px-2.5 py-1 rounded-lg border transition font-medium cursor-pointer ${
+                          profileReviewReason === preset
+                            ? isReject
+                              ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold'
+                              : 'bg-amber-50 border-amber-300 text-amber-800 font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reason Textarea */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Detailed Reason / Instructions <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={profileReviewReason}
+                    onChange={e => setProfileReviewReason(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[90px]"
+                    placeholder={
+                      isReject
+                        ? 'Explain why this profile is rejected...'
+                        : 'Describe what the member needs to update before approval...'
+                    }
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => { setProfileReview(null); setProfileReviewReason(''); }}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void performProfileReview()}
+                    disabled={!profileReviewReason.trim() || actionBusy}
+                    className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5 text-white ${
+                      isReject ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+                    {isReject ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                    {isReject ? 'Confirm Rejection' : 'Send Change Request'}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </ClientPortal>
+        );
+      })()}
 
       {/* Confirm dialogs */}
       {confirmAction && (
@@ -1448,12 +1822,290 @@ export default function AdminMemberDetailPage({
           onCancel={() => setConfirmAction(null)}
         />
       )}
-      {viewDoc && (
-        <ProtectedDocumentViewer
-          documentId={viewDoc.id}
-          documentType={viewDoc.type}
-          namespace="admin"
-          onClose={() => setViewDoc(null)}
+
+      {/* Document Rejection Modal */}
+      {rejectDocTarget && (() => {
+        const DOC_REJECT_PRESETS = [
+          'Document is expired or outdated',
+          'Blurry, dark, or illegible text',
+          'Name or DOB does not match profile',
+          'Document edges are cropped or incomplete',
+          'Invalid or unacceptable document type',
+        ];
+
+        return (
+          <ClientPortal>
+            <div
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+              onClick={() => setRejectDocTarget(null)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                      <XCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base">Reject Document</h3>
+                      <p className="text-xs text-slate-500">{rejectDocTarget.type} verification</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRejectDocTarget(null)}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quick Reason Tags:</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DOC_REJECT_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setDocRejectReason(preset)}
+                        className={`text-[11px] px-2.5 py-1 rounded-lg border transition font-medium cursor-pointer ${
+                          docRejectReason === preset
+                            ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Rejection Reason <span className="text-rose-500">*</span>:
+                  </label>
+                  <textarea
+                    value={docRejectReason}
+                    onChange={e => setDocRejectReason(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none min-h-[85px]"
+                    placeholder="Explain why this document is rejected..."
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setRejectDocTarget(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionBusy || !docRejectReason.trim()}
+                    onClick={handleRejectDocumentConfirm}
+                    className="px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5 text-white bg-rose-600 hover:bg-rose-700"
+                  >
+                    {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+                    Confirm Rejection
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ClientPortal>
+        );
+      })()}
+
+      {/* Clean Missing Requirements Modal */}
+      {missingReqModal && (() => {
+        const pendingDoc = documents.find((d: any) => d.status === 'PENDING' || d.status === 'pending') as any;
+        const pendingPhoto = photos.find((p: any) => p.status === 'PENDING' || p.status === 'pending') as any;
+        const bioText = String(m?.about_me || (m as any)?.profile?.about || '').trim();
+        const hasBio = bioText.length > 5;
+
+        return (
+          <ClientPortal>
+            <div
+              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+              onClick={() => setMissingReqModal(null)}
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                      <ShieldAlert className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base">Profile Approval Requirements</h3>
+                      <p className="text-xs text-slate-500">Items requiring verification before approval</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMissingReqModal(null)}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  To maintain platform trust, standard approval requires an approved document, approved photo, and completed bio. You can resolve these directly below:
+                </p>
+
+                {/* Requirements Checklist Card */}
+                <div className="space-y-2 bg-slate-50 rounded-xl p-3.5 border border-slate-200/80">
+                  {/* Document Requirement */}
+                  {pendingDoc ? (
+                    <div className="flex items-center justify-between gap-3 p-2.5 bg-white rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileText className="h-4 w-4 text-amber-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">{pendingDoc.document_type} Document</p>
+                          <p className="text-[11px] text-amber-700 font-medium">Status: Pending Verification</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={() => handleApproveDocument(pendingDoc.id, true)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition shrink-0 cursor-pointer flex items-center gap-1"
+                        title="Approve this document and immediately approve the member profile"
+                      >
+                        {actionBusy ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        Approve & Finish
+                      </button>
+                    </div>
+                  ) : documents.length === 0 ? (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-lg border border-slate-200 text-xs text-slate-600">
+                      <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                      <span>No identity document uploaded by member.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-lg border border-emerald-200 text-xs text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">Document is approved.</span>
+                    </div>
+                  )}
+
+                  {/* Photo Requirement */}
+                  {pendingPhoto ? (
+                    <div className="flex items-center justify-between gap-3 p-2.5 bg-white rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Camera className="h-4 w-4 text-amber-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">Profile Photo</p>
+                          <p className="text-[11px] text-amber-700 font-medium">Status: Pending Review</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={async () => {
+                          setActionBusy(true);
+                          try {
+                            await fetchApi(`/admin/profile-photos/${pendingPhoto.id}/approve/`, { method: 'POST' });
+                            setToast({ message: 'Photo approved.', tone: 'success' });
+                            await load();
+                            await performAction('approve_profile');
+                          } catch {
+                            setToast({ message: 'Failed to approve photo.', tone: 'error' });
+                          } finally {
+                            setActionBusy(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition shrink-0 cursor-pointer flex items-center gap-1"
+                      >
+                        Approve & Finish
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-lg border border-emerald-200 text-xs text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">Photo is approved.</span>
+                    </div>
+                  )}
+
+                  {/* Bio Requirement */}
+                  {!hasBio ? (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-lg border border-amber-200 text-xs text-amber-800">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Member bio is empty or incomplete (fewer than 5 characters).</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-lg border border-emerald-200 text-xs text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">Member bio is present.</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMissingReqModal(null);
+                      setActiveTab('documents');
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <FileText className="h-3.5 w-3.5" /> Go to Documents Tab
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMissingReqModal(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={() => performAction('approve_profile', true)}
+                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        {actionBusy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+                        Force Approve (Super Admin)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ClientPortal>
+        );
+      })()}
+      {docLightboxOpen && (
+        <AdminDocumentLightbox
+          isOpen={docLightboxOpen}
+          documents={docLightboxDocs}
+          currentIndex={docLightboxIndex}
+          onClose={() => setDocLightboxOpen(false)}
+          onIndexChange={(idx) => setDocLightboxIndex(idx)}
+          onApprove={async (docId) => {
+            await handleApproveDocument(docId);
+            // refresh lightbox statuses
+            setDocLightboxDocs((prev) =>
+              prev.map((d) => d.id === docId ? { ...d, status: 'APPROVED' } : d)
+            );
+          }}
+          onReject={(docId) => {
+            const doc = documents.find((d: any) => d.id === docId) as any;
+            setRejectDocTarget({ id: docId, type: doc?.document_type || 'Document' });
+            setDocRejectReason('');
+            setDocLightboxOpen(false);
+          }}
+          isActionBusy={actionBusy}
         />
       )}
       <AdminPhotoLightbox

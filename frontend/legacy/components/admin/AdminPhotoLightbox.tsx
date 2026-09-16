@@ -12,10 +12,13 @@ import {
   ChevronRight,
   Maximize2,
   Check,
+  ExternalLink,
 } from 'lucide-react';
 
 export interface LightboxPhoto {
   id?: string;
+  member_id?: string;
+  member_name?: string;
   src: string;
   alt?: string;
   is_primary?: boolean;
@@ -28,6 +31,7 @@ interface AdminPhotoLightboxProps {
   photos: LightboxPhoto[];
   currentIndex: number;
   memberName?: string;
+  memberId?: string;
   onClose: () => void;
   onIndexChange?: (index: number) => void;
   onApprove?: (photoId: string) => Promise<void> | void;
@@ -40,6 +44,7 @@ export default function AdminPhotoLightbox({
   photos,
   currentIndex,
   memberName = 'Member',
+  memberId,
   onClose,
   onIndexChange,
   onApprove,
@@ -172,9 +177,22 @@ export default function AdminPhotoLightbox({
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-white font-semibold text-base sm:text-lg">
-                  {memberName}
-                </span>
+                {(currentPhoto.member_id || memberId) ? (
+                  <a
+                    href={`/admin/members/${currentPhoto.member_id || memberId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-white hover:text-indigo-300 font-semibold text-base sm:text-lg flex items-center gap-1.5 transition cursor-pointer"
+                    title={`View ${currentPhoto.member_name || memberName}'s account`}
+                  >
+                    {currentPhoto.member_name || memberName}
+                    <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                  </a>
+                ) : (
+                  <span className="text-white font-semibold text-base sm:text-lg">
+                    {currentPhoto.member_name || memberName}
+                  </span>
+                )}
                 {currentPhoto.is_primary && (
                   <span className="bg-amber-500 text-white font-bold text-xs px-2 py-0.5 rounded-full">
                     Primary

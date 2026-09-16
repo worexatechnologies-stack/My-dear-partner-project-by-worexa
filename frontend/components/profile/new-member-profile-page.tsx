@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Heart, ShieldCheck, Crown, MapPin, GraduationCap, Briefcase,
-  Calendar, Ruler, Users, ChevronRight, Edit, Camera, CheckCircle2,
+  Calendar, Ruler, Users, ChevronRight, ChevronLeft, Edit, Camera, CheckCircle2,
   XCircle, AlertTriangle, Trash2, Mail, Smartphone, BookOpen,
-  Compass, KeyRound, Phone, Lock, Scale, Check, Home, Utensils
+  Compass, KeyRound, Phone, Lock, Scale, Check, Home, Utensils,
+  X, Eye, Maximize2
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ProfileImage from '@/components/profile/ProfileImage';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import { fetchApi } from '@/legacy/services/apiClient';
@@ -35,13 +38,18 @@ function statusBadge(status: string) {
 }
 
 export default function NewMemberProfilePage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'religion' | 'career' | 'family' | 'preferences'>('overview');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [deletePhoto] = useDeletePhotoMutation();
+
+  useEffect(() => setMounted(true), []);
 
   const handleDelete = async (photoId: string) => {
     if (!window.confirm('Are you sure you want to delete this photo?')) return;
@@ -83,6 +91,22 @@ export default function NewMemberProfilePage() {
     return () => { active = false; };
   }, [user, authLoading]);
 
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const count = profile?.photos?.length || 0;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLightboxIndex(null);
+      } else if (e.key === 'ArrowRight' && count > 1) {
+        setLightboxIndex((prev) => (prev !== null ? (prev + 1) % count : null));
+      } else if (e.key === 'ArrowLeft' && count > 1) {
+        setLightboxIndex((prev) => (prev !== null ? (prev - 1 + count) % count : null));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, profile?.photos?.length]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fdf8f5] pt-28 pb-16 flex items-center justify-center">
@@ -116,6 +140,15 @@ export default function NewMemberProfilePage() {
   const profileId = p.profile_id || p.member_id || p.id;
   const profileLocation = p.work_location || p.location || p.city;
 
+  const handleAvatarClick = () => {
+    if (photos.length > 0) {
+      const primaryIdx = photos.findIndex((ph) => ph.is_primary);
+      setLightboxIndex(primaryIdx >= 0 ? primaryIdx : 0);
+    } else {
+      router.push('/profile/photos');
+    }
+  };
+
   const tabs = [
     { id: 'overview', label: 'Overview & About' },
     { id: 'personal', label: 'Basic Details' },
@@ -135,9 +168,21 @@ export default function NewMemberProfilePage() {
           <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-rose-300/20 blur-3xl" />
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
 
-            {/* Circular Avatar Frame */}
-            <div className="relative shrink-0">
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white/80 shadow-2xl overflow-hidden bg-rose-50">
+            {/* Circular Avatar Frame - Clickable to open full-size photo */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={handleAvatarClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleAvatarClick();
+                }
+              }}
+              className="relative shrink-0 cursor-pointer group focus:outline-none focus:ring-4 focus:ring-white/40 rounded-full select-none"
+              title={photos.length > 0 ? "Click to view full photo" : "Click to upload photo"}
+            >
+              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white/80 shadow-2xl overflow-hidden bg-rose-50 relative transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.45)] group-hover:border-white">
                 <ProfileImage
                   photoId={primaryPhoto?.id}
                   src={primaryPhoto?.thumbnail_url}
@@ -145,11 +190,31 @@ export default function NewMemberProfilePage() {
                   alt="Profile Avatar"
                   size="xl"
                   shape="circle"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
+
+                {/* Interactive hover overlay with icon & label */}
+                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white gap-1 backdrop-blur-[2px]">
+                  {photos.length > 0 ? (
+                    <>
+                      <Eye className="w-6 h-6 text-white drop-shadow-md" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white drop-shadow-md">
+                        View Photo
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-6 h-6 text-white drop-shadow-md" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white drop-shadow-md">
+                        Upload
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
+
               {p.is_fully_verified && (
-                <span className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white shadow-xs" title="Govt ID Verified">
+                <span className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white shadow-xs z-10 pointer-events-none" title="Govt ID Verified">
                   <ShieldCheck className="w-4 h-4" />
                 </span>
               )}
@@ -302,8 +367,13 @@ export default function NewMemberProfilePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
-                  {photos.map((ph) => (
-                    <div key={ph.id} className="relative aspect-square rounded-xl overflow-hidden border border-rose-100 bg-gray-100 group">
+                  {photos.map((ph, idx) => (
+                    <div
+                      key={ph.id}
+                      onClick={() => setLightboxIndex(idx)}
+                      className="relative aspect-square rounded-xl overflow-hidden border border-rose-100 bg-gray-100 group cursor-pointer hover:ring-2 hover:ring-[#e11d48] transition-all"
+                      title="Click to view full photo"
+                    >
                       <ProfileImage
                         photoId={ph.id}
                         src={ph.thumbnail_url}
@@ -311,13 +381,19 @@ export default function NewMemberProfilePage() {
                         alt=""
                         size="sm"
                         shape="square"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <Eye className="w-4 h-4 text-white drop-shadow-md" />
+                      </div>
                       <button
                         type="button"
-                        onClick={() => handleDelete(ph.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(ph.id);
+                        }}
                         disabled={deletingId === ph.id}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
                         title="Delete photo"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -589,6 +665,119 @@ export default function NewMemberProfilePage() {
         </div>
 
       </div>
+
+      {/* Lightbox Modal */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {lightboxIndex !== null && photos[lightboxIndex] && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-md"
+              style={{ backgroundColor: 'rgba(10, 8, 14, 0.95)' }}
+              onClick={() => setLightboxIndex(null)}
+            >
+              {/* Header / Top bar in high-contrast dark card */}
+              <div
+                className="w-full max-w-3xl flex items-center justify-between px-5 py-3 rounded-2xl bg-black/80 border border-white/15 shadow-2xl backdrop-blur-md mb-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-black text-base sm:text-lg text-white tracking-tight drop-shadow-sm">
+                    {displayName}
+                  </span>
+                  {photos[lightboxIndex].is_primary && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[11px] font-black uppercase tracking-wider shadow-sm">
+                      Primary
+                    </span>
+                  )}
+                  {statusBadge(photos[lightboxIndex].status || p.photo_status)}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {photos.length > 1 && (
+                    <span className="text-xs font-bold text-white bg-white/15 px-3 py-1 rounded-full border border-white/20">
+                      {lightboxIndex + 1} / {photos.length}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(null)}
+                    className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/35 border border-white/30 flex items-center justify-center text-white transition-all cursor-pointer shadow-sm"
+                    title="Close (Esc)"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Main photo container */}
+              <div
+                className="relative flex items-center justify-center max-w-full my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Previous button */}
+                {photos.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((lightboxIndex - 1 + photos.length) % photos.length)}
+                    style={{ backgroundColor: 'rgba(20, 15, 25, 0.85)' }}
+                    className="absolute -left-3 sm:-left-14 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-13 sm:h-13 rounded-full hover:scale-110 border border-white/30 text-white flex items-center justify-center transition-all shadow-2xl cursor-pointer z-10"
+                    title="Previous photo (Left arrow)"
+                  >
+                    <ChevronLeft className="w-6 h-6 text-white" />
+                  </button>
+                )}
+
+                {/* Photo */}
+                <div
+                  style={{ backgroundColor: '#141416' }}
+                  className="relative overflow-hidden rounded-2xl border-2 border-white/20 shadow-2xl"
+                >
+                  <ProfileImage
+                    photoId={photos[lightboxIndex].id}
+                    src={photos[lightboxIndex].image_url || photos[lightboxIndex].thumbnail_url}
+                    variant="image"
+                    alt={`Photo ${lightboxIndex + 1}`}
+                    size="full"
+                    shape="rounded"
+                    className="max-h-[72vh] w-auto max-w-[90vw] md:max-w-2xl object-contain rounded-2xl"
+                  />
+                </div>
+
+                {/* Next button */}
+                {photos.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex((lightboxIndex + 1) % photos.length)}
+                    style={{ backgroundColor: 'rgba(20, 15, 25, 0.85)' }}
+                    className="absolute -right-3 sm:-right-14 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-13 sm:h-13 rounded-full hover:scale-110 border border-white/30 text-white flex items-center justify-center transition-all shadow-2xl cursor-pointer z-10"
+                    title="Next photo (Right arrow)"
+                  >
+                    <ChevronRight className="w-6 h-6 text-white" />
+                  </button>
+                )}
+              </div>
+
+              {/* Bottom bar */}
+              <div
+                className="mt-2 flex items-center gap-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Link
+                  href="/profile/photos"
+                  className="px-6 py-2.5 rounded-2xl bg-[#a91d4c] hover:bg-[#8e1940] text-white font-extrabold text-xs shadow-xl inline-flex items-center gap-2 border border-white/20 transition-all hover:scale-105 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                  Manage Photos
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </main>
   );
 }

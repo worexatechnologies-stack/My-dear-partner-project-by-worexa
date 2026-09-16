@@ -83,11 +83,10 @@ export const adminRoutes: RouteConfig[] = [
   { path: '/admin/complaints', label: 'Complaints', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['complaints.view_all'] },
   { path: '/admin/reported-profiles', label: 'Reported Profiles', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['profile_reports.manage'] },
   { path: '/admin/admin-accounts', label: 'Admin Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
-  { path: '/admin/staff-activity', label: 'Staff Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
+  { path: '/admin/admin-activity', label: 'Admin Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
   { path: '/admin/reports', label: 'Reports', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['reports.view'] },
   { path: '/admin/audit-logs', label: 'Audit Logs', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['activity.view_all'] },
   { path: '/admin/settings', label: 'Settings', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['settings.manage'] },
-  { path: '/admin/backups', label: 'Backups', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['backups.manage'] },
 ];
 
 export const superAdminRoutes: RouteConfig[] = [
@@ -105,11 +104,10 @@ export const superAdminRoutes: RouteConfig[] = [
   { path: '/super-admin/reported-profiles', label: 'Reported Profiles', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
 
   { path: '/super-admin/admin-accounts', label: 'Admin Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
-  { path: '/super-admin/staff-activity', label: 'Staff Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
+  { path: '/super-admin/admin-activity', label: 'Admin Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/reports', label: 'Reports', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/audit-logs', label: 'Audit Logs', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/settings', label: 'Settings', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
-  { path: '/super-admin/backups', label: 'Backups', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
 ];
 
 export const staffRoutes: RouteConfig[] = [

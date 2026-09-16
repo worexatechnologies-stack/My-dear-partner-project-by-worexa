@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FileCheck2,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchApi } from '../../services/apiClient';
@@ -93,11 +94,13 @@ const PRESET_REJECTION_REASONS = [
 
 export default function AdminDocumentVerificationPage() {
   const { hasAdminPermission, user } = useAuth();
+  const isSuper = user?.role === 'SUPER_ADMIN' || user?.account_type === 'SUPER_ADMIN' || (user as any)?.is_super_admin;
+  const basePath = isSuper ? '/super-admin' : '/admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
-  const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [status, setStatus] = useState(searchParams.get('status') || 'PENDING');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [docType, setDocType] = useState(searchParams.get('document_type') || '');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -495,19 +498,27 @@ export default function AdminDocumentVerificationPage() {
                       </p>
 
                       {/* Member Info */}
-                      <div className="mt-3 flex items-center gap-2.5 bg-slate-50/80 p-2 rounded-xl border border-slate-100">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 font-bold text-indigo-700 text-xs shrink-0">
+                      <a
+                        href={`${basePath}/members/${doc.member_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 flex items-center gap-2.5 bg-slate-50/80 hover:bg-indigo-50/70 p-2 rounded-xl border border-slate-100 hover:border-indigo-200 transition-all group/member cursor-pointer"
+                        title={`View ${memberName}'s account`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 group-hover/member:bg-indigo-600 group-hover/member:text-white font-bold text-indigo-700 text-xs shrink-0 transition-colors">
                           {(memberName || 'M')[0].toUpperCase()}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-slate-800 truncate" title={memberName}>
+                          <p className="text-xs font-semibold text-slate-800 group-hover/member:text-indigo-600 truncate flex items-center gap-1 transition-colors" title={memberName}>
                             {memberName}
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover/member:opacity-100 transition-opacity text-indigo-500 shrink-0" />
                           </p>
                           <p className="text-[11px] text-slate-400 truncate" title={memberEmail}>
                             {memberEmail}
                           </p>
                         </div>
-                      </div>
+                      </a>
 
                       {/* Rejection reason snippet if rejected */}
                       {doc.status === 'REJECTED' && doc.rejection_reason && (
@@ -624,15 +635,24 @@ export default function AdminDocumentVerificationPage() {
 
                     {/* Member */}
                     <td data-label="Member">
-                      <div className="admin-member-cell">
-                        <span className="admin-list-avatar">
+                      <a
+                        href={`${basePath}/members/${doc.member_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="admin-member-cell group/member hover:opacity-90 cursor-pointer"
+                        title={`View ${doc.member_name || 'Member'}'s account`}
+                      >
+                        <span className="admin-list-avatar group-hover/member:bg-indigo-600 group-hover/member:text-white transition-colors">
                           {(doc.member_name || doc.member_email || 'M')[0].toUpperCase()}
                         </span>
                         <p>
-                          <strong>{doc.member_name || 'Unnamed'}</strong>
+                          <strong className="group-hover/member:text-indigo-600 flex items-center gap-1 transition-colors">
+                            {doc.member_name || 'Unnamed'}
+                            <ExternalLink size={11} className="opacity-0 group-hover/member:opacity-100 text-indigo-500 transition-opacity" />
+                          </strong>
                           <small>{doc.member_email}</small>
                         </p>
-                      </div>
+                      </a>
                     </td>
 
                     {/* Document */}

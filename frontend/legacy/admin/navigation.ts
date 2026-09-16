@@ -42,12 +42,11 @@ export const adminNavigation: AdminNavItem[] = [
   { path: '/admin/reported-profiles', label: 'Reported profiles', description: 'Investigate suspicious and reported profiles.', icon: Flag, section: 'Support', permissions: ['profile_reports.manage'], roles: leadership },
 
   { path: '/admin/admin-accounts', label: 'Admin Accounts', description: 'Create and manage administrative profiles.', icon: UserCog, section: 'Management', roles: superAdmin, implemented: true },
-  { path: '/admin/staff-activity', label: 'Staff activity', description: 'Review recent Staff operational activity.', icon: BriefcaseBusiness, section: 'Management', permissions: ['staff.activity'], roles: leadership },
+  { path: '/admin/admin-activity', label: 'Admin activity', description: 'Review recent Admin operational activity.', icon: BriefcaseBusiness, section: 'Management', permissions: ['staff.activity'], roles: leadership },
   { path: '/admin/reports', label: 'Reports', description: 'View and export permitted platform reports.', icon: ReceiptText, section: 'Management', permissions: ['reports.view'], roles: leadership },
   { path: '/admin/activity', label: 'Activity logs', description: 'Audit administrative actions and changes.', icon: Activity, section: 'Management', permissions: ['activity.view_all'], roles: superAdmin, implemented: true },
   { path: '/admin/message-audit', label: 'Message audit', description: 'Review retained chat content for legitimate investigations.', icon: MessageSquareMore, section: 'Management', roles: superAdmin, implemented: true },
   { path: '/admin/settings', label: 'Settings', description: 'Manage application and integration settings.', icon: Settings, section: 'Management', permissions: ['settings.manage'], roles: superAdmin, implemented: true },
-  { path: '/admin/backups', label: 'Backups', description: 'Review protected database backup operations.', icon: Building2, section: 'Management', permissions: ['backups.manage'], roles: superAdmin, implemented: true },
 ];
 
 export const adminNavSections: AdminNavSection[] = ['Workspace', 'Operations', 'Support', 'Content', 'Management'];
