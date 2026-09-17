@@ -5,11 +5,11 @@ import { usePathname } from 'next/navigation';
 import { Compass, Search, MessageCircle, Heart, User } from 'lucide-react';
 
 const PRIMARY_NAV = [
-  { label: 'Discover', icon: Compass, href: '/dashboard' },
-  { label: 'Find Matches', icon: Search,  href: '/search' },
-  { label: 'Messages', icon: MessageCircle, href: '/messages' },
-  { label: 'Likes',    icon: Heart,   href: '/interests/received' },
-  { label: 'Profile',  icon: User,    href: '/profile/me' },
+  { label: 'Discover',     icon: Compass,        href: '/dashboard' },
+  { label: 'Find Matches', icon: Search,         href: '/search' },
+  { label: 'Messages',     icon: MessageCircle,  href: '/messages' },
+  { label: 'Likes',        icon: Heart,          href: '/interests/received' },
+  { label: 'Profile',      icon: User,           href: '/profile/me' },
 ];
 
 export default function MobileBottomNav() {
@@ -27,14 +27,17 @@ export default function MobileBottomNav() {
       <style>{`
         .mdp-bottom-nav {
           display: flex;
-          align-items: stretch;
+          align-items: center;
           justify-content: space-around;
           flex-shrink: 0;
-          background: rgba(255, 254, 253, 0.86);
-          border-top: 1px solid rgba(240, 231, 234, 0.9);
-          padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-          backdrop-filter: blur(22px) saturate(1.35);
-          -webkit-backdrop-filter: blur(22px) saturate(1.35);
+          height: 3.75rem;
+          background: rgba(255, 255, 255, 0.94);
+          border-top: 1px solid #f0e6eb;
+          padding-bottom: env(safe-area-inset-bottom);
+          box-sizing: content-box;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          box-shadow: 0 -4px 20px rgba(45, 20, 30, 0.04);
           z-index: 40;
         }
         @media (min-width: 1024px) {
@@ -45,51 +48,45 @@ export default function MobileBottomNav() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 0.2rem;
+          gap: 0.1875rem;
           flex: 1;
-          padding: 0.55rem 0.25rem 0.3rem;
-          font-size: 0.5625rem;
-          font-weight: 600;
-          color: #9a898f;
+          height: 100%;
+          color: #7e6c75;
           text-decoration: none;
-          transition: color 0.18s ease;
+          transition: color 0.16s ease, transform 0.12s ease;
           position: relative;
           -webkit-tap-highlight-color: transparent;
         }
-        .mdp-bottom-nav-item:active { opacity: 0.75; }
-        .mdp-bottom-nav-item.active {
-          color: #8e3d58;
-          font-weight: 700;
+        .mdp-bottom-nav-item:active {
+          transform: scale(0.95);
         }
-        .mdp-bottom-nav-item.active svg {
-          filter: drop-shadow(0 2px 4px rgba(142,61,88,0.3));
+        .mdp-bottom-nav-item.active {
+          color: #e11d48;
         }
         .mdp-nav-icon-wrap {
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 2.5rem;
-          height: 2.125rem;
+          width: 3rem;
+          height: 1.75rem;
           border-radius: 9999px;
-          transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+          background: transparent;
+          transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
         }
         .mdp-bottom-nav-item.active .mdp-nav-icon-wrap {
-          background: linear-gradient(135deg, #fdf3f6 0%, #f9e4eb 100%);
-          box-shadow: inset 0 0 0 1px rgba(182,74,104,0.18), 0 3px 10px rgba(142,61,88,0.14);
+          background: #fff0f4;
           transform: translateY(-1px);
         }
-        .mdp-bottom-nav-item.active .mdp-nav-icon-wrap::before {
-          content: '';
-          position: absolute;
-          top: -0.45rem;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 1.125rem;
-          height: 3px;
-          border-radius: 9999px;
-          background: linear-gradient(90deg, #e11d48, #8e3d58);
-          box-shadow: 0 1px 4px rgba(225,29,72,0.4);
+        .mdp-bottom-nav-item span {
+          font-size: 0.6875rem;
+          font-weight: 500;
+          line-height: 1.1;
+          transition: font-weight 0.16s ease;
+        }
+        .mdp-bottom-nav-item.active span {
+          font-weight: 700;
+          color: #e11d48;
         }
       `}</style>
       <nav className="mdp-bottom-nav" aria-label="Mobile navigation">
@@ -108,7 +105,9 @@ export default function MobileBottomNav() {
                   style={{
                     width: '1.25rem',
                     height: '1.25rem',
-                    strokeWidth: active ? 2.5 : 1.75,
+                    color: active ? '#e11d48' : '#7e6c75',
+                    strokeWidth: active ? 2.25 : 1.85,
+                    transition: 'all 0.16s ease',
                   }}
                 />
               </div>
