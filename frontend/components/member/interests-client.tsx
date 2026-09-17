@@ -30,6 +30,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
   const [items, setItems] = useState<InterestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [locked, setLocked] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [withdrawConfirmingId, setWithdrawConfirmingId] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
+    setActionError('');
     setLocked(false);
     try {
       const [incoming, sent] = await Promise.all([
@@ -134,7 +136,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
   const handleLikePassed = async (profileId: string, itemId: string) => {
     setProcessingId(itemId);
-    setError('');
+    setActionError('');
     try {
       await sendInterest(profileId);
       removePassedProfile(profileId);
@@ -146,13 +148,26 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
       }));
       setNotice('Interest sent! Moved to Sent Likes 💕');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not send interest.');
+      const msg = caught instanceof Error ? caught.message : 'Could not send interest.';
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('already sent')) {
+        // Interest was already sent previously — clean up gracefully
+        removePassedProfile(profileId);
+        setItems((prev) => prev.filter((item) => item.id !== itemId));
+        setCounts((prev) => ({
+          ...prev,
+          declined: Math.max(0, prev.declined - 1),
+        }));
+        setNotice('Interest was already sent to this member. Moved to Sent Likes 💕');
+      } else {
+        setActionError(msg);
+      }
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleUndoPass = (profileId: string, itemId: string) => {
+    setActionError('');
     removePassedProfile(profileId);
     setItems((prev) => prev.filter((item) => item.id !== itemId));
     setCounts((prev) => ({
@@ -168,23 +183,14 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
   const respond = async (id: string, status: 'ACCEPTED' | 'DECLINED') => {
     setProcessingId(id);
+    setActionError('');
     try {
       await updateInterestStatus(id, status);
-      // Optimistic, in-place update — no full reload.
-      //
-      // The previous code called loadData() after every accept/decline. That
-      // starts with setLoading(true), which flashed the whole grid into a
-      // loading skeleton, then re-fetched BOTH incoming + outgoing lists and
-      // re-rendered every card (reloading every profile photo). Updating local
-      // state instead keeps the action instant and smooth, and lets the card
-      // animate out through <AnimatePresence>.
       setItems((prev) => {
         if (mode === 'received') {
-          // An accepted/declined request leaves the "received" (PENDING) list.
           return prev.filter((item) => item.id !== id);
         }
         if (mode === 'declined' && status === 'ACCEPTED') {
-          // "Change mind": the card leaves the "declined" list.
           return prev.filter((item) => item.id !== id);
         }
         return prev;
@@ -199,8 +205,9 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
           (mode === 'declined' && status === 'ACCEPTED' ? 1 : 0),
         sent: prev.sent,
       }));
+      setNotice(status === 'ACCEPTED' ? 'Request accepted! You can now start messaging.' : 'Request declined.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Action could not be updated.');
+      setActionError(caught instanceof Error ? caught.message : 'Action could not be updated.');
     } finally {
       setProcessingId(null);
     }
@@ -208,14 +215,14 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
   const withdraw = async (id: string) => {
     setProcessingId(id);
-    setError('');
+    setActionError('');
     try {
       await withdrawInterest(id);
       setItems((prev) => prev.filter((item) => item.id !== id));
       setCounts((prev) => ({ ...prev, sent: Math.max(0, prev.sent - 1) }));
       setNotice('Interest request withdrawn. It is no longer visible to this member.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Interest could not be withdrawn.');
+      setActionError(caught instanceof Error ? caught.message : 'Interest could not be withdrawn.');
       if (caught instanceof ApiError && caught.status === 409) {
         void loadData();
       }
@@ -227,7 +234,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
 
   const removeMatch = async (item: InterestItem) => {
     setProcessingId(item.id);
-    setError('');
+    setActionError('');
     try {
       if (item.direction === 'outgoing') {
         await withdrawInterest(item.id);
@@ -238,7 +245,7 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
       setCounts((prev) => ({ ...prev, accepted: Math.max(0, prev.accepted - 1) }));
       setNotice('Match removed. Chat and contact access are now closed for both members.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Match could not be removed.');
+      setActionError(caught instanceof Error ? caught.message : 'Match could not be removed.');
       if (caught instanceof ApiError && caught.status === 409) {
         void loadData();
       }
@@ -282,8 +289,20 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
         </div>
 
         {notice && (
-          <div role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-            {notice}
+          <div role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 flex items-center justify-between shadow-sm">
+            <span>{notice}</span>
+            <button onClick={() => setNotice('')} className="p-1 text-emerald-600 hover:text-emerald-950 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {actionError && (
+          <div role="alert" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 flex items-center justify-between shadow-sm">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError('')} className="p-1 text-rose-600 hover:text-rose-950 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
