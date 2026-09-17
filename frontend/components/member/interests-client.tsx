@@ -8,10 +8,11 @@ import {
   Heart, CheckCircle2, XCircle, RotateCcw, MessageSquare, X, 
   User, MapPin, Briefcase, Lock, ShieldCheck, ArrowRight, Clock, Maximize2
 } from 'lucide-react';
-import { getInterests, updateInterestStatus, withdrawInterest } from '@/legacy/services/dataService';
+import { getInterests, updateInterestStatus, withdrawInterest, sendInterest } from '@/legacy/services/dataService';
 import { ApiError } from '@/legacy/services/apiClient';
 import SmartImage from '@/components/shared/smart-image';
 import { profileHref } from '@/lib/profile-url';
+import { getPassedProfiles, removePassedProfile } from '@/lib/discover-actions';
 
 type InterestMode = 'received' | 'sent' | 'accepted' | 'declined';
 type InterestDirection = 'incoming' | 'outgoing';
@@ -83,17 +84,38 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
         (item) => item.status !== 'WITHDRAWN' && item.status !== 'ACCEPTED',
       );
 
+      const passedList = getPassedProfiles();
+      const passedItems: InterestItem[] = passedList.map((p) => ({
+        id: `passed_${p.id}`,
+        sender: {
+          id: p.id,
+          user_id: p.id,
+          full_name: p.name,
+          photo: p.photo,
+          work_location: p.location,
+          occupation: p.occupation,
+          highest_education: p.education,
+          age: p.age,
+        },
+        receiver: null,
+        status: 'DISCOVER_PASSED',
+        created_at: p.passedAt,
+        direction: 'incoming',
+      }));
+
+      const totalDeclinedCount = declinedIncoming.length + passedItems.length;
+
       setCounts({
         received: pendingIncoming.length,
         accepted: acceptedMatches.length,
-        declined: declinedIncoming.length,
+        declined: totalDeclinedCount,
         sent: sentRequests.length,
       });
 
       if (mode === 'accepted') {
         setItems(acceptedMatches);
       } else if (mode === 'declined') {
-        setItems(declinedIncoming);
+        setItems([...declinedIncoming, ...passedItems]);
       } else if (mode === 'received') {
         setItems(pendingIncoming);
       } else {
@@ -109,6 +131,36 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
       setLoading(false);
     }
   }, [mode]);
+
+  const handleLikePassed = async (profileId: string, itemId: string) => {
+    setProcessingId(itemId);
+    setError('');
+    try {
+      await sendInterest(profileId);
+      removePassedProfile(profileId);
+      setItems((prev) => prev.filter((item) => item.id !== itemId));
+      setCounts((prev) => ({
+        ...prev,
+        declined: Math.max(0, prev.declined - 1),
+        sent: prev.sent + 1,
+      }));
+      setNotice('Interest sent! Moved to Sent Likes 💕');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not send interest.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUndoPass = (profileId: string, itemId: string) => {
+    removePassedProfile(profileId);
+    setItems((prev) => prev.filter((item) => item.id !== itemId));
+    setCounts((prev) => ({
+      ...prev,
+      declined: Math.max(0, prev.declined - 1),
+    }));
+    setNotice('Profile restored! It will appear again in Discover.');
+  };
 
   useEffect(() => {
     loadData();
@@ -197,10 +249,10 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
   };
 
   const navTabs: { key: InterestMode; label: string; count: number; href: string; icon: any }[] = [
-    { key: 'received', label: 'Received', count: counts.received, href: '/interests/received', icon: Heart },
+    { key: 'received', label: 'Received Likes', count: counts.received, href: '/interests/received', icon: Heart },
     { key: 'accepted', label: 'Accepted Matches', count: counts.accepted, href: '/interests/accepted', icon: CheckCircle2 },
-    { key: 'declined', label: 'Declined (Undo)', count: counts.declined, href: '/interests/declined', icon: RotateCcw },
-    { key: 'sent', label: 'Sent Requests', count: counts.sent, href: '/interests/sent', icon: ArrowRight },
+    { key: 'declined', label: 'Passed & Disliked', count: counts.declined, href: '/interests/declined', icon: XCircle },
+    { key: 'sent', label: 'Sent Likes', count: counts.sent, href: '/interests/sent', icon: ArrowRight },
   ];
 
   return (
@@ -219,12 +271,12 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
               : mode === 'accepted'
               ? 'Accepted Matches'
               : mode === 'declined'
-              ? 'Declined Requests & Undo'
+              ? 'Passed Profiles & Declined Requests'
               : 'Received Connection Requests'}
           </h1>
           <p className="text-slate-500 text-sm mt-1 max-w-2xl">
             {mode === 'declined'
-              ? 'Rejected a profile by mistake? You can easily change your mind and accept their request here to start messaging.'
+              ? 'Profiles you swiped left on or declined. You can undo a pass to see them in Discover again, or like them instead to connect.'
               : 'Manage member connections, respond to interest requests, and keep track of your match interactions.'}
           </p>
         </div>
@@ -470,6 +522,31 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
                         </div>
                       )}
 
+                      {/* Discover Passed / Disliked */}
+                      {item.status === 'DISCOVER_PASSED' && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] text-slate-600 font-semibold bg-slate-50 p-2 rounded-xl border border-slate-200 text-center">
+                            Passed on Discover. Change your mind?
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUndoPass(profileId, item.id)}
+                              disabled={isBusy}
+                              className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors disabled:opacity-50"
+                            >
+                              Undo Pass
+                            </button>
+                            <button
+                              onClick={() => handleLikePassed(profileId, item.id)}
+                              disabled={isBusy}
+                              className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 text-white font-bold text-xs hover:from-rose-700 hover:to-rose-800 shadow-sm shadow-rose-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            >
+                              <Heart className="w-3.5 h-3.5" fill="white" /> Like Instead
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Accepted Match */}
                       {item.status === 'ACCEPTED' && (
                         <>
@@ -532,11 +609,11 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
               <Heart className="w-8 h-8 text-slate-300" />
             </div>
             <h3 className="text-xl font-extrabold text-slate-900 mb-1">
-              {mode === 'declined' ? 'No Declined Requests' : 'No Connections Here Yet'}
+              {mode === 'declined' ? 'No Passed or Declined Profiles' : 'No Connections Here Yet'}
             </h3>
             <p className="text-slate-500 text-xs max-w-xs mx-auto mb-6 leading-relaxed">
               {mode === 'declined'
-                ? 'If you ever decline a connection request by mistake, it will appear here so you can accept it anytime.'
+                ? 'Profiles you pass or dislike in Discover, or connection requests you decline, will appear here so you can undo or like them anytime.'
                 : 'Explore member matches in your area and send interest requests to start connecting.'}
             </p>
             <Link

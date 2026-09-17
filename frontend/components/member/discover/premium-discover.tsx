@@ -17,6 +17,7 @@ import { useAuth } from '@/legacy/contexts/AuthContext';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { getProfiles, getInterests, getShortlists, sendInterest, toggleShortlist } from '@/legacy/services/dataService';
 import type { Profile } from '@/legacy/types/domain';
+import { savePassedProfile, getPassedCount } from '@/lib/discover-actions';
 
 /* ─────────────────────────────── Types ─────────────────────────────── */
 
@@ -1015,8 +1016,9 @@ function FilterDialog({ open, onClose, filters, onApply, onReset }: {
 
 /* ─────────────────────────────── RightPanel ─────────────────────────────── */
 
-function RightPanel({ completion, visitors, matches, isPremium, planName }: {
+function RightPanel({ completion, visitors, matches, sentCount, passedCount, isPremium, planName }: {
   completion: number; isPremium: boolean; planName: string;
+  sentCount: number; passedCount: number;
   visitors: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
   matches: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
 }) {
@@ -1105,6 +1107,26 @@ function RightPanel({ completion, visitors, matches, isPremium, planName }: {
           </div>
         )}
         <Link href="/interests/received" className="rp-view-btn">View All Matches</Link>
+      </div>
+
+      {/* Sent Likes Stats */}
+      <div className="rp">
+        <div className="rp-row">
+          <h3 className="rp-title-bold"><Heart size={16} color="#e11d48" fill="#e11d48" /> Sent Likes</h3>
+          <span className="rp-num-bold" style={{ color: '#e11d48' }}>{sentCount}</span>
+        </div>
+        <p className="rp-sub-text">Profiles you swiped right &amp; liked.</p>
+        <Link href="/interests/sent" className="rp-view-btn">View Sent Likes</Link>
+      </div>
+
+      {/* Passed / Disliked Profiles */}
+      <div className="rp">
+        <div className="rp-row">
+          <h3 className="rp-title-bold"><X size={16} color="#64748b" /> Passed Profiles</h3>
+          <span className="rp-num-bold" style={{ color: '#64748b' }}>{passedCount}</span>
+        </div>
+        <p className="rp-sub-text">Profiles you passed on Discover. Undo anytime.</p>
+        <Link href="/interests/declined" className="rp-view-btn">View &amp; Undo Passes</Link>
       </div>
 
       {/* Membership */}
@@ -1203,6 +1225,12 @@ export function PremiumDiscover() {
   const ptrRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [visitors, setVisitors] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
   const [matches, setMatches] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
+  const [passedCount, setPassedCount] = useState<number>(0);
+  const [sentLikesCount, setSentLikesCount] = useState<number>(0);
+
+  useEffect(() => {
+    setPassedCount(getPassedCount());
+  }, []);
 
 const dedupeProfiles = (list: Profile[]): Profile[] => {
   const seen = new Set<string>();
@@ -1292,7 +1320,10 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           photos: matchItems.map((m) => m.photo),
         });
 
-        for (const interest of outgoing ?? []) {
+        const outgoingList = Array.isArray(outgoing) ? outgoing : [];
+        setSentLikesCount(outgoingList.length);
+
+        for (const interest of outgoingList) {
           const receiverId = interest?.receiver?.id || interest?.receiver?.user_id || interest?.receiver_id;
           if (receiverId) {
             interested.current.add(String(receiverId));
@@ -1381,9 +1412,12 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
         interested.current.add(currentCard.id);
         hidden.current.add(currentCard.id);
         saveDismissedIds(hidden.current);
+        setSentLikesCount((prev) => prev + 1);
         showToast('Interest sent! 💕', 'success');
         void sendInterest(currentCard.id).catch(() => {});
       } else {
+        savePassedProfile(currentCard);
+        setPassedCount(getPassedCount());
         hidden.current.add(currentCard.id);
         saveDismissedIds(hidden.current);
       }
@@ -1781,6 +1815,8 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
               completion={completion}
               visitors={visitors}
               matches={matches}
+              sentCount={sentLikesCount}
+              passedCount={passedCount}
               isPremium={isPremium}
               planName={planName}
             />
