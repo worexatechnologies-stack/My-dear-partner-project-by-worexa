@@ -319,25 +319,42 @@ const CSS = `
 }
 .pc-more-btn:hover { background:rgba(0,0,0,0.55); }
 
-/* Swipe Stamps */
+/* Swipe Stamps & Shades */
+.pc-shade {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 12;
+  transition: opacity 0.08s ease-out;
+}
+.pc-shade-like {
+  background: radial-gradient(circle at 25% 30%, rgba(34,197,94,0.45) 0%, rgba(16,185,129,0.22) 50%, rgba(5,150,105,0.08) 100%);
+  box-shadow: inset 0 0 45px rgba(34,197,94,0.35);
+}
+.pc-shade-pass {
+  background: radial-gradient(circle at 75% 30%, rgba(239,68,68,0.45) 0%, rgba(220,38,38,0.22) 50%, rgba(185,28,28,0.08) 100%);
+  box-shadow: inset 0 0 45px rgba(239,68,68,0.35);
+}
 .pc-stamp {
   position:absolute; top:2.25rem; z-index:25;
-  display:inline-flex; align-items:center; gap:0.45rem;
-  padding:0.45rem 1.15rem; border-radius:0.875rem;
-  font-family:var(--font-heading); font-size:1.3rem; font-weight:900;
-  letter-spacing:0.06em; text-transform:uppercase;
-  pointer-events:none; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-  box-shadow:0 8px 24px rgba(0,0,0,0.18);
-  transition:opacity 0.08s ease-out;
+  display:inline-flex; align-items:center; gap:0.5rem;
+  padding:0.55rem 1.35rem; border-radius:1rem;
+  font-family:var(--font-heading); font-size:1.45rem; font-weight:900;
+  letter-spacing:0.08em; text-transform:uppercase;
+  pointer-events:none; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  transition:opacity 0.08s ease-out, transform 0.08s ease-out;
 }
 .pc-stamp-like {
-  left:1.75rem; color:#22c55e; border:3px solid #22c55e;
-  background:rgba(34,197,94,0.18);
+  left:1.75rem; color:#15803d; border:3.5px solid #22c55e;
+  background:rgba(240,253,244,0.92);
+  box-shadow:0 10px 32px rgba(34,197,94,0.4), inset 0 1px 0 rgba(255,255,255,0.9);
   transform:rotate(-14deg);
 }
 .pc-stamp-pass {
-  right:1.75rem; color:#f43f5e; border:3px solid #f43f5e;
-  background:rgba(244,63,94,0.18);
+  right:1.75rem; color:#b91c1c; border:3.5px solid #ef4444;
+  background:rgba(254,242,242,0.92);
+  box-shadow:0 10px 32px rgba(239,68,68,0.4), inset 0 1px 0 rgba(255,255,255,0.9);
   transform:rotate(14deg);
 }
 
@@ -797,16 +814,26 @@ function ProfileCard({
       {/* Dark gradient overlay */}
       <div className="pc-gradient" />
 
+      {/* Green shade overlay on Swipe Right (LIKE) */}
+      {showLike && (
+        <div className="pc-shade pc-shade-like" style={{ opacity: likeOpacity }} />
+      )}
+
+      {/* Red shade overlay on Swipe Left (PASS) */}
+      {showPass && (
+        <div className="pc-shade pc-shade-pass" style={{ opacity: passOpacity }} />
+      )}
+
       {/* Swipe Stamps */}
       {showLike && (
         <div className="pc-stamp pc-stamp-like" style={{ opacity: likeOpacity }}>
-          <Heart size={20} fill="#22c55e" strokeWidth={0} />
+          <Heart size={24} fill="#16a34a" color="#16a34a" strokeWidth={0} />
           <span>LIKE</span>
         </div>
       )}
       {showPass && (
         <div className="pc-stamp pc-stamp-pass" style={{ opacity: passOpacity }}>
-          <X size={22} strokeWidth={3} />
+          <X size={26} color="#dc2626" strokeWidth={3.5} />
           <span>PASS</span>
         </div>
       )}
