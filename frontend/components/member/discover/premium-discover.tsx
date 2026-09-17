@@ -1177,7 +1177,17 @@ export function PremiumDiscover() {
   const [visitors, setVisitors] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
   const [matches, setMatches] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
 
-  /* ── Load profiles ── */
+const dedupeProfiles = (list: Profile[]): Profile[] => {
+  const seen = new Set<string>();
+  return list.filter((p) => {
+    const key = p.id || (p as unknown as Record<string, string>).user_id || p.name;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+/* ── Load profiles ── */
   useEffect(() => {
     let live = true;
     (async () => {
@@ -1186,7 +1196,7 @@ export function PremiumDiscover() {
         setError('');
         const d = await getProfiles({ page_size: '12', ordering: '-created_at' });
         if (!live) return;
-        setProfiles(d.results);
+        setProfiles(dedupeProfiles(d.results));
         setPage(1);
         setHasMore(d.next !== null);
       } catch (e: unknown) {
@@ -1306,7 +1316,7 @@ export function PremiumDiscover() {
       const np = page + 1;
       const d = await getProfiles({ page: String(np), page_size: '12', ordering: '-created_at' });
       setPage(np);
-      setProfiles((cur) => [...cur, ...d.results]);
+      setProfiles((cur) => dedupeProfiles([...cur, ...d.results]));
       setHasMore(d.next !== null);
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Could not load more.', 'error');
@@ -1725,7 +1735,7 @@ export function PremiumDiscover() {
                 </div>
               )}
 
-              {deck[idx + 1] && <PeekCard profile={deck[idx + 1]} side="right" />}
+              {deck[idx + 2] && <PeekCard profile={deck[idx + 2]} side="right" />}
             </div>
 
             {/* Hint */}
