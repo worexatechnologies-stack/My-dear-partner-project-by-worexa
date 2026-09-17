@@ -15,34 +15,32 @@ import SiteLogo from '@/components/branding/site-logo';
 import { NotificationBell } from '@/components/member/notification-bell';
 import MobileBottomNav from './mobile-bottom-nav';
 
-/* ─── Nav definitions with attractive color palettes ─── */
+/* ─── Nav definitions (Instagram Style) ─── */
 
 interface NavItemDef {
   label: string;
   icon: React.ElementType;
   href: string;
-  iconColor: string;
-  iconBg: string;
 }
 
 const mainNav: NavItemDef[] = [
-  { label: 'Discover',     icon: Compass,        href: '/dashboard',          iconColor: '#e11d48', iconBg: '#fff0f4' },
-  { label: 'Find Matches', icon: Search,         href: '/search',             iconColor: '#ea580c', iconBg: '#fff4ed' },
-  { label: 'Messages',     icon: MessageCircle,  href: '/messages',           iconColor: '#7c3aed', iconBg: '#f5f0ff' },
-  { label: 'Likes',        icon: Heart,          href: '/interests/received', iconColor: '#db2777', iconBg: '#fdf2f8' },
-  { label: 'My Profile',   icon: User,           href: '/profile/me',         iconColor: '#0284c7', iconBg: '#f0f9ff' },
+  { label: 'Discover',     icon: Compass,        href: '/dashboard' },
+  { label: 'Find Matches', icon: Search,         href: '/search' },
+  { label: 'Messages',     icon: MessageCircle,  href: '/messages' },
+  { label: 'Likes',        icon: Heart,          href: '/interests/received' },
+  { label: 'My Profile',   icon: User,           href: '/profile/me' },
 ];
 
 const accountNav: NavItemDef[] = [
-  { label: 'Shortlist',      icon: Bookmark,    href: '/shortlist',   iconColor: '#d97706', iconBg: '#fffbeb' },
-  { label: 'Visitors',       icon: Eye,         href: '/visitors',    iconColor: '#0891b2', iconBg: '#ecfeff' },
-  { label: 'Blocked',        icon: ShieldCheck, href: '/blocked',     iconColor: '#64748b', iconBg: '#f1f5f9' },
-  { label: 'Membership',     icon: Crown,       href: '/membership',  iconColor: '#eab308', iconBg: '#fefce8' },
-  { label: 'Settings',       icon: Settings,    href: '/settings',    iconColor: '#6b7280', iconBg: '#f3f4f6' },
-  { label: 'Help & Support', icon: Headphones,  href: '/support',     iconColor: '#059669', iconBg: '#ecfdf5' },
+  { label: 'Shortlist',      icon: Bookmark,    href: '/shortlist' },
+  { label: 'Visitors',       icon: Eye,         href: '/visitors' },
+  { label: 'Blocked',        icon: ShieldCheck, href: '/blocked' },
+  { label: 'Membership',     icon: Crown,       href: '/membership' },
+  { label: 'Settings',       icon: Settings,    href: '/settings' },
+  { label: 'Help & Support', icon: Headphones,  href: '/support' },
 ];
 
-/* ─── NavLink ─── */
+/* ─── NavLink (Instagram Style 1) ─── */
 
 function NavLink({
   item, isActive, badge, collapsed,
@@ -57,75 +55,43 @@ function NavLink({
     <Link
       href={item.href}
       title={collapsed ? item.label : undefined}
-      className="group relative"
+      className="group"
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: collapsed ? 0 : '0.625rem',
+        gap: collapsed ? 0 : '1rem',
         justifyContent: collapsed ? 'center' : 'flex-start',
-        padding: collapsed ? '0.5rem' : '0.4375rem 0.625rem',
-        borderRadius: '0.625rem',
-        fontSize: '0.84rem',
-        fontWeight: isActive ? 600 : 500,
+        padding: collapsed ? '0.75rem' : '0.6875rem 0.875rem',
+        borderRadius: '0.75rem',
+        fontSize: '0.9375rem',
+        fontWeight: isActive ? 750 : 500,
         textDecoration: 'none',
-        transition: 'all 0.16s ease',
+        transition: 'all 0.16s cubic-bezier(0.2, 0.9, 0.3, 1)',
         position: 'relative',
-        background: isActive ? '#fff1f5' : 'transparent',
-        color: isActive ? '#e11d48' : '#4a3d43',
+        background: 'transparent',
+        color: isActive ? '#0f0f10' : '#443c40',
       }}
       onMouseEnter={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLAnchorElement).style.background = '#faf3f6';
-          (e.currentTarget as HTMLAnchorElement).style.color = '#1f1418';
-        }
+        (e.currentTarget as HTMLAnchorElement).style.background = '#f7f4f5';
+        (e.currentTarget as HTMLAnchorElement).style.color = '#000000';
       }}
       onMouseLeave={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-          (e.currentTarget as HTMLAnchorElement).style.color = '#4a3d43';
-        }
+        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+        (e.currentTarget as HTMLAnchorElement).style.color = isActive ? '#0f0f10' : '#443c40';
       }}
     >
-      {/* Sleek Active Indicator Bar */}
-      {isActive && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '20%',
-            bottom: '20%',
-            width: '3.5px',
-            borderRadius: '0 4px 4px 0',
-            background: '#e11d48',
-            boxShadow: '0 0 8px rgba(225,29,72,0.4)',
-          }}
-        />
-      )}
-
-      {/* Attractive micro-badge icon wrapper */}
-      <div
+      {/* Icon with Instagram-style scaling on hover and bold active stroke */}
+      <Icon
+        className="transition-transform duration-200 ease-out group-hover:scale-110"
         style={{
-          width: '2rem',
-          height: '2rem',
-          borderRadius: '0.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: '1.4rem',
+          height: '1.4rem',
           flexShrink: 0,
-          background: isActive ? '#ffe4ec' : item.iconBg,
-          color: isActive ? '#e11d48' : item.iconColor,
-          transition: 'all 0.16s ease',
-          boxShadow: isActive ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
+          color: isActive ? '#e11d48' : '#262626',
+          strokeWidth: isActive ? 2.75 : 1.85,
+          fill: (isActive && (item.label === 'Likes' || item.label === 'Shortlist')) ? '#e11d48' : 'none',
         }}
-      >
-        <Icon
-          style={{
-            width: '1.05rem',
-            height: '1.05rem',
-            strokeWidth: isActive ? 2.25 : 2,
-          }}
-        />
-      </div>
+      />
 
       {!collapsed && (
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -138,7 +104,7 @@ function NavLink({
         <span
           style={{
             ...(collapsed
-              ? { position: 'absolute', top: '-0.125rem', right: '-0.125rem' }
+              ? { position: 'absolute', top: '0.25rem', right: '0.25rem' }
               : { marginLeft: 'auto' }),
             display: 'flex',
             alignItems: 'center',
@@ -148,9 +114,8 @@ function NavLink({
             padding: '0 0.3rem',
             borderRadius: '9999px',
             background: '#e11d48',
-            boxShadow: '0 2px 6px rgba(225,29,72,0.35)',
             color: 'white',
-            fontSize: '0.6rem',
+            fontSize: '0.625rem',
             fontWeight: 700,
           }}
         >
@@ -195,9 +160,9 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
     return (
       <div
         style={{
-          margin: '0.625rem 0.25rem',
+          margin: '0.75rem 0.5rem',
           height: '1px',
-          background: '#f0e6ea',
+          background: '#f0e8eb',
         }}
       />
     );
@@ -209,8 +174,8 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
         fontWeight: 700,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        color: '#a5949c',
-        padding: '0.75rem 0.625rem 0.25rem',
+        color: '#a8989f',
+        padding: '0.875rem 0.875rem 0.35rem',
       }}
     >
       {label}
@@ -250,30 +215,30 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         {/* Logo row */}
         <div
           style={{
-            height: '4rem',
+            height: '4.5rem',
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'space-between',
-            padding: isCollapsed ? '0 0.75rem' : '0 1rem',
-            borderBottom: '1px solid #f0e6ea',
+            padding: isCollapsed ? '0 0.75rem' : '0 1rem 0 1.25rem',
+            borderBottom: '1px solid #f2e8eb',
           }}
         >
           {(!isCollapsed) && (
             <Link
               href="/dashboard"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0, textDecoration: 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, textDecoration: 'none' }}
               aria-label="My Dear Partner"
             >
-              <SiteLogo alt="My Dear Partner" className="w-7 h-7 object-contain shrink-0" />
-              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '0.875rem', fontWeight: 800, color: '#1f171b', whiteSpace: 'nowrap' }}>
+              <SiteLogo alt="My Dear Partner" className="w-8 h-8 object-contain shrink-0" />
+              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '0.9375rem', fontWeight: 800, color: '#1a1417', whiteSpace: 'nowrap' }}>
                 My Dear <em style={{ fontStyle: 'normal', color: '#e11d48' }}>Partner</em>
               </span>
             </Link>
           )}
           {isCollapsed && (
             <Link href="/dashboard" aria-label="Home">
-              <SiteLogo alt="My Dear Partner" className="w-7 h-7 object-contain" />
+              <SiteLogo alt="My Dear Partner" className="w-8 h-8 object-contain" />
             </Link>
           )}
 
@@ -297,7 +262,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
               }}
               aria-label="Close menu"
             >
-              <X style={{ width: '1.125rem', height: '1.125rem' }} />
+              <X style={{ width: '1.2rem', height: '1.2rem' }} />
             </button>
           ) : (
             <button
@@ -307,31 +272,29 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '1.875rem',
-                height: '1.875rem',
+                width: '2rem',
+                height: '2rem',
                 borderRadius: '0.5rem',
-                border: '1px solid #f0e6ea',
-                background: '#faf6f8',
+                border: 'none',
+                background: 'transparent',
                 color: '#8c7a82',
                 cursor: 'pointer',
                 flexShrink: 0,
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#fff0f4';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = '#f5ccd7';
-                (e.currentTarget as HTMLButtonElement).style.color = '#e11d48';
+                (e.currentTarget as HTMLButtonElement).style.background = '#f7f4f5';
+                (e.currentTarget as HTMLButtonElement).style.color = '#111827';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#faf6f8';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = '#f0e6ea';
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 (e.currentTarget as HTMLButtonElement).style.color = '#8c7a82';
               }}
               aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {isCollapsed
-                ? <PanelLeftOpen style={{ width: '1rem', height: '1rem' }} />
-                : <PanelLeftClose style={{ width: '1rem', height: '1rem' }} />
+                ? <PanelLeftOpen style={{ width: '1.15rem', height: '1.15rem' }} />
+                : <PanelLeftClose style={{ width: '1.15rem', height: '1.15rem' }} />
               }
             </button>
           )}
@@ -342,14 +305,14 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: isCollapsed ? '0.5rem 0.5rem' : '0.5rem 0.625rem',
+            padding: isCollapsed ? '0.75rem 0.5rem' : '0.75rem 0.75rem',
             scrollbarWidth: 'thin',
             scrollbarColor: '#e8dbe0 transparent',
           }}
           aria-label="Member navigation"
         >
           <SectionLabel label="Main" collapsed={isCollapsed} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1875rem', marginBottom: '0.375rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
             {mainNav.map((item) => {
               const active =
                 item.href === '/interests/received'
@@ -367,7 +330,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
           </div>
 
           <SectionLabel label="Account" collapsed={isCollapsed} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1875rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {accountNav.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
@@ -386,8 +349,8 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         <div
           style={{
             flexShrink: 0,
-            borderTop: '1px solid #f0e6ea',
-            padding: isCollapsed ? '0.625rem 0.5rem' : '0.625rem 0.75rem',
+            borderTop: '1px solid #f2e8eb',
+            padding: isCollapsed ? '0.75rem 0.5rem' : '0.75rem 0.75rem',
             background: '#ffffff',
           }}
         >
@@ -395,19 +358,20 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
             type="button"
             onClick={async () => { await logout(); window.location.assign('/login'); }}
             title={isCollapsed ? 'Sign Out' : undefined}
+            className="group"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: isCollapsed ? 0 : '0.625rem',
+              gap: isCollapsed ? 0 : '1rem',
               justifyContent: isCollapsed ? 'center' : 'flex-start',
               width: '100%',
-              padding: isCollapsed ? '0.625rem' : '0.4375rem 0.625rem',
-              borderRadius: '0.625rem',
+              padding: isCollapsed ? '0.75rem' : '0.6875rem 0.875rem',
+              borderRadius: '0.75rem',
               border: 'none',
               background: 'transparent',
-              fontSize: '0.84rem',
-              fontWeight: 600,
-              color: '#6e5d65',
+              fontSize: '0.9375rem',
+              fontWeight: 500,
+              color: '#443c40',
               cursor: 'pointer',
               transition: 'all 0.16s ease',
             }}
@@ -417,43 +381,15 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-              (e.currentTarget as HTMLButtonElement).style.color = '#6e5d65';
+              (e.currentTarget as HTMLButtonElement).style.color = '#443c40';
             }}
           >
-            <div
-              style={{
-                width: '2rem',
-                height: '2rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                background: '#fef2f2',
-                color: '#ef4444',
-              }}
-            >
-              <LogOut style={{ width: '1.05rem', height: '1.05rem', strokeWidth: 2 }} />
-            </div>
+            <LogOut
+              className="transition-transform duration-200 ease-out group-hover:scale-110"
+              style={{ width: '1.35rem', height: '1.35rem', flexShrink: 0, strokeWidth: 1.85 }}
+            />
             {!isCollapsed && <span>Sign Out</span>}
           </button>
-
-          {!isCollapsed && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem',
-                padding: '0.35rem 0.75rem 0.125rem',
-                fontSize: '0.625rem',
-                color: '#b0a0a8',
-                fontWeight: 500,
-              }}
-            >
-              <ShieldCheck style={{ width: '0.8125rem', height: '0.8125rem', color: '#10b981' }} />
-              <span>Secure verified session</span>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -484,7 +420,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
           borderRight: '1px solid #f0e6ea',
           flexDirection: 'column',
           overflow: 'hidden',
-          boxShadow: '2px 0 12px rgba(45,20,30,0.02)',
+          boxShadow: '1px 0 10px rgba(0,0,0,0.02)',
         }}
       >
         {renderSidebarContent(false)}
