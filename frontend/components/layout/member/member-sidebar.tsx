@@ -62,9 +62,9 @@ function NavLink({
         textDecoration: 'none',
         transition: 'all 0.18s ease',
         position: 'relative',
-        background: isActive ? 'linear-gradient(135deg,#fdf3f6 0%,#f9e4eb 100%)' : 'transparent',
-        color: isActive ? '#8e3d58' : '#776a6f',
-        boxShadow: isActive ? 'inset 0 0 0 1px rgba(182,74,104,0.16), 0 2px 8px rgba(142,61,88,0.08)' : 'none',
+        background: isActive ? 'linear-gradient(135deg,#fff0f5 0%,#ffdde8 100%)' : 'transparent',
+        color: isActive ? '#c41c50' : '#776a6f',
+        boxShadow: isActive ? 'inset 0 0 0 1px rgba(225,29,72,0.18), 0 2px 8px rgba(225,29,72,0.10)' : 'none',
       }}
       onMouseEnter={(e) => {
         if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = '#faf4f1';
@@ -83,8 +83,8 @@ function NavLink({
             bottom: '22%',
             width: '3.5px',
             borderRadius: '0 4px 4px 0',
-            background: 'linear-gradient(180deg,#e11d48 0%,#8e3d58 100%)',
-            boxShadow: '0 0 8px rgba(225,29,72,0.35)',
+            background: 'linear-gradient(180deg,#e11d48 0%,#d6215a 100%)',
+            boxShadow: '0 0 10px rgba(225,29,72,0.45)',
           }}
         />
       )}
@@ -94,9 +94,9 @@ function NavLink({
           width: '1.125rem',
           height: '1.125rem',
           flexShrink: 0,
-          color: isActive ? '#8e3d58' : '#9a8990',
+          color: isActive ? '#d6215a' : '#9a8990',
           strokeWidth: isActive ? 2.5 : 1.75,
-          filter: isActive ? 'drop-shadow(0 1px 2px rgba(142,61,88,0.25))' : 'none',
+          filter: isActive ? 'drop-shadow(0 1px 3px rgba(225,29,72,0.30))' : 'none',
         }}
       />
 

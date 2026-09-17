@@ -959,8 +959,8 @@ a, button, input, select, textarea { transition-property: color, background-colo
   transition: color .18s ease, background-color .18s ease, transform .18s ease;
 }
 .mdp-mobile-nav-active {
-  color: #8e3d58 !important;
-  background: #f7e7ec;
+  color: #e11d48 !important;
+  background: #fff0f5;
 }
 .mdp-mobile-nav-item:hover:not(.mdp-mobile-nav-active) { color: #6f5f65; }
 
