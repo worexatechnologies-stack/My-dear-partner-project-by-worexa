@@ -2256,6 +2256,9 @@ class AdminActivityListView(ScopedAPIView):
         role_filter = request.query_params.get('role', '').upper()
         search = request.query_params.get('search', '').strip()
         module_filter = request.query_params.get('module', '').strip().lower()
+        start_date_str = request.query_params.get('start_date', '').strip()
+        end_date_str = request.query_params.get('end_date', '').strip()
+        actor_id_filter = request.query_params.get('admin', '').strip() or request.query_params.get('staff_id', '').strip() or request.query_params.get('actor_id', '').strip()
 
         try:
             page_size = max(1, min(int(request.query_params.get('page_size', 20)), 20))
@@ -2273,6 +2276,20 @@ class AdminActivityListView(ScopedAPIView):
             qs = model.objects.all()
             if str(request.user.account_type) != AccountType.SUPER_ADMIN:
                 qs = qs.filter(actor_id=request.user.pk)
+            elif actor_id_filter and actor_id_filter != 'all':
+                qs = qs.filter(actor_id=actor_id_filter)
+
+            if start_date_str:
+                try:
+                    qs = qs.filter(created_at__date__gte=start_date_str)
+                except Exception:
+                    pass
+            if end_date_str:
+                try:
+                    qs = qs.filter(created_at__date__lte=end_date_str)
+                except Exception:
+                    pass
+
             search_filters = Q()
             if search:
                 search_filters = (

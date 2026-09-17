@@ -123,12 +123,8 @@ export default function AdminStaffActivityPage() {
   const [performanceData, setPerformanceData] = useState<StaffMemberPerformance[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('all');
   const [deletingStaffId, setDeletingStaffId] = useState<string | null>(null);
-  const [presetRange, setPresetRange] = useState<'today' | '7days' | '30days' | 'custom'>('30days');
-  const [startDate, setStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
+  const [presetRange, setPresetRange] = useState<'today' | '7days' | '30days' | 'custom'>('today');
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -188,16 +184,25 @@ export default function AdminStaffActivityPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await getAdminActivity({ page: targetPage, page_size: 20, search: search || undefined, module: module || undefined, role: 'ADMIN' });
-      setItems(data.results);
-      setCount(data.count);
+      const data = await getAdminActivity({
+        page: targetPage,
+        page_size: 20,
+        search: search || undefined,
+        module: module || undefined,
+        role: 'ADMIN',
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        admin: selectedStaffId && selectedStaffId !== 'all' ? selectedStaffId : undefined,
+      });
+      setItems(data.results || []);
+      setCount(data.count || 0);
       setPage(targetPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Admin activity could not be loaded.');
     } finally {
       setLoading(false);
     }
-  }, [search, module]);
+  }, [search, module, startDate, endDate, selectedStaffId]);
 
   useEffect(() => {
     loadAnalytics();
@@ -205,9 +210,9 @@ export default function AdminStaffActivityPage() {
 
   useEffect(() => {
     setPage(1);
-    const t = window.setTimeout(() => loadWithPage(1), 200);
+    const t = window.setTimeout(() => loadWithPage(1), 150);
     return () => window.clearTimeout(t);
-  }, [search, module]);
+  }, [search, module, startDate, endDate, selectedStaffId, loadWithPage]);
 
   const activeStaff = selectedStaffId === 'all'
     ? performanceData[0]
@@ -642,89 +647,127 @@ export default function AdminStaffActivityPage() {
                       {/* Expanded detail panel */}
                       {isExpanded && (
                         <tr key={`${item.id}-expanded`}>
-                          <td colSpan={8} style={{ padding: 0, background: '#fdf8fb' }}>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-t border-rose-100">
+                          <td colSpan={8} style={{ padding: 0, background: '#f8fafc' }}>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border-t border-slate-200">
 
                               {/* Device & Browser */}
-                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <ua.DeviceIcon className="w-4 h-4 text-rose-500" />
-                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Device & Browser</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                                  <span className="text-slate-400 font-semibold">Device type</span>
-                                  <span className="text-slate-700 font-medium">{ua.deviceType}</span>
-                                  <span className="text-slate-400 font-semibold">Browser</span>
-                                  <span className="text-slate-700 font-medium">{ua.browser}</span>
-                                  <span className="text-slate-400 font-semibold">OS</span>
-                                  <span className="text-slate-700 font-medium">{ua.os}</span>
-                                  <span className="text-slate-400 font-semibold">IP Address</span>
-                                  <span className="text-slate-700 font-mono text-[11px]">{item.ip_address || '—'}</span>
+                              <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                                    <ua.DeviceIcon className="w-4 h-4 text-rose-500" />
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Device &amp; Browser</span>
+                                  </div>
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Device type</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{ua.deviceType}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Browser</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{ua.browser}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">OS</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{ua.os}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">IP Address</span>
+                                      <span className="text-slate-800 font-mono text-[11px] text-right truncate">{item.ip_address || '—'}</span>
+                                    </div>
+                                  </div>
                                 </div>
                                 {(item as any).user_agent && (
-                                  <div className="mt-2 pt-2 border-t border-slate-100">
+                                  <div className="mt-3 pt-2 border-t border-slate-100">
                                     <p className="text-[10px] text-slate-400 font-semibold mb-1">Raw User-Agent</p>
-                                    <p className="text-[10px] text-slate-500 font-mono break-all leading-relaxed">{(item as any).user_agent}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono break-all leading-relaxed line-clamp-3" title={(item as any).user_agent}>
+                                      {(item as any).user_agent}
+                                    </p>
                                   </div>
                                 )}
                               </div>
 
                               {/* Location */}
-                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Globe className="w-4 h-4 text-emerald-500" />
-                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Location</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                                  <span className="text-slate-400 font-semibold">City</span>
-                                  <span className="text-slate-700 font-medium">{item.city || '—'}</span>
-                                  <span className="text-slate-400 font-semibold">Country</span>
-                                  <span className="text-slate-700 font-medium">{item.country || '—'}</span>
-                                  {item.latitude && (
-                                    <>
-                                      <span className="text-slate-400 font-semibold">Latitude</span>
-                                      <span className="text-slate-700 font-mono text-[11px]">{item.latitude?.toFixed(5)}</span>
-                                      <span className="text-slate-400 font-semibold">Longitude</span>
-                                      <span className="text-slate-700 font-mono text-[11px]">{item.longitude?.toFixed(5)}</span>
-                                    </>
-                                  )}
+                              <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                                    <Globe className="w-4 h-4 text-emerald-500" />
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Location</span>
+                                  </div>
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">City</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{item.city || '—'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Country</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{item.country || '—'}</span>
+                                    </div>
+                                    {item.latitude && (
+                                      <>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-slate-400 font-semibold shrink-0">Latitude</span>
+                                          <span className="text-slate-800 font-mono text-[11px]">{item.latitude?.toFixed(5)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-slate-400 font-semibold shrink-0">Longitude</span>
+                                          <span className="text-slate-800 font-mono text-[11px]">{item.longitude?.toFixed(5)}</span>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                                 {item.latitude && item.longitude && (
-                                  <a
-                                    href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 mt-2 text-[11px] text-emerald-700 font-semibold hover:underline"
-                                    onClick={e => e.stopPropagation()}
-                                  >
-                                    <MapPin className="w-3 h-3" /> View on Google Maps
-                                  </a>
+                                  <div className="mt-3 pt-2 border-t border-slate-100">
+                                    <a
+                                      href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-bold hover:underline"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <MapPin className="w-3.5 h-3.5" /> View on Google Maps
+                                    </a>
+                                  </div>
                                 )}
                               </div>
 
                               {/* Timing & Action */}
-                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Clock className="w-4 h-4 text-indigo-500" />
-                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Timing & Action</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                                  <span className="text-slate-400 font-semibold">Date</span>
-                                  <span className="text-slate-700 font-medium">{formatAdminDate(item.created_at, false)}</span>
-                                  <span className="text-slate-400 font-semibold">Time</span>
-                                  <span className="text-slate-700 font-mono text-[11px]">{new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
-                                  <span className="text-slate-400 font-semibold">Ago</span>
-                                  <span className="text-slate-700 font-medium">{relativeTime(item.created_at)}</span>
-                                  <span className="text-slate-400 font-semibold">Module</span>
-                                  <span className="text-slate-700 font-medium">{item.module}</span>
-                                  <span className="text-slate-400 font-semibold">Action</span>
-                                  <span className="text-slate-700 font-mono text-[10px] break-all">{item.action}</span>
-                                  {item.description && (
-                                    <>
-                                      <span className="text-slate-400 font-semibold">Note</span>
-                                      <span className="text-slate-700">{item.description}</span>
-                                    </>
-                                  )}
+                              <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                                    <Clock className="w-4 h-4 text-indigo-500" />
+                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Timing &amp; Action</span>
+                                  </div>
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Date</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{formatAdminDate(item.created_at, false)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Time</span>
+                                      <span className="text-slate-800 font-mono text-[11px] text-right">
+                                        {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '—'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Ago</span>
+                                      <span className="text-slate-800 font-medium text-right truncate">{relativeTime(item.created_at)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-slate-400 font-semibold shrink-0">Module</span>
+                                      <span className="text-slate-800 font-semibold capitalize text-right truncate">{item.module || 'General'}</span>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-50">
+                                      <span className="text-slate-400 font-semibold shrink-0">Action</span>
+                                      <span className="text-slate-800 font-mono text-[11px] text-right break-all">{item.action}</span>
+                                    </div>
+                                    {item.description && (
+                                      <div className="pt-1 border-t border-slate-50">
+                                        <span className="text-slate-400 font-semibold block mb-0.5">Note</span>
+                                        <p className="text-slate-700 leading-relaxed text-[11px]">{item.description}</p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
