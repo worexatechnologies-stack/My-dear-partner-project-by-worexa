@@ -62,15 +62,15 @@ function NavLink({
         textDecoration: 'none',
         transition: 'all 0.18s ease',
         position: 'relative',
-        background: isActive ? 'linear-gradient(135deg,#fff0f5 0%,#ffdde8 100%)' : 'transparent',
+        background: 'transparent',
         color: isActive ? '#c41c50' : '#776a6f',
-        boxShadow: isActive ? 'inset 0 0 0 1px rgba(225,29,72,0.18), 0 2px 8px rgba(225,29,72,0.10)' : 'none',
+        boxShadow: 'none',
       }}
       onMouseEnter={(e) => {
         if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = '#faf4f1';
       }}
       onMouseLeave={(e) => {
-        if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
       }}
     >
       {/* Active indicator */}
