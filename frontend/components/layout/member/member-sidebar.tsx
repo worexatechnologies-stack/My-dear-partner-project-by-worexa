@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Compass, Search, Heart, Bookmark, Eye,
-  MessageCircle, ShieldCheck, CreditCard,
+  MessageCircle, ShieldCheck, Crown,
   Settings, LogOut, Menu, X, User,
-  LifeBuoy, PanelLeftClose, PanelLeftOpen,
+  Headphones, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import ProfileImage from '@/components/profile/ProfileImage';
@@ -15,23 +15,31 @@ import SiteLogo from '@/components/branding/site-logo';
 import { NotificationBell } from '@/components/member/notification-bell';
 import MobileBottomNav from './mobile-bottom-nav';
 
-/* ─── Nav definitions ─── */
+/* ─── Nav definitions with attractive color palettes ─── */
 
-const mainNav = [
-  { label: 'Discover',     icon: Compass,        href: '/dashboard' },
-  { label: 'Find Matches', icon: Search,          href: '/search' },
-  { label: 'Messages',     icon: MessageCircle,   href: '/messages' },
-  { label: 'Likes',        icon: Heart,           href: '/interests/received' },
-  { label: 'My Profile',   icon: User,            href: '/profile/me' },
+interface NavItemDef {
+  label: string;
+  icon: React.ElementType;
+  href: string;
+  iconColor: string;
+  iconBg: string;
+}
+
+const mainNav: NavItemDef[] = [
+  { label: 'Discover',     icon: Compass,        href: '/dashboard',          iconColor: '#e11d48', iconBg: '#fff0f4' },
+  { label: 'Find Matches', icon: Search,         href: '/search',             iconColor: '#ea580c', iconBg: '#fff4ed' },
+  { label: 'Messages',     icon: MessageCircle,  href: '/messages',           iconColor: '#7c3aed', iconBg: '#f5f0ff' },
+  { label: 'Likes',        icon: Heart,          href: '/interests/received', iconColor: '#db2777', iconBg: '#fdf2f8' },
+  { label: 'My Profile',   icon: User,           href: '/profile/me',         iconColor: '#0284c7', iconBg: '#f0f9ff' },
 ];
 
-const accountNav = [
-  { label: 'Shortlist',      icon: Bookmark,   href: '/shortlist' },
-  { label: 'Visitors',       icon: Eye,         href: '/visitors' },
-  { label: 'Blocked',        icon: ShieldCheck, href: '/blocked' },
-  { label: 'Membership',     icon: CreditCard,  href: '/membership' },
-  { label: 'Settings',       icon: Settings,    href: '/settings' },
-  { label: 'Help & Support', icon: LifeBuoy,    href: '/support' },
+const accountNav: NavItemDef[] = [
+  { label: 'Shortlist',      icon: Bookmark,    href: '/shortlist',   iconColor: '#d97706', iconBg: '#fffbeb' },
+  { label: 'Visitors',       icon: Eye,         href: '/visitors',    iconColor: '#0891b2', iconBg: '#ecfeff' },
+  { label: 'Blocked',        icon: ShieldCheck, href: '/blocked',     iconColor: '#64748b', iconBg: '#f1f5f9' },
+  { label: 'Membership',     icon: Crown,       href: '/membership',  iconColor: '#eab308', iconBg: '#fefce8' },
+  { label: 'Settings',       icon: Settings,    href: '/settings',    iconColor: '#6b7280', iconBg: '#f3f4f6' },
+  { label: 'Help & Support', icon: Headphones,  href: '/support',     iconColor: '#059669', iconBg: '#ecfdf5' },
 ];
 
 /* ─── NavLink ─── */
@@ -39,7 +47,7 @@ const accountNav = [
 function NavLink({
   item, isActive, badge, collapsed,
 }: {
-  item: { label: string; icon: React.ElementType; href: string };
+  item: NavItemDef;
   isActive: boolean;
   badge?: number;
   collapsed: boolean;
@@ -53,9 +61,9 @@ function NavLink({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: collapsed ? 0 : '0.75rem',
+        gap: collapsed ? 0 : '0.625rem',
         justifyContent: collapsed ? 'center' : 'flex-start',
-        padding: collapsed ? '0.625rem' : '0.5625rem 0.75rem',
+        padding: collapsed ? '0.5rem' : '0.4375rem 0.625rem',
         borderRadius: '0.625rem',
         fontSize: '0.84rem',
         fontWeight: isActive ? 600 : 500,
@@ -63,18 +71,18 @@ function NavLink({
         transition: 'all 0.16s ease',
         position: 'relative',
         background: isActive ? '#fff1f5' : 'transparent',
-        color: isActive ? '#e11d48' : '#5f5056',
+        color: isActive ? '#e11d48' : '#4a3d43',
       }}
       onMouseEnter={(e) => {
         if (!isActive) {
           (e.currentTarget as HTMLAnchorElement).style.background = '#faf3f6';
-          (e.currentTarget as HTMLAnchorElement).style.color = '#251b20';
+          (e.currentTarget as HTMLAnchorElement).style.color = '#1f1418';
         }
       }}
       onMouseLeave={(e) => {
         if (!isActive) {
           (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-          (e.currentTarget as HTMLAnchorElement).style.color = '#5f5056';
+          (e.currentTarget as HTMLAnchorElement).style.color = '#4a3d43';
         }
       }}
     >
@@ -94,16 +102,30 @@ function NavLink({
         />
       )}
 
-      <Icon
+      {/* Attractive micro-badge icon wrapper */}
+      <div
         style={{
-          width: '1.15rem',
-          height: '1.15rem',
+          width: '2rem',
+          height: '2rem',
+          borderRadius: '0.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           flexShrink: 0,
-          color: isActive ? '#e11d48' : '#8c7a82',
-          strokeWidth: isActive ? 2.25 : 1.75,
-          transition: 'color 0.16s ease, transform 0.16s ease',
+          background: isActive ? '#ffe4ec' : item.iconBg,
+          color: isActive ? '#e11d48' : item.iconColor,
+          transition: 'all 0.16s ease',
+          boxShadow: isActive ? '0 2px 6px rgba(225,29,72,0.15)' : 'none',
         }}
-      />
+      >
+        <Icon
+          style={{
+            width: '1.05rem',
+            height: '1.05rem',
+            strokeWidth: isActive ? 2.25 : 2,
+          }}
+        />
+      </div>
 
       {!collapsed && (
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -188,7 +210,7 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
         color: '#a5949c',
-        padding: '0.875rem 0.75rem 0.35rem',
+        padding: '0.75rem 0.625rem 0.25rem',
       }}
     >
       {label}
@@ -217,17 +239,6 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
   }, [mobileOpen]);
 
   const displayName = user?.full_name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Member';
-
-  const currentPage = [
-    ...mainNav,
-    ...accountNav,
-    { label: 'Notifications', href: '/notifications' },
-    { label: 'My Profile', href: '/profile' },
-    { label: 'Matches', href: '/compare' },
-    { label: 'Verification', href: '/verification' },
-  ]
-    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.label || 'Member portal';
 
   /* ─── Sidebar panel content ─── */
 
@@ -387,10 +398,10 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: isCollapsed ? 0 : '0.75rem',
+              gap: isCollapsed ? 0 : '0.625rem',
               justifyContent: isCollapsed ? 'center' : 'flex-start',
               width: '100%',
-              padding: isCollapsed ? '0.625rem' : '0.5625rem 0.75rem',
+              padding: isCollapsed ? '0.625rem' : '0.4375rem 0.625rem',
               borderRadius: '0.625rem',
               border: 'none',
               background: 'transparent',
@@ -409,7 +420,21 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
               (e.currentTarget as HTMLButtonElement).style.color = '#6e5d65';
             }}
           >
-            <LogOut style={{ width: '1.15rem', height: '1.15rem', flexShrink: 0, strokeWidth: 1.75 }} />
+            <div
+              style={{
+                width: '2rem',
+                height: '2rem',
+                borderRadius: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                background: '#fef2f2',
+                color: '#ef4444',
+              }}
+            >
+              <LogOut style={{ width: '1.05rem', height: '1.05rem', strokeWidth: 2 }} />
+            </div>
             {!isCollapsed && <span>Sign Out</span>}
           </button>
 
@@ -514,7 +539,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
             paddingTop: 'env(safe-area-inset-top)',
           }}
         >
-          {/* Left: Mobile Menu or Page Title Context */}
+          {/* Left: Mobile Menu toggle and mobile brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
             <button
               type="button"
@@ -551,23 +576,10 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
                 </span>
               </Link>
             </div>
-
-            {/* Desktop Context / Page Title */}
-            <div className="member-header-desktop-context" style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9e8c95', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Member Portal
-                </span>
-                <span style={{ color: '#d5c7cc', fontSize: '0.75rem' }}>/</span>
-                <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '0.9375rem', fontWeight: 800, color: '#1f171b', margin: 0 }}>
-                  {currentPage}
-                </h1>
-              </div>
-            </div>
           </div>
 
           {/* Right actions: Notification & Profile Pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, marginLeft: 'auto' }}>
             <NotificationBell />
 
             <Link
