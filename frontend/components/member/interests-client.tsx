@@ -12,7 +12,7 @@ import { getInterests, updateInterestStatus, withdrawInterest, sendInterest } fr
 import { ApiError } from '@/legacy/services/apiClient';
 import SmartImage from '@/components/shared/smart-image';
 import { profileHref } from '@/lib/profile-url';
-import { getPassedProfiles, removePassedProfile } from '@/lib/discover-actions';
+import { getPassedProfiles, fetchPassedProfilesFromBackend, removePassedProfile } from '@/lib/discover-actions';
 
 type InterestMode = 'received' | 'sent' | 'accepted' | 'declined';
 type InterestDirection = 'incoming' | 'outgoing';
@@ -60,12 +60,13 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
     setActionError('');
     setLocked(false);
     try {
-      const [incoming, sent] = await Promise.all([
+      const [incoming, sent, passedList] = await Promise.all([
         getInterests('incoming').catch((err) => {
           if (err instanceof ApiError && err.status === 403) throw err;
           return [];
         }),
         getInterests('outgoing').catch(() => []),
+        fetchPassedProfilesFromBackend().catch(() => getPassedProfiles()),
       ]);
 
       const incomingItems: InterestItem[] = incoming.map((item: Omit<InterestItem, 'direction'>) => ({
@@ -86,7 +87,6 @@ export function InterestsClient({ mode }: { mode: InterestMode }) {
         (item) => item.status !== 'WITHDRAWN' && item.status !== 'ACCEPTED',
       );
 
-      const passedList = getPassedProfiles();
       const passedItems: InterestItem[] = passedList.map((p) => ({
         id: `passed_${p.id}`,
         sender: {

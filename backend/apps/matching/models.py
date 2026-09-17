@@ -48,3 +48,34 @@ class MemberShortlist(models.Model):
 
     def __str__(self):
         return f"{self.user_id} shortlisted {self.profile_id}"
+
+
+class MemberPass(models.Model):
+    """A member's passed / disliked profile from Discover."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="member_passes",
+    )
+    profile = models.ForeignKey(
+        "accounts.MemberProfile",
+        on_delete=models.CASCADE,
+        related_name="passed_by_members",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "member_passes"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "profile"),
+                name="unique_member_pass",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} passed {self.profile_id}"
+

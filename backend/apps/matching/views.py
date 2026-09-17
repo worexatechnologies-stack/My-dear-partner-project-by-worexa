@@ -13,7 +13,7 @@ from apps.core.services.match_closure_service import MatchClosureService
 from apps.profiles.models import ProfilePhoto
 from apps.profiles.serializers import MemberProfileDetailSerializer
 
-from .models import MemberShortlist
+from .models import MemberPass, MemberShortlist
 from .serializers import MemberInterestSerializer
 
 
@@ -110,6 +110,58 @@ class ShortlistView(APIView):
             return Response({"success": True, "action": "removed", "shortlisted": False})
         MemberShortlist.objects.create(user=request.user, profile=profile)
         return Response({"success": True, "action": "added", "shortlisted": True})
+
+
+class PassListView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        blocked_pairs = ProfileBlock.objects.filter(
+            Q(blocker=request.user) | Q(blocked=request.user)
+        ).values_list('blocker_id', 'blocked_id')
+        excluded_ids = {value for pair in blocked_pairs for value in pair}
+        rows = (
+            MemberPass.objects.filter(user=request.user)
+            .exclude(profile__member_id__in=excluded_ids)
+            .select_related("profile__member")
+            .prefetch_related(
+                Prefetch(
+                    "profile__member__profile_photos",
+                    queryset=ProfilePhoto.objects.without_binary(),
+                )
+            )
+        )
+        
+        members = [row.profile.member for row in rows]
+        return Response(MemberProfileDetailSerializer(members, many=True, context={"request": request}).data)
+
+    @transaction.atomic
+    def post(self, request):
+        profile_id = request.data.get("profile_id") or request.data.get("member_id")
+        if not profile_id:
+            return Response({"detail": "profile_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        profile = get_object_or_404(
+            MemberProfile.objects.select_related("member"),
+            member_id=profile_id,
+            member__is_active=True,
+            member__deleted_at__isnull=True,
+        )
+        if profile.member_id == request.user.pk:
+            return Response(
+                {"detail": "You cannot pass your own profile."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        obj, created = MemberPass.objects.get_or_create(user=request.user, profile=profile)
+        return Response({"success": True, "action": "passed", "created": created})
+
+    @transaction.atomic
+    def delete(self, request, profile_id=None):
+        target_id = profile_id or request.data.get("profile_id") or request.data.get("member_id")
+        if not target_id:
+            return Response({"detail": "profile_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        deleted, _ = MemberPass.objects.filter(user=request.user, profile__member_id=target_id).delete()
+        return Response({"success": True, "action": "restored", "deleted": bool(deleted)})
+
 
 
 class InterestListCreateView(APIView):
