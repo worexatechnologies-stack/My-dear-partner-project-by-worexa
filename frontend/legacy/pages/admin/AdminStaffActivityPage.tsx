@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Calendar, CheckCircle, FileText, Filter, Heart,
-  HelpCircle, Image as ImageIcon, LoaderCircle, Mail, Phone, Plus,
-  RefreshCw, Search, Shield, Trash2, User, UserCheck, Zap,
+  Calendar, CheckCircle, ChevronDown, ChevronRight, Clock, FileText, Filter, Globe, Heart,
+  HelpCircle, Image as ImageIcon, Laptop, LoaderCircle, Mail, MapPin, Monitor, Phone, Plus,
+  RefreshCw, Search, Shield, Smartphone, Tablet, Trash2, User, UserCheck, Zap,
 } from 'lucide-react';
 import { createAdminAccount, getAdminActivity, type ActivityLog } from '../../services/adminService';
 import { fetchApi } from '../../../lib/api-client';
@@ -39,6 +39,73 @@ interface StaffMemberPerformance {
   }>;
 }
 
+/* ─── Helpers ─── */
+
+function parseUserAgent(ua: string) {
+  const s = ua || '';
+  // Device type
+  let deviceType = 'Desktop';
+  let DeviceIcon: React.ElementType = Monitor;
+  if (/mobile|android.*mobile|iphone|ipod|blackberry|windows phone/i.test(s)) {
+    deviceType = 'Mobile';
+    DeviceIcon = Smartphone;
+  } else if (/tablet|ipad|android(?!.*mobile)/i.test(s)) {
+    deviceType = 'Tablet';
+    DeviceIcon = Tablet;
+  } else if (/laptop/i.test(s)) {
+    DeviceIcon = Laptop;
+  }
+
+  // Browser
+  let browser = 'Unknown Browser';
+  if (/edg\//i.test(s)) browser = 'Microsoft Edge';
+  else if (/opr\//i.test(s) || /opera/i.test(s)) browser = 'Opera';
+  else if (/chrome\/(\d+)/i.test(s) && !/chromium/i.test(s)) {
+    const v = s.match(/chrome\/(\d+)/i);
+    browser = `Chrome ${v ? v[1] : ''}`.trim();
+  } else if (/firefox\/(\d+)/i.test(s)) {
+    const v = s.match(/firefox\/(\d+)/i);
+    browser = `Firefox ${v ? v[1] : ''}`.trim();
+  } else if (/safari\/(\d+)/i.test(s) && !/chrome/i.test(s)) {
+    browser = 'Safari';
+  } else if (/msie|trident/i.test(s)) browser = 'Internet Explorer';
+  else if (s === 'node') browser = 'Server / API';
+  else if (s) browser = s.slice(0, 48);
+
+  // OS
+  let os = 'Unknown OS';
+  if (/windows nt 10/i.test(s)) os = 'Windows 10/11';
+  else if (/windows nt 6\.3/i.test(s)) os = 'Windows 8.1';
+  else if (/windows nt 6\.1/i.test(s)) os = 'Windows 7';
+  else if (/windows/i.test(s)) os = 'Windows';
+  else if (/android (\d+[\.\d]*)/i.test(s)) { const v = s.match(/android (\d+[\.\d]*)/i); os = `Android ${v ? v[1] : ''}`; }
+  else if (/iphone os ([\d_]+)/i.test(s)) { const v = s.match(/iphone os ([\d_]+)/i); os = `iOS ${v ? v[1].replace(/_/g, '.') : ''}`; }
+  else if (/ipad/i.test(s)) os = 'iPadOS';
+  else if (/mac os x ([\d_]+)/i.test(s)) { const v = s.match(/mac os x ([\d_]+)/i); os = `macOS ${v ? v[1].replace(/_/g, '.') : ''}`; }
+  else if (/linux/i.test(s)) os = 'Linux';
+  else if (/ubuntu/i.test(s)) os = 'Ubuntu';
+
+  return { deviceType, DeviceIcon, browser, os };
+}
+
+function relativeTime(dateStr: string): string {
+  try {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    return `${months}mo ago`;
+  } catch {
+    return '';
+  }
+}
+
+
 export default function AdminStaffActivityPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.account_type === 'SUPER_ADMIN' || (user as any)?.is_super_admin;
@@ -50,6 +117,7 @@ export default function AdminStaffActivityPage() {
   const [module, setModule] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // Performance Analytics state
   const [performanceData, setPerformanceData] = useState<StaffMemberPerformance[]>([]);
@@ -444,7 +512,7 @@ export default function AdminStaffActivityPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search admin name, email, phone, ID, or action..."
+              placeholder="Search administrator, action or record..."
             />
           </div>
           <div className="admin-filter-row">
@@ -472,68 +540,201 @@ export default function AdminStaffActivityPage() {
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th style={{ width: 24 }}></th>
                   <th>Done by</th>
                   <th>Action</th>
-                  <th>Module</th>
-                  <th>Target Member / Account</th>
-                  <th>Description</th>
-                  <th>Result</th>
+                  <th>Module / Record</th>
+                  <th>Outcome</th>
+                  <th>IP &amp; Device</th>
                   <th>Location</th>
-                  <th>Date</th>
+                  <th>Timestamp</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td data-label="Done by">
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-slate-900">{item.actor_name || item.admin_name || 'Admin'}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          {item.actor_role || item.role?.replaceAll('_', ' ') || 'ADMIN'}
-                        </div>
-                      </div>
-                    </td>
-                    <td data-label="Action">
-                      <code style={{ fontSize: '0.75rem', background: 'var(--admin-bg-subtle)', padding: '0.15rem 0.5rem', borderRadius: '0.3rem' }}>
-                        {item.action}
-                      </code>
-                    </td>
-                    <td data-label="Module">
-                      <span className="admin-muted-cell">{item.module}</span>
-                    </td>
-                    <td data-label="Target Member">
-                      {item.target_account ? (
-                        <div>
-                          <div className="font-bold text-slate-900">{item.target_account.full_name || 'Member'}</div>
-                          {item.target_account.email && (
-                            <div className="text-[11px] text-slate-500 font-mono">{item.target_account.email}</div>
-                          )}
-                          {item.target_account.ticket_number && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 bg-slate-100 text-slate-700 font-bold text-[10px] rounded">
-                              #{item.target_account.ticket_number}
+                {items.map((item) => {
+                  const ua = parseUserAgent((item as any).user_agent || '');
+                  const isExpanded = expandedRow === item.id;
+                  return (
+                    <>
+                      <tr
+                        key={item.id}
+                        onClick={() => setExpandedRow(isExpanded ? null : item.id)}
+                        style={{ cursor: 'pointer' }}
+                        className={isExpanded ? 'bg-rose-50/40' : ''}
+                      >
+                        {/* Expand toggle */}
+                        <td style={{ width: 24, paddingRight: 0 }}>
+                          {isExpanded
+                            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            : <ChevronRight className="w-3.5 h-3.5 text-slate-300" />}
+                        </td>
+
+                        {/* Done by */}
+                        <td data-label="Done by">
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-slate-900">{item.actor_name || item.admin_name || 'Admin'}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {item.actor_role || item.role?.replaceAll('_', ' ') || 'ADMIN'}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Action */}
+                        <td data-label="Action">
+                          <code style={{ fontSize: '0.75rem', background: 'var(--admin-bg-subtle)', padding: '0.15rem 0.5rem', borderRadius: '0.3rem' }}>
+                            {item.action}
+                          </code>
+                        </td>
+
+                        {/* Module / Record */}
+                        <td data-label="Module / Record">
+                          <div>
+                            <span className="admin-muted-cell font-semibold">{item.module}</span>
+                            {item.record_id && (
+                              <div className="text-[10px] text-slate-400 font-mono truncate max-w-[160px]" title={String(item.record_id)}>
+                                Record {String(item.record_id).slice(0, 8)}…
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Outcome */}
+                        <td data-label="Outcome">
+                          <AdminStatusBadge status={item.was_successful ? 'Success' : 'Failed'} />
+                        </td>
+
+                        {/* IP & Device */}
+                        <td data-label="IP &amp; Device">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <ua.DeviceIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="text-xs text-slate-700 font-mono">{item.ip_address || '—'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">{ua.browser}</div>
+                          </div>
+                        </td>
+
+                        {/* Location */}
+                        <td data-label="Location">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3 h-3 text-slate-300 shrink-0" />
+                            <span className="text-xs text-slate-600">
+                              {item.city && item.country
+                                ? `${item.city}, ${item.country}`
+                                : item.city || item.country
+                                  || (item.latitude ? `${item.latitude?.toFixed(2)}°, ${item.longitude?.toFixed(2)}°` : '—')}
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-xs">—</span>
+                          </div>
+                        </td>
+
+                        {/* Timestamp */}
+                        <td data-label="Timestamp">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-300 shrink-0" />
+                              <span className="text-xs text-slate-700 font-medium">{formatAdminDate(item.created_at, true)}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400">{relativeTime(item.created_at)}</div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expanded detail panel */}
+                      {isExpanded && (
+                        <tr key={`${item.id}-expanded`}>
+                          <td colSpan={8} style={{ padding: 0, background: '#fdf8fb' }}>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-t border-rose-100">
+
+                              {/* Device & Browser */}
+                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <ua.DeviceIcon className="w-4 h-4 text-rose-500" />
+                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Device & Browser</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                  <span className="text-slate-400 font-semibold">Device type</span>
+                                  <span className="text-slate-700 font-medium">{ua.deviceType}</span>
+                                  <span className="text-slate-400 font-semibold">Browser</span>
+                                  <span className="text-slate-700 font-medium">{ua.browser}</span>
+                                  <span className="text-slate-400 font-semibold">OS</span>
+                                  <span className="text-slate-700 font-medium">{ua.os}</span>
+                                  <span className="text-slate-400 font-semibold">IP Address</span>
+                                  <span className="text-slate-700 font-mono text-[11px]">{item.ip_address || '—'}</span>
+                                </div>
+                                {(item as any).user_agent && (
+                                  <div className="mt-2 pt-2 border-t border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-semibold mb-1">Raw User-Agent</p>
+                                    <p className="text-[10px] text-slate-500 font-mono break-all leading-relaxed">{(item as any).user_agent}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Location */}
+                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Globe className="w-4 h-4 text-emerald-500" />
+                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Location</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                  <span className="text-slate-400 font-semibold">City</span>
+                                  <span className="text-slate-700 font-medium">{item.city || '—'}</span>
+                                  <span className="text-slate-400 font-semibold">Country</span>
+                                  <span className="text-slate-700 font-medium">{item.country || '—'}</span>
+                                  {item.latitude && (
+                                    <>
+                                      <span className="text-slate-400 font-semibold">Latitude</span>
+                                      <span className="text-slate-700 font-mono text-[11px]">{item.latitude?.toFixed(5)}</span>
+                                      <span className="text-slate-400 font-semibold">Longitude</span>
+                                      <span className="text-slate-700 font-mono text-[11px]">{item.longitude?.toFixed(5)}</span>
+                                    </>
+                                  )}
+                                </div>
+                                {item.latitude && item.longitude && (
+                                  <a
+                                    href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 mt-2 text-[11px] text-emerald-700 font-semibold hover:underline"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <MapPin className="w-3 h-3" /> View on Google Maps
+                                  </a>
+                                )}
+                              </div>
+
+                              {/* Timing & Action */}
+                              <div className="bg-white rounded-xl border border-slate-100 p-3.5 space-y-2">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Clock className="w-4 h-4 text-indigo-500" />
+                                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Timing & Action</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                  <span className="text-slate-400 font-semibold">Date</span>
+                                  <span className="text-slate-700 font-medium">{formatAdminDate(item.created_at, false)}</span>
+                                  <span className="text-slate-400 font-semibold">Time</span>
+                                  <span className="text-slate-700 font-mono text-[11px]">{new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                                  <span className="text-slate-400 font-semibold">Ago</span>
+                                  <span className="text-slate-700 font-medium">{relativeTime(item.created_at)}</span>
+                                  <span className="text-slate-400 font-semibold">Module</span>
+                                  <span className="text-slate-700 font-medium">{item.module}</span>
+                                  <span className="text-slate-400 font-semibold">Action</span>
+                                  <span className="text-slate-700 font-mono text-[10px] break-all">{item.action}</span>
+                                  {item.description && (
+                                    <>
+                                      <span className="text-slate-400 font-semibold">Note</span>
+                                      <span className="text-slate-700">{item.description}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td data-label="Description">
-                      <span style={{ fontSize: '0.875rem' }}>{item.description || 'N/A'}</span>
-                    </td>
-                    <td data-label="Result">
-                      <AdminStatusBadge status={item.was_successful ? 'Success' : 'Failed'} />
-                    </td>
-                    <td data-label="Location">
-                      <span className="admin-muted-cell">
-                        {item.city && item.country ? `${item.city}, ${item.country}` : item.city || item.country || (item.latitude ? `${item.latitude?.toFixed(2)}, ${item.longitude?.toFixed(2)}` : '—')}
-                      </span>
-                    </td>
-                    <td data-label="Date">
-                      <span className="admin-muted-cell">{formatAdminDate(item.created_at, true)}</span>
-                    </td>
-                  </tr>
-                ))}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           </div>
