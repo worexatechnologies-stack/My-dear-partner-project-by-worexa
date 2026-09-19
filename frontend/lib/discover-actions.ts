@@ -45,11 +45,17 @@ export async function fetchPassedProfilesFromBackend(): Promise<PassedProfileIte
           p.photo ||
           p.photoFull ||
           p.image_url ||
-          (Array.isArray(p.photos) && p.photos[0] ? (typeof p.photos[0] === 'string' ? p.photos[0] : p.photos[0].url) : '') ||
+          p.primary_photo?.url ||
+          p.primary_photo?.image_url ||
+          (Array.isArray(p.photos) && p.photos[0] ? (typeof p.photos[0] === 'string' ? p.photos[0] : p.photos[0].url || p.photos[0].image_url) : '') ||
           '';
+        const name =
+          p.full_name ||
+          [p.first_name, p.last_name].filter(Boolean).join(' ') ||
+          'Member';
         return {
           id: String(profileId),
-          name: p.full_name || p.first_name || (p.last_name ? `${p.first_name || ''} ${p.last_name}` : '') || 'Member',
+          name,
           photo,
           age: p.age,
           location: p.work_location || p.location || p.city || '',
@@ -62,12 +68,27 @@ export async function fetchPassedProfilesFromBackend(): Promise<PassedProfileIte
         };
       });
 
+      // Merge with any local passes not yet synced to backend
+      const local = getLocalPassedProfiles();
+      const backendIdSet = new Set(items.map((i) => String(i.id)));
+      const merged = [...items];
+      for (const loc of local) {
+        if (!backendIdSet.has(String(loc.id))) {
+          merged.push(loc);
+          // Sync to backend in background
+          void fetchApi('/passes/', {
+            method: 'POST',
+            body: JSON.stringify({ profile_id: loc.id }),
+          }).catch(() => {});
+        }
+      }
+
       if (typeof window !== 'undefined') {
-        localStorage.setItem(PASSED_PROFILES_KEY, JSON.stringify(items.slice(0, 100)));
-        const ids = new Set(items.map((i) => i.id));
+        localStorage.setItem(PASSED_PROFILES_KEY, JSON.stringify(merged.slice(0, 100)));
+        const ids = new Set(merged.map((i) => String(i.id)));
         localStorage.setItem(PASSED_IDS_KEY, JSON.stringify([...ids]));
       }
-      return items;
+      return merged;
     }
   } catch {
     /* fallback to local cache */
@@ -152,4 +173,29 @@ export function removePassedProfile(id: string): void {
 
 export function getPassedCount(): number {
   return getLocalPassedProfiles().length;
+}
+
+export function cleanPassedAgainstLikes(likedIds: Set<string>): void {
+  if (typeof window === 'undefined' || !likedIds.size) return;
+  try {
+    const list = getLocalPassedProfiles().filter((p) => !likedIds.has(String(p.id)));
+    localStorage.setItem(PASSED_PROFILES_KEY, JSON.stringify(list));
+
+    const idsRaw = localStorage.getItem(PASSED_IDS_KEY);
+    if (idsRaw) {
+      const ids = new Set<string>(JSON.parse(idsRaw));
+      let changed = false;
+      for (const id of likedIds) {
+        if (ids.has(id)) {
+          ids.delete(id);
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(PASSED_IDS_KEY, JSON.stringify([...ids]));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
 }

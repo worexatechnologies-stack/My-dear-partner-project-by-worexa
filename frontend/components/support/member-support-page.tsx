@@ -67,10 +67,10 @@ function AttachmentPreview({ url, filename, mimeType }: { url?: string | null; f
         <img
           src={url}
           alt={filename || 'Attachment'}
-          className="max-h-48 rounded-xl border border-gray-200 shadow-xs object-cover group-hover:opacity-90 transition-opacity"
+          className="max-h-48 rounded-xl border border-[#efefef] shadow-xs object-cover group-hover:opacity-90 transition-opacity"
         />
-        <span className="text-[10px] font-semibold text-gray-500 mt-1 flex items-center gap-1">
-          <ImageIcon className="w-3 h-3" /> {filename || 'View image'}
+        <span className="text-[10px] font-bold text-[#8e8e8e] mt-1 flex items-center gap-1 group-hover:text-[#e11d48] transition-colors">
+          <ImageIcon className="w-3 h-3" strokeWidth={1.85} /> {filename || 'View image'}
         </span>
       </a>
     );
@@ -80,9 +80,9 @@ function AttachmentPreview({ url, filename, mimeType }: { url?: string | null; f
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-xs font-semibold text-gray-800 transition-colors"
+      className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#f7f4f5] hover:bg-[#efe8ec] border border-[#efefef] text-xs font-bold text-[#443c40] hover:text-[#e11d48] transition-colors"
     >
-      {/\.pdf$/i.test(filename || url) ? <FileText className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+      {/\.pdf$/i.test(filename || url) ? <FileText className="w-4 h-4" strokeWidth={1.85} /> : <Download className="w-4 h-4" strokeWidth={1.85} />}
       <span>{filename || 'Download attachment'}</span>
     </a>
   );
@@ -128,20 +128,20 @@ function categoryMeta(value: string) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  OPEN: 'bg-rose-100 text-rose-800',
-  IN_PROGRESS: 'bg-amber-100 text-amber-800',
-  WAITING_FOR_MEMBER: 'bg-purple-100 text-purple-800',
-  WAITING_FOR_USER: 'bg-purple-100 text-purple-800',
-  RESOLVED: 'bg-emerald-100 text-emerald-800',
-  CLOSED: 'bg-gray-100 text-gray-700',
-  REOPENED: 'bg-rose-100 text-rose-800',
+  OPEN: 'bg-rose-50 text-[#e11d48] border border-rose-200 font-semibold',
+  IN_PROGRESS: 'bg-amber-50 text-amber-700 border border-amber-200 font-semibold',
+  WAITING_FOR_MEMBER: 'bg-purple-50 text-purple-700 border border-purple-200 font-semibold',
+  WAITING_FOR_USER: 'bg-purple-50 text-purple-700 border border-purple-200 font-semibold',
+  RESOLVED: 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold',
+  CLOSED: 'bg-gray-100 text-gray-700 border border-gray-200 font-semibold',
+  REOPENED: 'bg-rose-50 text-[#e11d48] border border-rose-200 font-semibold',
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  LOW: 'bg-gray-100 text-gray-700',
-  NORMAL: 'bg-rose-100 text-rose-700',
-  HIGH: 'bg-orange-100 text-orange-800',
-  URGENT: 'bg-red-100 text-red-800',
+  LOW: 'bg-gray-100 text-gray-700 border border-gray-200 font-semibold',
+  NORMAL: 'bg-rose-50 text-[#e11d48] border border-rose-200 font-semibold',
+  HIGH: 'bg-orange-50 text-orange-700 border border-orange-200 font-semibold',
+  URGENT: 'bg-red-50 text-red-700 border border-red-200 font-semibold',
 };
 
 export default function MemberSupportPage() {
@@ -456,118 +456,142 @@ export default function MemberSupportPage() {
     <main className="min-h-[100svh] bg-[var(--color-app-bg)] pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-        {/* Header */}
-        <div className="flex flex-col items-start justify-between gap-5 mdp-glass-surface p-6 sm:flex-row sm:items-center sm:p-8">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-bold text-[#9b3655]">
-              <Headphones className="w-3.5 h-3.5" />
-              <span>Member Care & Support</span>
+        {/* Hero Header Card */}
+        <div className="relative overflow-hidden rounded-3xl border border-[#efefef] bg-white p-6 sm:p-8 lg:p-10 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+          {/* Soft ambient glow matching sidebar rose #e11d48 */}
+          <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-rose-100/50 blur-3xl" />
+
+          <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-[#fff1f2] px-3.5 py-1 text-xs font-bold text-[#e11d48]">
+                <Headphones className="w-3.5 h-3.5" strokeWidth={2.2} />
+                <span>Help & Support Center</span>
+              </div>
+              <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-[#0f0f10]">
+                How can we assist you today?
+              </h1>
+              <p className="max-w-xl text-sm leading-6 text-[#737373]">
+                Search for instant answers, browse topics below, or connect directly with our member care team.
+              </p>
             </div>
-            <h1 className="font-display text-2xl font-black tracking-tight text-[#351320] sm:text-3xl">
-              How can we assist you today?
-            </h1>
-            <p className="max-w-xl text-sm leading-6 text-slate-500">
-              Get fast assistance from our member specialists, track existing inquiries, or explore solutions below.
-            </p>
+
+            <button
+              type="button"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#e11d48] hover:bg-[#be123c] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-500/35 active:scale-[0.98] cursor-pointer"
+              onClick={() => openCreateModal('GENERAL')}
+            >
+              <Plus className="w-4 h-4" strokeWidth={2.5} /> New Support Request
+            </button>
           </div>
-          <button
-            type="button"
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#8e3d58] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-rose-200 transition-all hover:-translate-y-0.5 hover:bg-[#702d45] cursor-pointer"
-            onClick={() => openCreateModal('GENERAL')}
-          >
-            <Plus className="w-4 h-4" /> New Support Request
-          </button>
+
+          {/* Integrated Search Bar inside Hero */}
+          <div className="relative mt-6 max-w-2xl">
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 text-[#737373] absolute left-4 pointer-events-none" strokeWidth={2} />
+              <input
+                type="text"
+                placeholder="Search inquiries, tickets, or topics..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-12 bg-[#f7f4f5] hover:bg-[#f2eff0] focus:bg-white border border-[#efefef] focus:border-[#e11d48] focus:ring-4 focus:ring-[#e11d48]/10 text-[#0f0f10] placeholder-[#8e8e8e] pl-11 pr-10 rounded-2xl text-sm font-medium transition-all duration-200 outline-none shadow-xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 text-[#8e8e8e] hover:text-[#0f0f10] cursor-pointer p-1"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={2.2} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Category Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CATEGORY_OPTIONS.map((category) => {
-            const CategoryIcon = category.icon;
-            return (
-              <button
-                type="button"
-                key={category.value}
-                onClick={() => openCreateModal(category.value)}
-                className="group flex cursor-pointer items-start justify-between mdp-glass-card p-5 text-left"
-              >
-                <div className="flex items-start gap-3.5">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-[#a13a59] transition-colors group-hover:bg-[#8e3d58] group-hover:text-white">
-                    <CategoryIcon className="w-5 h-5" />
+        {/* Topic Categories Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#a8a29e]">Browse Help Topics</h2>
+            <span className="text-xs text-[#737373]">Click a topic to submit a request</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {CATEGORY_OPTIONS.map((category) => {
+              const CategoryIcon = category.icon;
+              return (
+                <button
+                  type="button"
+                  key={category.value}
+                  onClick={() => openCreateModal(category.value)}
+                  className="group relative flex cursor-pointer items-center justify-between rounded-2xl border border-[#efefef] bg-white p-5 text-left shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-rose-300 hover:shadow-lg hover:shadow-rose-500/8 hover:-translate-y-1 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#efefef] bg-[#f7f4f5] text-[#262626] transition-all duration-200 group-hover:border-rose-200 group-hover:bg-[#fff1f2] group-hover:text-[#e11d48] group-hover:scale-105 group-hover:shadow-md group-hover:shadow-rose-500/10">
+                      <CategoryIcon className="w-5 h-5 transition-transform duration-200 ease-out group-hover:scale-110" strokeWidth={1.85} />
+                    </div>
+                    <div className="min-w-0">
+                      <strong className="block text-sm font-bold text-[#0f0f10] transition-colors group-hover:text-[#e11d48] truncate">
+                        {category.label}
+                      </strong>
+                      <span className="block text-xs text-[#737373] mt-0.5 leading-snug line-clamp-1">
+                        {category.blurb}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <strong className="block text-sm font-bold text-[#351320] transition-colors group-hover:text-[#8e3d58]">
-                      {category.label}
-                    </strong>
-                    <span className="block text-xs text-gray-600 mt-0.5 leading-snug">
-                      {category.blurb}
-                    </span>
+                  <div className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f7f4f5] text-[#8e8e8e] transition-all duration-200 group-hover:bg-[#fff1f2] group-hover:text-[#e11d48] group-hover:translate-x-0.5">
+                    <ChevronRight className="h-4 w-4" strokeWidth={2.2} />
                   </div>
-                </div>
-                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#8e3d58]" />
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800 shadow-sm flex items-center justify-between">
+          <div className="rounded-2xl border border-red-200 bg-red-50/90 px-5 py-4 text-sm font-semibold text-red-800 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" strokeWidth={1.85} />
               <span>{errorMsg}</span>
             </div>
-            <button type="button" className="text-xs font-bold underline cursor-pointer shrink-0" onClick={() => setErrorMsg(null)}>Dismiss</button>
+            <button type="button" className="text-xs font-bold underline cursor-pointer shrink-0 hover:text-red-900" onClick={() => setErrorMsg(null)}>Dismiss</button>
           </div>
         )}
 
-        {/* Search & Filter Bar */}
-        <div className="flex flex-col items-start justify-between gap-4 mdp-glass-surface p-4 lg:flex-row lg:items-center">
-          <div className="relative w-full lg:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search by subject or ticket number..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 text-gray-900 pl-10 pr-8 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+        {/* Status Filter Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[#efefef] bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {statusTabs.map((tab) => {
+              const isActive = statusFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    isActive
+                      ? 'bg-[#e11d48] text-white shadow-md shadow-rose-500/25'
+                      : 'bg-[#f7f4f5] text-[#443c40] hover:bg-[#efe8ec] border border-[#efefef]'
+                  }`}
+                  onClick={() => setStatusFilter(tab.value)}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
-            {statusTabs.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-                  statusFilter === tab.value
-                    ? 'bg-[#8e3d58] text-white shadow-sm'
-                    : 'bg-white/40 text-gray-700 hover:bg-white/60 border border-white/50'
-                }`}
-                onClick={() => setStatusFilter(tab.value)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="bg-[#f7f4f5] border border-[#efefef] text-[#443c40] px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all focus:outline-none focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-[#e11d48]/15"
+            >
+              <option value="">All Priorities</option>
+              <option value="LOW">Low Priority</option>
+              <option value="NORMAL">Normal Priority</option>
+              <option value="HIGH">High Priority</option>
+              <option value="URGENT">Urgent Priority</option>
+            </select>
           </div>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="w-full lg:w-auto bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer"
-          >
-            <option value="">All Priorities</option>
-            <option value="LOW">Low</option>
-            <option value="NORMAL">Normal</option>
-            <option value="HIGH">High</option>
-            <option value="URGENT">Urgent</option>
-          </select>
         </div>
 
         {/* Main Workspace */}
@@ -575,79 +599,86 @@ export default function MemberSupportPage() {
 
           {/* Left: Ticket List */}
           <div className={`lg:col-span-5 ${activeMobileTab === 'detail' ? 'hidden lg:block' : 'block'}`}>
-            <div className="mdp-glass-surface overflow-hidden">
-              <div className="px-5 py-3.5 bg-white/40 border-b border-white/20 flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-700">Your Inquiries</h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600 text-xs font-semibold">
+            <div className="rounded-2xl border border-[#efefef] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)] overflow-hidden">
+              <div className="px-5 py-4 bg-[#fbf9fa] border-b border-[#efefef] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#443c40]">Your Inquiries</h2>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fff1f2] border border-rose-200 text-[#e11d48] text-xs font-bold">
                   {filteredTickets.length}
                 </span>
               </div>
-              <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+              <div className="divide-y divide-[#efefef] max-h-[600px] overflow-y-auto">
                 {loading ? (
                   <div className="p-8 text-center">
                     <div className="animate-pulse space-y-3">
                       {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-20 bg-gray-100 rounded-lg" />
+                        <div key={i} className="h-20 bg-[#f7f4f5] rounded-xl" />
                       ))}
                     </div>
                   </div>
                 ) : filteredTickets.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                    <h3 className="text-sm font-bold text-gray-800">No requests found</h3>
-                    <p className="text-sm text-gray-600 mt-1 mb-3">
+                  <div className="p-10 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-[#fff1f2] border border-rose-200 text-[#e11d48] flex items-center justify-center mx-auto mb-3">
+                      <FileText className="w-6 h-6" strokeWidth={1.85} />
+                    </div>
+                    <h3 className="text-sm font-bold text-[#0f0f10]">No requests found</h3>
+                    <p className="text-xs text-[#737373] mt-1 mb-4 max-w-xs mx-auto">
                       {tickets.length === 0
                         ? "You haven't contacted support yet."
-                        : "No requests match your filters."}
+                        : "No requests match your current filters."}
                     </p>
                     <button
                       type="button"
-                      className="px-3.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 border border-gray-200 text-sm font-semibold cursor-pointer hover:bg-gray-200"
+                      className="px-4 py-2 rounded-xl bg-[#f7f4f5] text-[#443c40] border border-[#efefef] text-xs font-bold cursor-pointer hover:bg-[#efe8ec] transition-colors"
                       onClick={() => { setSearchQuery(''); setStatusFilter(''); setPriorityFilter(''); }}
                     >
                       Clear filters
                     </button>
                   </div>
                 ) : (
-                  filteredTickets.map((ticket) => (
-                    <button
-                      type="button"
-                      key={ticket.id}
-                      onClick={() => handleSelectTicket(ticket)}
-                      className={`w-full p-4 sm:p-5 text-left transition-colors cursor-pointer border-l-4 ${
-                        selectedTicket?.id === ticket.id
-                          ? 'bg-white/80 border-l-[#8e3d58]'
-                          : 'hover:bg-white/40 border-l-transparent'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-indigo-700 text-sm">#{ticket.ticket_number}</span>
-                        <span className="text-xs text-gray-500 font-medium">{formatDate(ticket.created_at)}</span>
-                      </div>
-                      <h3 className="font-bold text-sm text-gray-900 line-clamp-1 mb-2.5">{ticket.subject}</h3>
-                      <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
-                        <span className={`px-2 py-0.5 rounded-md ${STATUS_COLORS[ticket.status] || 'bg-gray-100 text-gray-700'}`}>
-                          {(ticket.status || '').replace(/_/g, ' ')}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md ${PRIORITY_COLORS[ticket.priority] || 'bg-gray-100 text-gray-700'}`}>
-                          {ticket.priority}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
-                          {(ticket.category || '').replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                    </button>
-                  ))
+                  filteredTickets.map((ticket) => {
+                    const isSelected = selectedTicket?.id === ticket.id;
+                    return (
+                      <button
+                        type="button"
+                        key={ticket.id}
+                        onClick={() => handleSelectTicket(ticket)}
+                        className={`w-full p-4 sm:p-5 text-left transition-all cursor-pointer border-l-4 ${
+                          isSelected
+                            ? 'bg-[#fff1f2]/60 border-l-[#e11d48]'
+                            : 'hover:bg-[#fbf9fa] border-l-transparent'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="font-bold text-[#e11d48] text-xs">#{ticket.ticket_number}</span>
+                          <span className="text-[11px] text-[#8e8e8e] font-medium">{formatDate(ticket.created_at)}</span>
+                        </div>
+                        <h3 className="font-bold text-sm text-[#0f0f10] line-clamp-1 mb-2.5">{ticket.subject}</h3>
+                        <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                          <span className={`px-2 py-0.5 rounded-lg ${STATUS_COLORS[ticket.status] || 'bg-gray-100 text-gray-700'}`}>
+                            {(ticket.status || '').replace(/_/g, ' ')}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-lg ${PRIORITY_COLORS[ticket.priority] || 'bg-gray-100 text-gray-700'}`}>
+                            {ticket.priority}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-[#f7f4f5] border border-[#efefef] text-[#443c40]">
+                            {(ticket.category || '').replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 p-4 border-t border-gray-100">
+                  <div className="flex items-center justify-center gap-2 p-4 border-t border-[#efefef] bg-[#fbf9fa]">
                     <button onClick={() => loadTickets(ticketPage - 1)} disabled={ticketPage <= 1}
-                      className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-medium disabled:opacity-30 hover:bg-indigo-100">
+                      className="px-3 py-1.5 rounded-xl bg-[#fff1f2] border border-rose-200 text-[#e11d48] text-xs font-bold disabled:opacity-40 hover:bg-[#ffe4e6] transition-colors">
                       Previous
                     </button>
-                    <span className="text-xs text-gray-500 font-mono">Page {ticketPage} of {totalPages}</span>
+                    <span className="text-xs text-[#737373] font-medium">Page {ticketPage} of {totalPages}</span>
                     <button onClick={() => loadTickets(ticketPage + 1)} disabled={ticketPage >= totalPages}
-                      className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-medium disabled:opacity-30 hover:bg-indigo-100">
+                      className="px-3 py-1.5 rounded-xl bg-[#fff1f2] border border-rose-200 text-[#e11d48] text-xs font-bold disabled:opacity-40 hover:bg-[#ffe4e6] transition-colors">
                       Next
                     </button>
                   </div>
@@ -659,59 +690,59 @@ export default function MemberSupportPage() {
           {/* Right: Conversation Detail */}
           <div className={`lg:col-span-7 ${activeMobileTab === 'list' ? 'hidden lg:block' : 'block'}`}>
             {detailsLoading && !selectedTicket ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+              <div className="bg-white rounded-2xl border border-[#efefef] p-12 text-center shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
                 <div className="animate-pulse space-y-4">
-                  <div className="h-6 bg-gray-100 rounded w-1/3 mx-auto" />
-                  <div className="h-4 bg-gray-100 rounded w-2/3 mx-auto" />
-                  <div className="h-32 bg-gray-100 rounded-lg" />
+                  <div className="h-6 bg-[#f7f4f5] rounded-xl w-1/3 mx-auto" />
+                  <div className="h-4 bg-[#f7f4f5] rounded-xl w-2/3 mx-auto" />
+                  <div className="h-32 bg-[#f7f4f5] rounded-2xl" />
                 </div>
               </div>
             ) : selectedTicket ? (
-              <div className="mdp-glass-surface overflow-hidden flex flex-col min-h-[500px]">
+              <div className="rounded-2xl border border-[#efefef] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col min-h-[520px]">
 
                 {/* Mobile Back */}
-                <div className="p-3 bg-gray-50 border-b border-gray-200 lg:hidden">
+                <div className="p-3 bg-[#fbf9fa] border-b border-[#efefef] lg:hidden">
                   <button
                     type="button"
                     onClick={() => setActiveMobileTab('list')}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#e11d48] cursor-pointer"
                   >
-                    <ArrowLeft className="w-4 h-4" /> Back to conversations
+                    <ArrowLeft className="w-4 h-4" strokeWidth={2} /> Back to conversations
                   </button>
                 </div>
 
                 {/* Detail Header */}
-                <div className="px-5 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <div className="px-5 sm:px-6 py-4 bg-[#fbf9fa] border-b border-[#efefef]">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                     <div className="min-w-0">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        #{selectedTicket.ticket_number} &middot; {formatDate(selectedTicket.created_at)}
+                      <span className="text-xs font-bold text-[#e11d48] uppercase tracking-wider">
+                        #{selectedTicket.ticket_number} &middot; <span className="text-[#8e8e8e] font-normal">{formatDate(selectedTicket.created_at)}</span>
                       </span>
-                      <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 mt-0.5 break-words">{selectedTicket.subject}</h2>
+                      <h2 className="text-lg sm:text-xl font-black text-[#0f0f10] mt-0.5 break-words">{selectedTicket.subject}</h2>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5 text-xs font-semibold mt-2.5">
-                    <span className={`px-2.5 py-0.5 rounded-full ${STATUS_COLORS[selectedTicket.status] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-2.5 py-0.5 rounded-lg ${STATUS_COLORS[selectedTicket.status] || 'bg-gray-100 text-gray-700'}`}>
                       {(selectedTicket.status || '').replace(/_/g, ' ')}
                     </span>
-                    <span className={`px-2.5 py-0.5 rounded-full ${PRIORITY_COLORS[selectedTicket.priority] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-2.5 py-0.5 rounded-lg ${PRIORITY_COLORS[selectedTicket.priority] || 'bg-gray-100 text-gray-700'}`}>
                       {selectedTicket.priority}
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-[#f7f4f5] border border-[#efefef] text-[#443c40]">
                       {(selectedTicket.category || '').replace(/_/g, ' ')}
                     </span>
                   </div>
                 </div>
 
                 {/* Conversation Body */}
-                <div ref={chatBoxRef} className="flex-1 overflow-y-auto max-h-[450px] px-5 sm:px-6 py-5 space-y-5">
+                <div ref={chatBoxRef} className="flex-1 overflow-y-auto max-h-[450px] px-5 sm:px-6 py-5 space-y-4">
                   {/* Original Request */}
-                  <div className="p-4 sm:p-5 rounded-xl bg-gray-50 border border-gray-200">
-                    <div className="flex justify-between items-center text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5 border-b border-gray-200 pb-2">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-[#fff8fa] border border-rose-100">
+                    <div className="flex justify-between items-center text-[11px] font-bold text-[#e11d48] uppercase tracking-wider mb-2 border-b border-rose-100 pb-2">
                       <span>Original Request</span>
-                      <span>{formatTime(selectedTicket.created_at)}</span>
+                      <span className="text-[#8e8e8e] font-normal">{formatTime(selectedTicket.created_at)}</span>
                     </div>
-                    <p className="text-sm text-gray-800 leading-relaxed">{(selectedTicket as any).description || selectedTicket.message}</p>
+                    <p className="text-sm text-[#0f0f10] leading-relaxed">{(selectedTicket as any).description || selectedTicket.message}</p>
                     {(selectedTicket.attachments && selectedTicket.attachments.length > 0)
                       ? selectedTicket.attachments.map((att: any) => (
                           <AttachmentPreview key={att.id} url={att.download_url} filename={att.original_filename} mimeType={att.mime_type} />
@@ -733,22 +764,22 @@ export default function MemberSupportPage() {
 
                     return (
                       <div key={reply.id} className={`flex ${isUserSender ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`flex gap-3 max-w-[88%] sm:max-w-[78%] ${isUserSender ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <div className={`flex gap-2.5 max-w-[88%] sm:max-w-[78%] ${isUserSender ? 'flex-row-reverse' : 'flex-row'}`}>
                           {!isUserSender && (
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-1">
-                              <Headphones className="w-4 h-4" />
+                            <div className="w-8 h-8 rounded-full bg-[#fff1f2] border border-rose-200 text-[#e11d48] flex items-center justify-center shrink-0 mt-1">
+                              <Headphones className="w-4 h-4" strokeWidth={1.85} />
                             </div>
                           )}
-                          <div className={`rounded-xl px-4 py-3 shadow-sm ${
+                          <div className={`rounded-2xl px-4 py-3 shadow-xs ${
                             isUserSender
-                              ? 'bg-indigo-600 text-white rounded-br-sm'
-                              : 'bg-white border border-gray-200 text-gray-900 rounded-bl-sm'
+                              ? 'bg-[#e11d48] text-white rounded-br-sm'
+                              : 'bg-[#f7f4f5] border border-[#efefef] text-[#0f0f10] rounded-bl-sm'
                           }`}>
-                            <div className={`text-xs font-semibold mb-1.5 flex items-center justify-between gap-3 ${
-                              isUserSender ? 'text-indigo-200' : 'text-gray-500'
+                            <div className={`text-[11px] font-bold mb-1.5 flex items-center justify-between gap-3 ${
+                              isUserSender ? 'text-rose-100' : 'text-[#737373]'
                             }`}>
                               <span>{senderName}</span>
-                              <span>{formatTime(reply.created_at)}</span>
+                              <span className="font-normal">{formatTime(reply.created_at)}</span>
                             </div>
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{reply.message}</p>
                             {(reply.attachments && reply.attachments.length > 0)
@@ -766,15 +797,15 @@ export default function MemberSupportPage() {
                 </div>
 
                 {/* Reply Form */}
-                <div className="px-5 sm:px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div className="px-5 sm:px-6 py-4 bg-[#fbf9fa] border-t border-[#efefef]">
                   {selectedTicket.status === 'RESOLVED' || selectedTicket.status === 'CLOSED' ? (
                     <div className="text-center py-3">
-                      <p className="text-gray-800 font-bold text-sm mb-2">
+                      <p className="text-[#0f0f10] font-bold text-sm mb-2">
                         {selectedTicket.status === 'CLOSED' ? 'This support request is closed.' : 'This request has been resolved.'}
                       </p>
                       <button
                         type="button"
-                        className="px-5 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 text-sm font-bold cursor-pointer hover:bg-gray-50"
+                        className="px-5 py-2.5 rounded-xl bg-white border border-[#efefef] text-[#0f0f10] text-xs font-bold cursor-pointer hover:bg-[#f7f4f5] transition-colors"
                         onClick={handleReopenTicket}
                       >
                         Reopen Request
@@ -786,7 +817,7 @@ export default function MemberSupportPage() {
                         placeholder="Type your message..."
                         value={replyMessage}
                         onChange={(e) => setReplyMessage(e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                        className="w-full bg-white border border-[#efefef] rounded-xl p-3.5 text-sm text-[#0f0f10] placeholder-[#8e8e8e] focus:outline-none focus:border-[#e11d48] focus:ring-2 focus:ring-[#e11d48]/15 resize-none transition-all"
                         rows={3}
                         required
                       />
@@ -797,11 +828,11 @@ export default function MemberSupportPage() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-800 cursor-pointer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#443c40] hover:text-[#e11d48] cursor-pointer transition-colors"
                             onClick={() => fileInputRef.current?.click()}
                           >
-                            <Paperclip className="w-4 h-4" />
-                            {replyAttachment ? replyAttachment.name : 'Attach'}
+                            <Paperclip className="w-4 h-4" strokeWidth={1.85} />
+                            {replyAttachment ? replyAttachment.name : 'Attach file'}
                           </button>
                           {replyAttachment && (
                             <button
@@ -815,10 +846,10 @@ export default function MemberSupportPage() {
                         </div>
                         <button
                           type="submit"
-                          className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-5 py-2.5 rounded-xl bg-[#e11d48] hover:bg-[#be123c] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-rose-500/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                           disabled={submitLoading || !replyMessage.trim()}
                         >
-                          {submitLoading ? 'Sending...' : (<><Send className="w-4 h-4" /> Send</>)}
+                          {submitLoading ? 'Sending...' : (<><Send className="w-3.5 h-3.5" strokeWidth={2} /> Send</>)}
                         </button>
                       </div>
                       <input
@@ -834,15 +865,15 @@ export default function MemberSupportPage() {
 
                 {/* Resolution Feedback */}
                 {selectedTicket.status === 'RESOLVED' && !feedbackSubmitted && (
-                  <div className="px-5 sm:px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <div className="bg-white rounded-xl border border-gray-200 p-4">
-                      <p className="text-sm font-bold text-gray-900 mb-3">How was our support?</p>
+                  <div className="px-5 sm:px-6 py-4 bg-[#fbf9fa] border-t border-[#efefef]">
+                    <div className="bg-white rounded-2xl border border-[#efefef] p-4 shadow-xs">
+                      <p className="text-sm font-bold text-[#0f0f10] mb-3">How was our support?</p>
                       <div className="flex gap-1 mb-3">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button
                             key={star}
                             type="button"
-                            className={`p-1 cursor-pointer ${star <= feedbackRating ? 'text-amber-400' : 'text-gray-200'}`}
+                            className={`p-1 cursor-pointer transition-colors ${star <= feedbackRating ? 'text-amber-400' : 'text-gray-200'}`}
                             onClick={() => setFeedbackRating(star)}
                           >
                             <Star className="w-5 h-5 fill-current" />
@@ -853,13 +884,13 @@ export default function MemberSupportPage() {
                         placeholder="Share your feedback (optional)..."
                         value={feedbackText}
                         onChange={(e) => setFeedbackText(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none mb-2"
+                        className="w-full bg-[#f7f4f5] border border-[#efefef] rounded-xl p-2.5 text-sm text-[#0f0f10] focus:outline-none focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-[#e11d48]/15 resize-none mb-2"
                         rows={2}
                       />
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer"
+                          className="px-4 py-2 rounded-xl bg-[#e11d48] hover:bg-[#be123c] text-white text-xs font-bold cursor-pointer transition-all shadow-sm"
                           onClick={handleConfirmResolution}
                         >
                           Confirm & Close
@@ -871,11 +902,13 @@ export default function MemberSupportPage() {
 
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm h-full flex flex-col items-center justify-center">
-                <LifeBuoy className="w-12 h-12 text-gray-300 mb-3" />
-                <h2 className="text-lg font-bold text-gray-900">Select a conversation</h2>
-                <p className="text-sm text-gray-600 mt-1 max-w-sm">
-                  Choose a support request from the list or start a new request using the options above.
+              <div className="bg-white rounded-2xl border border-[#efefef] p-12 text-center shadow-[0_1px_3px_rgba(0,0,0,0.03)] h-full flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-16 h-16 rounded-3xl bg-[#fff1f2] border border-rose-200 flex items-center justify-center text-[#e11d48] mb-4">
+                  <Headphones className="w-8 h-8" strokeWidth={1.85} />
+                </div>
+                <h2 className="text-lg font-bold text-[#0f0f10]">Select a conversation</h2>
+                <p className="text-xs text-[#737373] mt-1 max-w-sm">
+                  Choose a support request from the list or start a new request using the topics above.
                 </p>
               </div>
             )}
@@ -884,24 +917,26 @@ export default function MemberSupportPage() {
         </div>
 
         {/* FAQ Section */}
-        <div className="mdp-glass-surface p-6 sm:p-8 space-y-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-gray-900">Frequently Asked Questions</h2>
+        <div className="rounded-2xl border border-[#efefef] bg-white p-6 sm:p-8 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#fff1f2] border border-rose-200 flex items-center justify-center text-[#e11d48]">
+              <ShieldCheck className="w-4 h-4" strokeWidth={1.85} />
+            </div>
+            <h2 className="text-lg font-bold text-[#0f0f10]">Frequently Asked Questions</h2>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-[#efefef]">
             {FAQ_ITEMS.map((faq, idx) => (
               <div key={idx} className="py-4">
                 <button
                   type="button"
                   onClick={() => setOpenFaqIndex(openFaqIndex === idx ? null : idx)}
-                  className="w-full flex items-center justify-between text-left font-bold text-sm text-gray-900 hover:text-indigo-700 transition-colors cursor-pointer gap-4"
+                  className="w-full flex items-center justify-between text-left font-bold text-sm text-[#0f0f10] hover:text-[#e11d48] transition-colors cursor-pointer gap-4"
                 >
                   <span>{faq.question}</span>
-                  <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${openFaqIndex === idx ? 'rotate-180 text-indigo-600' : 'text-gray-400'}`} />
+                  <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${openFaqIndex === idx ? 'rotate-180 text-[#e11d48]' : 'text-[#8e8e8e]'}`} strokeWidth={2} />
                 </button>
                 {openFaqIndex === idx && (
-                  <p className="text-sm text-gray-600 mt-2 leading-relaxed pl-1">
+                  <p className="text-xs sm:text-sm text-[#525252] mt-2.5 leading-relaxed p-4 rounded-xl bg-[#fff8fa] border border-rose-100/60">
                     {faq.answer}
                   </p>
                 )}
@@ -912,53 +947,65 @@ export default function MemberSupportPage() {
 
         {/* Create Ticket Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="mdp-glass-surface p-6 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                    <MessageSquare className="w-4 h-4" />
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border border-[#efefef] p-6 sm:p-7 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[#efefef] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#fff1f2] border border-rose-200 flex items-center justify-center text-[#e11d48]">
+                    <MessageSquare className="w-5 h-5" strokeWidth={1.85} />
                   </div>
-                  <h2 className="text-lg font-bold text-gray-900">Contact Support</h2>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0f0f10]">Contact Support</h2>
+                    <p className="text-xs text-[#737373]">Our team will get back to you shortly</p>
+                  </div>
                 </div>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                  <X className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-[#f7f4f5] flex items-center justify-center text-[#737373] hover:text-[#0f0f10] hover:bg-[#efe8ec] transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" strokeWidth={2} />
                 </button>
               </div>
 
               <form onSubmit={handleCreateTicket} className="space-y-4">
                 {createError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-semibold text-red-800">
                     {createError}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Topic</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#443c40] mb-2">Select Topic</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <button
-                        key={cat.value}
-                        type="button"
-                        className={`p-3 rounded-lg text-sm font-semibold text-left border transition-all cursor-pointer ${
-                          newCategory === cat.value
-                            ? 'bg-[#8e3d58] text-white border-[#8e3d58]'
-                            : 'bg-white/40 text-gray-700 border-white/50 hover:bg-white/70'
-                        }`}
-                        onClick={() => { setNewCategory(cat.value); setNewSubject(cat.subjectHint); }}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
+                    {CATEGORY_OPTIONS.map((cat) => {
+                      const isSelected = newCategory === cat.value;
+                      const CatIcon = cat.icon;
+                      return (
+                        <button
+                          key={cat.value}
+                          type="button"
+                          className={`p-3 rounded-xl text-xs font-bold text-left border transition-all cursor-pointer flex items-center gap-2.5 ${
+                            isSelected
+                              ? 'bg-[#e11d48] text-white border-[#e11d48] shadow-md shadow-rose-500/25'
+                              : 'bg-[#f7f4f5] text-[#443c40] border-[#efefef] hover:bg-[#efe8ec]'
+                          }`}
+                          onClick={() => { setNewCategory(cat.value); setNewSubject(cat.subjectHint); }}
+                        >
+                          <CatIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-[#e11d48]'}`} strokeWidth={1.85} />
+                          <span className="truncate">{cat.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-1">Subject</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#443c40] mb-1.5">Subject</label>
                   <input
                     type="text"
                     placeholder="Summarize your issue..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full bg-[#f7f4f5] border border-[#efefef] rounded-xl px-3.5 py-2.5 text-sm text-[#0f0f10] placeholder-[#8e8e8e] focus:outline-none focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-[#e11d48]/15 transition-all"
                     value={newSubject}
                     onChange={(e) => { setNewSubject(e.target.value); if (validationErrors.subject) setValidationErrors(prev => ({ ...prev, subject: '' })); }}
                     required
@@ -969,15 +1016,15 @@ export default function MemberSupportPage() {
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-bold text-gray-800">Description</label>
-                    <span className={`text-xs font-semibold ${newDescription.length < 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#443c40]">Description</label>
+                    <span className={`text-[11px] font-bold ${newDescription.length < 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
                       {newDescription.length}/15 min
                     </span>
                   </div>
                   <textarea
                     placeholder="Provide details so we can help faster (minimum 15 characters)..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                    className="w-full bg-[#f7f4f5] border border-[#efefef] rounded-xl p-3.5 text-sm text-[#0f0f10] placeholder-[#8e8e8e] focus:outline-none focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-[#e11d48]/15 resize-none transition-all"
                     rows={4}
                     value={newDescription}
                     onChange={(e) => { setNewDescription(e.target.value); if (validationErrors.description) setValidationErrors(prev => ({ ...prev, description: '' })); }}
@@ -990,11 +1037,11 @@ export default function MemberSupportPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-1">Attachment (optional &middot; image or PDF, max 5MB)</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#443c40] mb-1.5">Attachment (optional &middot; image or PDF, max 5MB)</label>
                   {newAttachment ? (
-                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <div className="border border-rose-100 rounded-2xl p-3.5 bg-[#fff8fa]">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-800 truncate">{newAttachment.name}</span>
+                        <span className="text-xs font-bold text-[#0f0f10] truncate">{newAttachment.name}</span>
                         <button
                           type="button"
                           className="text-xs font-bold text-red-600 hover:text-red-800 cursor-pointer ml-2 shrink-0"
@@ -1004,22 +1051,25 @@ export default function MemberSupportPage() {
                         </button>
                       </div>
                       {newAttachmentPreview && (
-                        <div className="mt-2">
-                          <img src={newAttachmentPreview} alt="Preview" className="max-h-36 rounded-lg border border-gray-200 object-contain" />
+                        <div className="mt-2.5">
+                          <img src={newAttachmentPreview} alt="Preview" className="max-h-36 rounded-xl border border-rose-100 object-contain" />
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="relative border-2 border-dashed border-[#efefef] hover:border-rose-200 rounded-2xl p-5 text-center bg-[#fbf9fa] hover:bg-[#fff8fa] transition-all cursor-pointer">
                       <input
                         type="file"
                         accept=".jpeg,.jpg,.png,.webp,.pdf"
                         onChange={handleAttachmentChange}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       />
-                      <div className="flex flex-col items-center justify-center gap-1">
-                        <Upload className="w-5 h-5 text-gray-500" />
-                        <span className="text-sm font-semibold text-gray-600">Click to upload screenshot or file</span>
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <div className="w-8 h-8 rounded-full bg-[#fff1f2] text-[#e11d48] flex items-center justify-center">
+                          <Upload className="w-4 h-4" strokeWidth={1.85} />
+                        </div>
+                        <span className="text-xs font-bold text-[#443c40]">Click to upload screenshot or document</span>
+                        <span className="text-[10px] text-[#8e8e8e]">PNG, JPG, WEBP, or PDF up to 5MB</span>
                       </div>
                     </div>
                   )}
@@ -1028,17 +1078,17 @@ export default function MemberSupportPage() {
                   )}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-3 border-t border-gray-200">
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#efefef]">
                   <button
                     type="button"
-                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-bold cursor-pointer hover:bg-gray-200"
+                    className="px-4 py-2.5 rounded-xl bg-[#f7f4f5] text-[#443c40] text-xs font-bold cursor-pointer hover:bg-[#efe8ec] transition-colors"
                     onClick={() => setIsModalOpen(false)}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-2.5 rounded-xl bg-[#e11d48] hover:bg-[#be123c] text-white text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-rose-500/25 transition-all"
                     disabled={submitLoading}
                   >
                     {submitLoading ? 'Sending...' : 'Send Request'}

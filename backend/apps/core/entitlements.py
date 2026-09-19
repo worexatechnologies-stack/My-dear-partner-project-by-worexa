@@ -25,12 +25,13 @@ class EntitlementSet:
     can_view_contact_details: bool
     profile_visibility_boost: bool
     can_see_who_viewed_profile: bool
-    can_view_received_interests: bool
-    priority_support: bool
-    max_photos: int
-    contact_access_mode: str
-    photo_access_mode: str
-    can_use_advanced_search: bool
+    profile_visitors_limit: int | None = None
+    can_view_received_interests: bool = False
+    priority_support: bool = False
+    max_photos: int = 6
+    contact_access_mode: str = 'NONE'
+    photo_access_mode: str = 'PRIMARY_ONLY'
+    can_use_advanced_search: bool = False
     is_trial: bool = False
     trial_expires_at: str | None = None
     trial_days_remaining: int | None = None
@@ -51,6 +52,7 @@ FREE_DEFAULTS = {
     'can_view_contact_details': False,
     'profile_visibility_boost': False,
     'can_see_who_viewed_profile': False,
+    'profile_visitors_limit': 4,
     'can_view_received_interests': False,
     'priority_support': False,
     'max_photos': 6,
@@ -64,11 +66,15 @@ FREE_DEFAULTS = {
 
 
 def _limit(value, fallback):
-    if value is None:
+    if value is None or value == '':
         return fallback
-    if isinstance(value, int) and value < 0:
-        return None
-    return value
+    try:
+        val = int(value)
+        if val < 0:
+            return None
+        return val
+    except (ValueError, TypeError):
+        return fallback
 
 
 def _plan_values(plan):
@@ -107,6 +113,10 @@ def _plan_values(plan):
         'can_see_who_viewed_profile': bool(
             raw.get('can_see_who_viewed_profile') if 'can_see_who_viewed_profile' in raw
             else plan.can_view_profile_visitors
+        ),
+        'profile_visitors_limit': _limit(
+            raw.get('profile_visitors_limit'),
+            getattr(plan, 'profile_visitors_limit', 4)
         ),
         'can_view_received_interests': bool(
             raw.get('can_view_received_interests') if 'can_view_received_interests' in raw
@@ -195,35 +205,33 @@ def get_active_entitlements(member) -> EntitlementSet:
             **values,
         )
 
-    # 1-Month Free Trial for new registrations (First 30 Days Free Access for All Features)
-    in_trial, trial_expires_at, trial_days_left = is_member_in_trial(member)
-    if in_trial and trial_expires_at:
-        return EntitlementSet(
-            plan_id=None,
-            plan_name='1-Month Free Trial',
-            plan_slug='free_trial',
-            daily_profile_view_limit=None,  # Unlimited during 1-month trial
-            can_send_interest=True,
-            daily_interest_limit=None,  # Unlimited during 1-month trial
-            can_chat=True,
-            daily_message_limit=None,  # Unlimited during 1-month trial
-            can_view_contact_details=True,
-            profile_visibility_boost=True,
-            can_see_who_viewed_profile=True,
-            can_view_received_interests=True,
-            priority_support=True,
-            max_photos=10,
-            contact_access_mode='ALL',
-            photo_access_mode='ALL_APPROVED',
-            can_use_advanced_search=True,
-            is_trial=True,
-            trial_expires_at=trial_expires_at.isoformat(),
-            trial_days_remaining=trial_days_left,
-        )
-
-    # 1-Month Free Trial Expired & No Paid Plan -> Revert to Free Plan (Triggers Payment Gateway Requirement)
+    # Fallback / Free Plan from Database
     plan = MembershipPlan.objects.filter(slug__iexact='free').first()
+    in_trial, trial_expires_at, trial_days_left = is_member_in_trial(member)
     if not plan:
+        if in_trial and trial_expires_at:
+            return EntitlementSet(
+                plan_id=None,
+                plan_name='1-Month Free Trial',
+                plan_slug='free_trial',
+                daily_profile_view_limit=None,
+                can_send_interest=True,
+                daily_interest_limit=None,
+                can_chat=True,
+                daily_message_limit=None,
+                can_view_contact_details=True,
+                profile_visibility_boost=True,
+                can_see_who_viewed_profile=True,
+                can_view_received_interests=True,
+                priority_support=True,
+                max_photos=10,
+                contact_access_mode='ALL',
+                photo_access_mode='ALL_APPROVED',
+                can_use_advanced_search=True,
+                is_trial=True,
+                trial_expires_at=trial_expires_at.isoformat(),
+                trial_days_remaining=trial_days_left,
+            )
         return EntitlementSet(
             plan_id=None,
             plan_name='Free',
@@ -233,14 +241,15 @@ def get_active_entitlements(member) -> EntitlementSet:
             trial_days_remaining=0,
             **FREE_DEFAULTS,
         )
+
     values = _plan_values(plan)
     return EntitlementSet(
         plan_id=str(plan.pk),
         plan_name=plan.display_name or plan.name or 'Free',
         plan_slug=plan.slug.lower(),
-        is_trial=False,
-        trial_expires_at=trial_expires_at.isoformat() if trial_expires_at else None,
-        trial_days_remaining=0,
+        is_trial=bool(in_trial),
+        trial_expires_at=trial_expires_at.isoformat() if in_trial and trial_expires_at else None,
+        trial_days_remaining=trial_days_left if in_trial else 0,
         **values,
     )
 

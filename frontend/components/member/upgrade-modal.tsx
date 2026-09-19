@@ -9,8 +9,9 @@ import { useMembership } from './membership-provider';
 import { useGetMembershipPlansQuery, type MembershipPlan } from '@/legacy/services/membershipApi';
 
 interface UpgradeModalProps {
-  feature: 'messaging' | 'advanced_search' | 'contact_details' | 'all_photos';
+  feature: 'messaging' | 'advanced_search' | 'contact_details' | 'all_photos' | 'unlimited_views';
   onClose: () => void;
+  isOpen?: boolean;
 }
 
 const featureConfig = {
@@ -62,6 +63,19 @@ const featureConfig = {
     ],
     planCheck: (plan: MembershipPlan) =>
       plan.photo_access_mode === 'ALL_APPROVED' || plan.photo_access_mode === 'ALL',
+  },
+  unlimited_views: {
+    icon: '👑',
+    title: 'Unlimited Profile Views',
+    description: 'Unlock and browse member profiles without daily limits',
+    benefits: [
+      'Unlimited daily profile views',
+      'Instant access to all verified profiles',
+      'Priority matching recommendations',
+      'Direct messaging and contact details',
+    ],
+    planCheck: (plan: MembershipPlan) =>
+      (plan as any).daily_profile_view_limit === null || ((plan as any).daily_profile_view_limit ?? 0) > 20 || (plan as any).is_premium === true,
   },
 };
 

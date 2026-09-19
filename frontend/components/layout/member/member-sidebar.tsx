@@ -317,6 +317,8 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
               const active =
                 item.href === '/interests/received'
                   ? pathname.startsWith('/interests')
+                  : item.href === '/profile/me'
+                  ? pathname.startsWith('/profile')
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <NavLink

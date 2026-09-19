@@ -136,6 +136,9 @@ export default function LoginPage() {
         {/* Bottom fade */}
         <div style={{ position: 'absolute', inset: '0 0 0 0', background: 'linear-gradient(to top, rgba(35,9,20,0.75) 0%, transparent 50%)', bottom: 0 }} />
 
+        {/* Bottom fade */}
+        <div style={{ position: 'absolute', inset: '0 0 0 0', background: 'linear-gradient(to top, rgba(35,9,20,0.75) 0%, transparent 50%)', bottom: 0 }} />
+
         {/* Logo */}
         <Link to="/" style={{ position: 'absolute', top: 40, left: 40, display: 'flex', alignItems: 'center', gap: 12, zIndex: 10, textDecoration: 'none', cursor: 'pointer' }}>
           <img src="/images/main-logo.png" alt="My Dear Partner Logo" style={{ width: 42, height: 42, objectFit: 'contain' }} />
@@ -143,24 +146,6 @@ export default function LoginPage() {
             My Dear <span style={{ color: '#f0c4c5' }}>Partner</span>
           </span>
         </Link>
-
-        {/* Floating stat cards — top right */}
-        <div style={{ position: 'absolute', top: 40, right: 32, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[
-            { Icon: Users, val: '10K+', sub: 'Happy Couples' },
-            { Icon: ShieldCheck, val: '100%', sub: 'ID Verified' },
-          ].map(({ Icon, val, sub }) => (
-            <div key={sub} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', backdropFilter: 'blur(12px)' }}>
-              <div style={{ width: 30, height: 30, borderRadius: 10, background: 'rgba(240,196,197,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon style={{ width: 14, height: 14, color: '#f0c4c5' }} />
-              </div>
-              <div>
-                <div style={{ color: 'white', fontWeight: 900, fontSize: 14, lineHeight: 1 }}>{val}</div>
-                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 600, marginTop: 2 }}>{sub}</div>
-              </div>
-            </div>
-          ))}
-        </div>
 
         {/* Bottom copy */}
         <div style={{ position: 'absolute', bottom: 48, left: 40, right: 40, zIndex: 10 }}>
@@ -200,7 +185,7 @@ export default function LoginPage() {
               My Dear <span style={{ color: '#b64a68' }}>Partner</span>
             </span>
           </Link>
-          <Link to="/register" style={{ fontSize: 12, fontWeight: 800, color: '#8e3d58', border: '1px solid #f3b8cb', borderRadius: 12, padding: '6px 14px', background: '#fdf1f5', textDecoration: 'none' }}>
+          <Link to="/register" style={{ fontSize: 12, fontWeight: 800, color: '#e11d48', border: '1px solid #fecdd3', borderRadius: 12, padding: '6px 14px', background: '#fff1f2', textDecoration: 'none' }}>
             Register Free
           </Link>
         </div>
@@ -211,16 +196,16 @@ export default function LoginPage() {
 
             {/* Header */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: '#fce7ef', border: '1px solid #f3b8cb', color: '#8e3d58', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', width: 'fit-content', marginBottom: 4 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: '#fff1f2', border: '1px solid #fecdd3', color: '#e11d48', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', width: 'fit-content', marginBottom: 4 }}>
                 <Heart style={{ width: 12, height: 12, fill: 'currentColor' }} />
                 Member Sign In
               </div>
-              <h1 style={{ fontSize: 38, fontWeight: 900, color: '#230914', lineHeight: 1.15, letterSpacing: '-1px', margin: 0 }}>
-                Welcome<br />back. 👋
+              <h1 style={{ fontSize: 38, fontWeight: 900, color: '#0f0f10', lineHeight: 1.15, letterSpacing: '-1px', margin: 0 }}>
+                Sign In
               </h1>
               <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>
                 New to MyDearPartner?{' '}
-                <Link to="/register" style={{ color: '#8e3d58', fontWeight: 800, textDecoration: 'none' }}>
+                <Link to="/register" style={{ color: '#e11d48', fontWeight: 800, textDecoration: 'none' }}>
                   Create free account →
                 </Link>
               </p>
@@ -238,7 +223,7 @@ export default function LoginPage() {
               <div style={{ padding: '16px', borderRadius: 14, background: '#fff6f7', border: '1px solid #edcbd3' }}>
                 <div style={{ color: '#702d45', fontSize: 13, fontWeight: 800 }}>Recover your account</div>
                 <p style={{ margin: '6px 0 12px', color: '#776a6f', fontSize: 12, lineHeight: 1.5 }}>Your password has been confirmed. No OTP or recovery code is needed. Select Recover account within 30 days to restore it.</p>
-                <button type="button" onClick={() => void verifyRecovery()} disabled={recoveryBusy} style={{ width: '100%', border: 0, borderRadius: 12, padding: '11px 14px', background: '#8e3d58', color: 'white', fontWeight: 800, cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.6 : 1 }}>
+                <button type="button" onClick={() => void verifyRecovery()} disabled={recoveryBusy} style={{ width: '100%', border: 0, borderRadius: 12, padding: '11px 14px', background: '#e11d48', color: 'white', fontWeight: 800, cursor: recoveryBusy ? 'not-allowed' : 'pointer', opacity: recoveryBusy ? 0.6 : 1 }}>
                   {recoveryBusy ? 'Recovering account...' : 'Recover account'}
                 </button>
               </div>
@@ -252,8 +237,8 @@ export default function LoginPage() {
                 <label htmlFor="member-identifier" style={{ fontSize: 11, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Email or Mobile Number
                 </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'id' ? '#fff' : '#f9f1f4', border: focused === 'id' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'id' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
-                  <Mail style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'id' ? '#8e3d58' : '#c4a0ad', pointerEvents: 'none' }} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'id' ? '#fff' : '#f9f1f4', border: focused === 'id' ? '2px solid #e11d48' : '1.5px solid #f3d5de', boxShadow: focused === 'id' ? '0 0 0 4px rgba(225,29,72,0.10)' : 'none' }}>
+                  <Mail style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'id' ? '#e11d48' : '#c4a0ad', pointerEvents: 'none' }} />
                   <input
                     id="member-identifier"
                     autoFocus
@@ -275,12 +260,12 @@ export default function LoginPage() {
                   <label htmlFor="member-password" style={{ fontSize: 11, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                     Password
                   </label>
-                  <Link to="/forgot-password" style={{ fontSize: 11, fontWeight: 800, color: '#8e3d58', textDecoration: 'none' }}>
+                  <Link to="/forgot-password" style={{ fontSize: 11, fontWeight: 800, color: '#e11d48', textDecoration: 'none' }}>
                     Forgot Password?
                   </Link>
                 </div>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'pw' ? '#fff' : '#f9f1f4', border: focused === 'pw' ? '2px solid #8e3d58' : '1.5px solid #f3d5de', boxShadow: focused === 'pw' ? '0 0 0 4px rgba(142,61,88,0.10)' : 'none' }}>
-                  <Lock style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'pw' ? '#8e3d58' : '#c4a0ad', pointerEvents: 'none' }} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderRadius: 12, transition: 'all 0.18s', background: focused === 'pw' ? '#fff' : '#f9f1f4', border: focused === 'pw' ? '2px solid #e11d48' : '1.5px solid #f3d5de', boxShadow: focused === 'pw' ? '0 0 0 4px rgba(225,29,72,0.10)' : 'none' }}>
+                  <Lock style={{ position: 'absolute', left: 14, width: 16, height: 16, color: focused === 'pw' ? '#e11d48' : '#c4a0ad', pointerEvents: 'none' }} />
                   <input
                     id="member-password"
                     type={showPassword ? 'text' : 'password'}
@@ -314,8 +299,8 @@ export default function LoginPage() {
                   width: '100%',
                   padding: '16px 24px',
                   borderRadius: 12,
-                  background: submitting ? '#b0607a' : '#8e3d58',
-                  boxShadow: submitting ? 'none' : '0 6px 24px rgba(142,61,88,0.32)',
+                  background: submitting ? '#be123c' : '#e11d48',
+                  boxShadow: submitting ? 'none' : '0 6px 24px rgba(225,29,72,0.30)',
                   border: 'none',
                   color: 'white',
                   fontWeight: 900,
@@ -349,7 +334,7 @@ export default function LoginPage() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#8e3d58',
+                color: '#e11d48',
                 fontSize: 12,
                 fontWeight: 800,
                 textDecoration: 'none',
@@ -358,33 +343,6 @@ export default function LoginPage() {
               Sign in with a one-time code <ArrowRight style={{ width: 14, height: 14, marginLeft: 4 }} />
             </Link>
 
-            {/* Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1, height: 1, background: '#f0e0e8' }} />
-              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>Secured Login</span>
-              <div style={{ flex: 1, height: 1, background: '#f0e0e8' }} />
-            </div>
-
-            {/* Trust grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {[
-                { Icon: ShieldCheck, label: '100% Verified' },
-                { Icon: LockKeyhole, label: 'End-to-End Secure' },
-                { Icon: CheckCircle2, label: 'Govt ID Checked' },
-              ].map(({ Icon, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 14, background: '#fdf1f5', border: '1px solid #f3d5de', textAlign: 'center' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fce7ef', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon style={{ width: 15, height: 15, color: '#8e3d58' }} />
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#4b5563', lineHeight: 1.3 }}>{label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer */}
-            <p style={{ textAlign: 'center', fontSize: 11, color: '#9ca3af', margin: 0 }}>
-              © {new Date().getFullYear()} MyDearPartner · All data encrypted &amp; secure.
-            </p>
           </div>
         </div>
       </div>
@@ -403,12 +361,12 @@ export default function LoginPage() {
         .login-redesign > div:last-of-type { background: #fffefd !important; }
         .login-redesign .login-mobile-topbar { border-bottom: 1px solid #eaded8; background: #fffefd !important; }
         .login-redesign input { border-radius: 12px !important; }
-        .login-redesign button[type="submit"] { min-height: 3.25rem; border-radius: 12px !important; background: #8e3d58 !important; box-shadow: 0 12px 24px rgba(142,61,88,.22) !important; text-transform: uppercase; letter-spacing: .11em; font-size: 12px !important; }
-        .login-redesign button[type="submit"]:hover { background: #702d45 !important; transform: translateY(-1px); }
+        .login-redesign button[type="submit"] { min-height: 3.25rem; border-radius: 12px !important; background: #e11d48 !important; box-shadow: 0 12px 24px rgba(225,29,72,.22) !important; text-transform: uppercase; letter-spacing: .11em; font-size: 12px !important; }
+        .login-redesign button[type="submit"]:hover { background: #be123c !important; transform: translateY(-1px); }
         .login-redesign [style*="background: '#f9f1f4'"] { background: #fffaf7 !important; border-color: #eaded8 !important; }
         .login-redesign [style*="background: '#fdf1f5'"] { background: #fffaf7 !important; border-color: #eaded8 !important; }
-        .login-redesign [style*="color: '#8e3d58'"] { color: #8e3d58 !important; }
-        .login-redesign a:focus-visible, .login-redesign button:focus-visible { outline: 2px solid #b64a68; outline-offset: 3px; }
+        .login-redesign [style*="color: '#e11d48'"] { color: #e11d48 !important; }
+        .login-redesign a:focus-visible, .login-redesign button:focus-visible { outline: 2px solid #e11d48; outline-offset: 3px; }
         @media (min-width: 1024px) {
           .login-hero-panel { display: block !important; }
           .login-mobile-topbar { display: none !important; }

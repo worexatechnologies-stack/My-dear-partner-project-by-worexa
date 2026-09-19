@@ -1,4 +1,4 @@
-﻿/* ════════════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    MY DEAR PARTNER 2026 — MODERN MINIMALIST DESIGN SYSTEM
    Palette: Slate #0f172a | Blue #e11d48 | Amber #f59e0b | White #ffffff
    ════════════════════════════════════════════════════════════════════════════ */
@@ -67,7 +67,7 @@
   --theme-emerald: #16a34a;
   --theme-dark: #25121b;
   --theme-gray: #6b7280;
-  --theme-light-bg: #f8fafc;
+  --theme-light-bg: #fafafa;
   --theme-white: #ffffff;
   --theme-indigo: #b64a68;
   --theme-purple: #702d45;
@@ -75,7 +75,7 @@
   --soft-muted-old: #a6979d;
   --line-old: rgba(67,32,45,.10);
   --surface-old: #ffffff;
-  --surface-strong: #f1f5f9;
+  --surface-strong: #fafafa;
 }
 
 /* ── Base reset ──────────────────────────────────────────────────────────── */
@@ -348,8 +348,8 @@ main > div:not(.mh) section:first-of-type::after {
   --theme-secondary-400: #fbbf24;
   --ink: #0f172a;
   --muted: #64748b;
-  --app-bg: #f1f5f9;
-  --brand-gradient: linear-gradient(135deg, #e11d48 0%, #1e40af 100%);
+  --app-bg: #fafafa;
+  --brand-gradient: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -370,7 +370,7 @@ main > div:not(.mh) section:first-of-type::after {
    SCROLLBAR
    ════════════════════════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-track { background: #fafafa; }
 ::-webkit-scrollbar-thumb { background: rgba(59,130,246,.35); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,.6); }
 

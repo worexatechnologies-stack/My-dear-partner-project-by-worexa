@@ -369,11 +369,43 @@ class ProfileService:
 
         # Calculate compatibility from the viewer's saved preferences only.
         from apps.core.matching import calculate_profile_compatibility
+        from apps.core.models import Interest
 
         compatibility = calculate_profile_compatibility(viewer, member)
         
         # Get interest usage
         interest_usage = InterestService.get_daily_usage(viewer)
+
+        # Check existing interest relationship between viewer and member
+        active_interest = Interest.objects.filter(
+            Q(sender=viewer, receiver=member) | Q(sender=member, receiver=viewer)
+        ).exclude(status=Interest.Status.WITHDRAWN).order_by('-updated_at').first()
+
+        interest_info = {
+            'state': None,
+            'id': None,
+            'direction': None,
+        }
+        if active_interest:
+            is_outgoing = str(active_interest.sender_id) == str(viewer.pk)
+            if active_interest.status == Interest.Status.ACCEPTED:
+                interest_info = {
+                    'state': 'ACCEPTED',
+                    'id': str(active_interest.id),
+                    'direction': 'sent' if is_outgoing else 'received',
+                }
+            elif active_interest.status == Interest.Status.PENDING:
+                interest_info = {
+                    'state': 'SENT' if is_outgoing else 'RECEIVED',
+                    'id': str(active_interest.id),
+                    'direction': 'sent' if is_outgoing else 'received',
+                }
+            elif active_interest.status == Interest.Status.DECLINED:
+                interest_info = {
+                    'state': 'DECLINED',
+                    'id': str(active_interest.id),
+                    'direction': 'sent' if is_outgoing else 'received',
+                }
         
         # Check messaging permission
         can_message, _ = ProfileService.can_message(viewer, member)
@@ -398,6 +430,7 @@ class ProfileService:
                     'score': compatibility['score'],
                     'explanations': compatibility['explanations'],
                 },
+                'interest': interest_info,
                 'access': {
                     'plan': plan.name if plan else 'Free',
                     'profile_unlocked': True,
@@ -411,6 +444,7 @@ class ProfileService:
                     'contact_access_mode': contact_mode.lower(),
                     'photo_access_mode': photo_mode.lower(),
                     'resets_at': access_data.get('resets_at'),
+                    'interest': interest_info,
                 },
             }
         )

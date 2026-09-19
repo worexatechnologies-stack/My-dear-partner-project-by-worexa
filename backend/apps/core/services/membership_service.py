@@ -383,6 +383,12 @@ class MembershipService:
         plan = MembershipService.get_effective_plan(member)
         membership = MembershipService.get_active_membership(member)
         
+        from apps.core.services.profile_unlock_service import ProfileUnlockService
+        unlock_usage = ProfileUnlockService.get_daily_usage(member)
+        used_today = unlock_usage.get('used_today', 0)
+        remaining_today = unlock_usage.get('remaining_today')
+        effective_daily_limit = unlock_usage.get('daily_limit')
+
         if not plan:
             # Free / Trial plan: feature flags mirror get_active_entitlements
             from apps.core.entitlements import get_active_entitlements
@@ -399,7 +405,9 @@ class MembershipService:
                 'start_date': getattr(member, 'created_at', None) or getattr(member, 'date_joined', None),
                 'end_date': entitlements.trial_expires_at,
                 'days_remaining': entitlements.trial_days_remaining if entitlements.is_trial else 0,
-                'daily_profile_unlock_limit': entitlements.daily_profile_view_limit,
+                'daily_profile_unlock_limit': effective_daily_limit,
+                'daily_profile_unlocks_used': used_today,
+                'daily_profile_unlocks_remaining': remaining_today,
                 'daily_interest_limit': entitlements.daily_interest_limit,
                 'can_message': entitlements.can_chat,
                 'can_use_advanced_search': entitlements.can_use_advanced_search,
@@ -422,7 +430,9 @@ class MembershipService:
             'start_date': (membership.started_at or membership.start_date) if membership else None,
             'end_date': (membership.expires_at or membership.end_date) if membership else None,
             'days_remaining': days_remaining,
-            'daily_profile_unlock_limit': plan.daily_profile_unlock_limit,
+            'daily_profile_unlock_limit': effective_daily_limit if effective_daily_limit is not None else plan.daily_profile_unlock_limit,
+            'daily_profile_unlocks_used': used_today,
+            'daily_profile_unlocks_remaining': remaining_today,
             'daily_interest_limit': plan.interest_limit,
             'can_message': bool(plan.can_message),
             'can_use_advanced_search': plan.can_use_advanced_search,

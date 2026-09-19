@@ -21,11 +21,11 @@
   --color-gold-300: #e9bac3;
   --color-gold-100: #fbe8ec;
 
-  /* Backgrounds — clean cool neutrals */
+  /* Backgrounds — clean neutral whites */
   --color-cream-900: #1a1a1a;
-  --color-cream-200: #e2e8f0;
-  --color-cream-100: #f1f5f9;
-  --color-cream-50: #f8fafc;
+  --color-cream-200: #e5e5e5;
+  --color-cream-100: #f5f5f5;
+  --color-cream-50: #fafafa;
 
   /* Text */
   --color-ink: #0f172a;
@@ -37,8 +37,8 @@
 
   /* Surfaces */
   --color-surface: rgba(255, 255, 255, 0.9);
-  --color-surface-alt: rgba(248, 250, 252, 0.9);
-  --color-app-bg: #f8fafc;
+  --color-surface-alt: rgba(250, 250, 250, 0.9);
+  --color-app-bg: #fafafa;
 
   /* Feedback */
   --color-error: #ef4444;
@@ -290,7 +290,7 @@ input, textarea, select, button { max-width: 100%; }
 .member-page-content {
   height: 100%;
   min-height: 0;
-  background: #fbf7f2;
+  background: #fafafa;
 }
 .member-page-content > * {
   /* Legacy member pages reserved 80–130px for the retired fixed navbar.
@@ -303,7 +303,6 @@ input, textarea, select, button { max-width: 100%; }
      scrolling; they only overflow (and then scroll internally) when content is
      genuinely longer than the viewport. */
   min-height: 100% !important;
-  background-color: transparent !important;
 }
 
 /* The signed-in portal continues the landing page's editorial system: warm
@@ -313,18 +312,15 @@ input, textarea, select, button { max-width: 100%; }
   --portal-muted: #776a6f;
   --portal-accent: #8e3d58;
   --portal-accent-soft: #f8e9ee;
-  --portal-canvas: #faf6f3;
-  --portal-surface: #fffefd;
+  --portal-canvas: #fafafa;
+  --portal-surface: #ffffff;
   --portal-border: #ede1db;
   color: var(--portal-ink);
 }
 .member-portal .member-page-content {
   scrollbar-color: #dcc8ce transparent;
   scrollbar-width: thin;
-  background:
-    radial-gradient(52rem 30rem at 108% -8%, rgba(182, 74, 104, 0.055), transparent 60%),
-    radial-gradient(40rem 26rem at -12% 108%, rgba(217, 179, 108, 0.05), transparent 60%),
-    #faf6f3;
+  background: #fafafa;
 }
 .member-portal .member-page-content :where(input, select, textarea) {
   border-color: var(--portal-border);
@@ -396,6 +392,28 @@ body.mdp-modal-lock .member-page-content { overflow: hidden !important; }
 .motion-card:hover { transform: translateY(-3px); box-shadow: 0 18px 38px rgba(67,22,39,.12); border-color: rgba(182,74,104,.22); }
 .motion-status { animation: mdp-soft-pulse 2.4s ease-in-out infinite; }
 a, button, input, select, textarea { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .18s; transition-timing-function: ease; }
+
+/* Hide scrollbar utility */
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+@keyframes mdpTooltipIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }

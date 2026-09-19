@@ -56,7 +56,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'admin_role', 'admin_role_display', 'admin_permissions', 'photo',
             'photos', 'documents', 'completion_percentage', 'missing_fields', 'can_submit',
             'chat_public_key', 'deleted_at', 'is_deleted', 'account_status',
-            'recovery_until', 'deleted_by', 'terms_accepted_at',
+            'recovery_until', 'deleted_by', 'terms_accepted_at', 'is_hidden',
         )
 
     def get_admin_role(self, obj):
@@ -683,6 +683,7 @@ class MemberProfileUpdateSerializer(serializers.Serializer):
     pref_marital_status = serializers.CharField(required=False, allow_blank=True)
     pref_about = serializers.CharField(required=False, allow_blank=True)
     chat_public_key = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    is_hidden = serializers.BooleanField(required=False)
 
     # Canonical aliases (spec names). Accepted in addition to the existing wire
     # names so neither spelling is silently dropped, and the API response also

@@ -66,16 +66,16 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={`relative rounded-xl p-2 transition-colors focus-visible:outline-2 focus-visible:outline-[#b64a68] focus-visible:outline-offset-2 ${
-          open ? 'bg-[#f8e9ee] text-[#8e3d58]' : 'text-[#8a747d] hover:bg-[#f8e9ee] hover:text-[#8e3d58]'
+        className={`relative p-2 rounded-full transition-all text-[#262626] hover:text-black hover:scale-105 active:scale-95 ${
+          open ? 'bg-[#efefef]' : 'hover:bg-[#efefef]'
         }`}
         aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={open}
         aria-controls={panelId}
       >
-        <Bell className="h-5 w-5" aria-hidden="true" />
+        <Bell className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#b64a68] px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
+          <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ed4956] px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

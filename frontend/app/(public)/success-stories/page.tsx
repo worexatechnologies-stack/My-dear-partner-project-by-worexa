@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Heart, ShieldCheck, Quote, Users, Star, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, Heart, ShieldCheck, Quote, Users, Star, MessageCircle } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Success Stories | MyDearPartner',

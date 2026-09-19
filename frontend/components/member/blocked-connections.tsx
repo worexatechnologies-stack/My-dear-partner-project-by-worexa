@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Ban, EyeOff, RotateCcw, Loader2, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Ban, EyeOff, RotateCcw, Loader2, ShieldCheck, ArrowRight, X, Check } from 'lucide-react';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { getInterests, updateInterestStatus } from '@/legacy/services/dataService';
 import SmartImage from '@/components/shared/smart-image';
@@ -31,6 +31,7 @@ export function BlockedConnections() {
   const [rejected, setRejected] = useState<RejectedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
+  const [profileToUnblock, setProfileToUnblock] = useState<BlockedProfile | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -156,7 +157,7 @@ export function BlockedConnections() {
                       <div className="flex gap-2 px-4 pb-4 pt-1">
                         <button
                           type="button"
-                          onClick={() => handleUnblock(p.id)}
+                          onClick={() => setProfileToUnblock(p)}
                           disabled={busyId === p.id}
                           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                         >
@@ -238,6 +239,72 @@ export function BlockedConnections() {
           </div>
         )}
       </div>
+
+      {profileToUnblock && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { if (!busyId) setProfileToUnblock(null); }}
+        >
+          <div
+            className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-4 my-auto transform transition-all text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs bg-emerald-50 border border-emerald-100 text-emerald-600">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileToUnblock(null)}
+                disabled={Boolean(busyId)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                Unblock this profile?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                Are you sure you want to unblock {profileToUnblock.full_name || 'this member'}? They will be able to see your profile and connect with you again.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setProfileToUnblock(null)}
+                disabled={Boolean(busyId)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleUnblock(profileToUnblock.id);
+                  setProfileToUnblock(null);
+                }}
+                disabled={Boolean(busyId)}
+                className="flex-1 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+              >
+                {busyId === profileToUnblock.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Unblock Profile
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

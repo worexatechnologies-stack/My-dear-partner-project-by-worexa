@@ -231,11 +231,49 @@ export const markMessagesRead = async (userId: string): Promise<{ marked_count?:
   });
 };
 
+const SENT_INTERESTS_SESSION_KEY = 'mdp_sent_interest_ids';
+
+export const getCachedSentInterestIds = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = sessionStorage.getItem(SENT_INTERESTS_SESSION_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const cacheSentInterestId = (id: string | number) => {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const set = getCachedSentInterestIds();
+    set.add(String(id));
+    sessionStorage.setItem(SENT_INTERESTS_SESSION_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
+export const removeCachedSentInterestId = (id: string | number) => {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const set = getCachedSentInterestIds();
+    set.delete(String(id));
+    sessionStorage.setItem(SENT_INTERESTS_SESSION_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
 export const getInterests = async (type: 'incoming' | 'outgoing' = 'incoming'): Promise<any[]> => {
-  return fetchApi<any[]>(`/interests/?type=${type}`);
+  const data = await fetchApi<any[]>(`/interests/?type=${type}`);
+  if (type === 'outgoing' && Array.isArray(data)) {
+    data.forEach((item) => {
+      const id = item?.receiver?.id || item?.receiver?.user_id;
+      if (id) cacheSentInterestId(id);
+    });
+  }
+  return data;
 };
 
 export const sendInterest = async (receiverId: string): Promise<any> => {
+  if (receiverId) cacheSentInterestId(receiverId);
   return fetchApi<any>('/interests/', {
     method: 'POST',
     body: JSON.stringify({ receiver_id: receiverId }),

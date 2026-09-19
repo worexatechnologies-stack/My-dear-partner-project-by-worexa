@@ -223,6 +223,7 @@ async function requestBody(request: NextRequest, path: string) {
   return bytes.byteLength > 0 ? bytes : undefined;
 }
 
+
 export async function forwardToDjango(request: NextRequest, segments: string[]) {
   if (!safePath(segments)) {
     return NextResponse.json({ success: false, message: "Invalid API path." }, { status: 400 });
@@ -243,15 +244,38 @@ export async function forwardToDjango(request: NextRequest, segments: string[]) 
     );
   }
   const headers = new Headers();
-  for (const name of ["accept", "content-type", "authorization", "if-none-match", "x-request-id", "x-csrftoken"]) {
+  for (const name of [
+    "accept",
+    "content-type",
+    "authorization",
+    "if-none-match",
+    "x-request-id",
+    "x-csrftoken",
+    "user-agent",
+    "x-forwarded-for",
+    "x-real-ip",
+    "cf-connecting-ip",
+    "x-client-ip",
+    "x-client-latitude",
+    "x-client-longitude",
+    "x-client-city",
+    "x-client-country",
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
+  }
+  const clientUa = request.headers.get("user-agent");
+  if (clientUa && !headers.has("user-agent")) {
+    headers.set("user-agent", clientUa);
+  }
+  const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || (request as any).ip;
+  if (clientIp && !headers.has("x-forwarded-for")) {
+    headers.set("x-forwarded-for", clientIp);
   }
   // Login and refresh requests must be independent of any stale browser
   // session. This includes hyphenated namespaces such as super-admin-auth.
   if (publicAuthPath.test(path)) headers.delete("authorization");
   const requestId = headers.get("x-request-id") || crypto.randomUUID();
-  headers.set("x-request-id", requestId);
   // For public / unauthenticated paths (register, login, otp/verify, etc.)
   // do NOT forward any access token — it may be stale/expired and would
   // cause a spurious 401 from Django even though no auth is required.

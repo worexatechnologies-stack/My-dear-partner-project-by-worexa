@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import SmartImage from '@/components/shared/smart-image';
 import { useState, useEffect } from 'react';
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getInterests, getConversations, getProfiles, updateInterestStatus } from '../services/dataService';
+import { fetchInterestStats } from '@/lib/interest-stats';
 import { fetchApi } from '../services/apiClient';
 import { DashboardSkeleton } from '../components/SkeletonLoader';
 import DailyUsageWidget from '@/components/member/daily-usage-widget';
@@ -152,7 +153,7 @@ export default function DashboardPage() {
     <div className="min-h-screen pt-20 sm:pt-24 pb-20 bg-slate-50 overflow-x-hidden font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
-        {/* ── NEW HERO BANNER (Light & Premium) ── */}
+        {/* â”€â”€ NEW HERO BANNER (Light & Premium) â”€â”€ */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -198,7 +199,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-black font-display text-slate-800 tracking-tight">
-                  Welcome back, {user?.first_name || 'Member'} 👋
+                  Welcome back, {user?.first_name || 'Member'} ðŸ‘‹
                 </h1>
                 <p className="text-slate-500 font-medium text-sm max-w-md">
                   Discover new matches tailored for you. Complete your profile checklist to maximize your visibility.
@@ -226,7 +227,7 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* ── BENTO DASHBOARD GRID ── */}
+        {/* â”€â”€ BENTO DASHBOARD GRID â”€â”€ */}
         <div className="grid lg:grid-cols-[1fr_360px] gap-8 items-start">
           
           {/* Main Content Column */}

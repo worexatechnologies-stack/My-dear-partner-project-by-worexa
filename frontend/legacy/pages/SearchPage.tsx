@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 import SmartImage from '@/components/shared/smart-image';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useSearchParams } from '@/lib/router-compat';
 import { profileHref } from '@/lib/profile-url';
-import { Heart, MessageCircle, MapPin, ShieldCheck, Search, SlidersHorizontal, X, Check, Crown, ChevronDown, RefreshCw, Bookmark, Sparkles, Users } from 'lucide-react';
+import { Heart, MessageCircle, MapPin, ShieldCheck, Search, SlidersHorizontal, X, Check, Crown, ChevronDown, RefreshCw, Bookmark, Users } from 'lucide-react';
 import type { Profile } from '../types/domain';
 import { getProfiles, sendInterest } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,7 @@ import { usePresence } from '../../hooks/use-presence';
 
 function cardName(p: Profile) { return p.name?.split(' ')[0] || 'Member'; }
 
-/* ──────────── Skeleton ──────────── */
+/* ------------ Skeleton ------------ */
 function SkeletonCard() {
   return (
     <div className="fsp-card animate-pulse">
@@ -30,7 +30,7 @@ function SkeletonCard() {
   );
 }
 
-/* ──────────── Profile Card ──────────── */
+/* ------------ Profile Card ------------ */
 function ProfileCard({ profile, online, busy, onInterest, onMessage }: {
   profile: Profile; online: boolean; busy: boolean;
   onInterest: () => void; onMessage: () => void;
@@ -271,7 +271,7 @@ export default function SearchPage() {
       <style>{css}</style>
       <div className="fsp-wrap">
 
-        {/* ── Sidebar ── */}
+        {/* -- Sidebar -- */}
         <aside className="fsp-sidebar">
           <div className="fsp-sidebar-inner">
             <div className="fsp-sidebar-head">
@@ -292,7 +292,7 @@ export default function SearchPage() {
           </div>
         </aside>
 
-        {/* ── Main ── */}
+        {/* -- Main -- */}
         <div className="fsp-main">
 
           {/* Sticky header */}
@@ -369,7 +369,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* ── Mobile filter drawer ── */}
+      {/* -- Mobile filter drawer -- */}
       <AnimatePresence>
         {drawerOpen && (
           <>
@@ -397,7 +397,7 @@ export default function SearchPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Message modal ── */}
+      {/* -- Message modal -- */}
       <AnimatePresence>
         {msgProfile && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

@@ -20,21 +20,34 @@ _IPRIVATE = (
 
 
 def _resolve_location(ip):
-    """Resolve IP to city/country via ip-api.com with 1-hour cache."""
-    if not ip:
-        return None, None, None, None
-    if any(ip.startswith(p) for p in _IPRIVATE) or ip == '127.0.0.1' or ip == '::1':
-        return None, None, 'Local Network', ''
-    cache_key = f'geoip_{ip}'
+    """Resolve IP to city/country via ip-api.com with 1-hour cache.
+
+    If the IP is a private/local network address (e.g. Docker container or
+    local development proxy), falls back to the public egress IP so that
+    actual city/country geolocation is accurately resolved.
+    """
+    ip_str = str(ip or '').strip()
+    is_private = (
+        not ip_str
+        or any(ip_str.startswith(p) for p in _IPRIVATE)
+        or ip_str in ('127.0.0.1', '::1', 'localhost')
+    )
+    cache_key = f'geoip_{ip_str}' if not is_private else 'geoip_local_egress'
     cached = cache.get(cache_key)
     if cached:
         return cached
+
+    url = (
+        f'http://ip-api.com/json/{ip_str}?fields=lat,lon,city,country,status'
+        if not is_private
+        else 'http://ip-api.com/json/?fields=lat,lon,city,country,status'
+    )
     try:
         req = urllib_request.Request(
-            f'http://ip-api.com/json/{ip}?fields=lat,lon,city,country',
-            headers={'User-Agent': 'Matiromony/1.0'},
+            url,
+            headers={'User-Agent': 'Matrimony/1.0'},
         )
-        with urllib_request.urlopen(req, timeout=2) as resp:
+        with urllib_request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode())
         if data.get('status') == 'success':
             result = (
@@ -47,6 +60,8 @@ def _resolve_location(ip):
             return result
     except Exception:
         pass
+    if is_private:
+        return None, None, 'Local Network', ''
     return None, None, None, None
 
 
@@ -105,6 +120,28 @@ def audit(
         return None
     ip = client_ip(request)
     lat, lon, city, country = _resolve_location(ip)
+
+    user_agent = ''
+    if request and hasattr(request, 'META'):
+        user_agent = (
+            request.META.get('HTTP_USER_AGENT')
+            or request.META.get('HTTP_X_ORIGINAL_USER_AGENT')
+            or ''
+        )[:1000]
+        client_city = request.META.get('HTTP_X_CLIENT_CITY')
+        client_country = request.META.get('HTTP_X_CLIENT_COUNTRY')
+        client_lat = request.META.get('HTTP_X_CLIENT_LATITUDE')
+        client_lon = request.META.get('HTTP_X_CLIENT_LONGITUDE')
+        if client_city or client_country:
+            city = client_city or city
+            country = client_country or country
+        if client_lat and client_lon:
+            try:
+                lat = float(client_lat)
+                lon = float(client_lon)
+            except (ValueError, TypeError):
+                pass
+
     return model.objects.create(
         actor_id=actor.pk,
         actor_name=actor.get_full_name() or actor.email or '',
@@ -121,7 +158,7 @@ def audit(
         longitude=lon,
         city=city or '',
         country=country or '',
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000] if request and hasattr(request, 'META') else '',
+        user_agent=user_agent,
     )
 
 

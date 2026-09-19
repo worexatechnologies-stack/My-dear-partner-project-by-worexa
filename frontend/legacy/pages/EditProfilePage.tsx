@@ -1,9 +1,8 @@
 'use client';
 
-import ProfileImage from '@/components/profile/ProfileImage';
-import ProtectedDocumentViewer from '@/components/documents/ProtectedDocumentViewer';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePathname } from 'next/navigation';
+import { useDispatch } from 'react-redux';
 import {
   AlertCircle,
   BadgeCheck,
@@ -12,23 +11,28 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Eye,
   FileText,
   HeartHandshake,
   ImagePlus,
   Loader2,
+  Lock,
   Mail,
+  MapPin,
   Save,
   ShieldCheck,
   SlidersHorizontal,
   Smartphone,
   Star,
   Trash2,
+  TrendingUp,
   Upload,
   UserRound,
   UsersRound,
   XCircle,
 } from 'lucide-react';
-import { useDispatch } from 'react-redux';
+import ProfileImage from '@/components/profile/ProfileImage';
+import ProtectedDocumentViewer from '@/components/documents/ProtectedDocumentViewer';
 import { useAuth, type UserType } from '../contexts/AuthContext';
 import { ApiError, fetchApi } from '../services/apiClient';
 import { baseApi } from '../services/baseApi';
@@ -63,109 +67,106 @@ const heightOptions = [
   "196 cm (6'5\")",
 ];
 
-const maritalStatusOptions = ['', 'Never Married', 'Divorced', 'Widowed', 'Awaiting Divorce'];
-const preferredMaritalStatusOptions = ['', 'Any', 'Never Married', 'Divorced', 'Widowed', 'Awaiting Divorce'];
-const weightOptions = ['', 'NA', 'Below 40 kg', '40–49 kg', '50–59 kg', '60–69 kg', '70–79 kg', '80–89 kg', '90–99 kg', '100 kg and above'];
-const bloodGroupOptions = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', "Don't know"];
-const complexionOptions = ['', 'Very fair', 'Fair', 'Wheatish', 'Wheatish brown', 'Dark'];
-const religionOptions = ['', 'Hindu', 'Muslim', 'Christian', 'Sikh', 'Jain', 'Buddhist', 'Jewish', 'Parsi', 'Other'];
-const motherTongueOptions = ['', 'Hindi', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi', 'Urdu', 'Odia', 'Other'];
-const educationOptions = ['', 'NA', 'High school', 'Diploma', 'BCA', 'B.Com', 'B.Sc', 'BA', 'BE', 'B.Tech', 'BBA', 'MBA', 'MCA', 'M.Tech', 'MBBS', 'MD', 'PhD', 'Other'];
-const occupationOptions = ['', 'NA', 'Software professional', 'Business owner', 'Teacher', 'Doctor', 'Engineer', 'Government employee', 'Banking professional', 'Designer', 'Consultant', 'Not working', 'Other'];
-const employedInOptions = ['', 'NA', 'Private company', 'Government / public sector', 'Business / self employed', 'Defence / civil services', 'Non-profit organisation', 'Not working'];
-const companyOptions = ['', 'Not specified', 'Self employed', 'Government organisation', 'Private company', 'Other'];
-const incomeOptions = ['', 'No income', 'Below ₹1 lakh', '₹1–3 lakh', '₹3–5 lakh', '₹5–7 lakh', '₹7–10 lakh', '₹10–15 lakh', '₹15–20 lakh', '₹20–30 lakh', '₹30 lakh and above', 'Prefer not to say'];
-const preferredAgeOptions = ['', ...Array.from({ length: 83 }, (_, index) => String(index + 18))];
-const preferredHeightOptions = ['Any', ...heightOptions.slice(1)];
-const casteOptions = ['', 'Any', 'Brahmin', 'Kshatriya', 'Vaishya', 'Reddy', 'Kamma', 'Kapus', 'Vokkaliga', 'Lingayat', 'Naidu', 'Nair', 'Ezhava', 'SC', 'ST', 'OBC', 'Other'];
-const preferredLocationOptions = ['', 'Any', 'Bangalore', 'Tirupati', 'Bangalore & Tirupati', 'Chennai', 'Hyderabad', 'Mumbai', 'Pune', 'Delhi', 'Kolkata', 'Other'];
-const preferredEducationOptions = ['', 'Any', 'High school', 'Diploma', 'BCA', 'B.Com', 'B.Sc', 'BA', 'BE', 'B.Tech', 'Btech', 'BBA', 'MBA', 'MCA', 'M.Tech', 'MBBS', 'MD', 'PhD', 'Other'];
-const preferredOccupationOptions = ['', 'Any', 'Software professional', 'software', 'Business owner', 'Teacher', 'Doctor', 'Engineer', 'Government employee', 'Banking professional', 'Designer', 'Consultant', 'Not working', 'Other'];
-const parentStatusOptions = ['', 'Government employee', 'govt employee', 'Private employee', 'Business owner', 'Self employed', 'Retired', 'Not working', 'House wife', 'Homemaker', 'Deceased', 'Other'];
-const siblingCountOptions = ['', ...Array.from({ length: 11 }, (_, index) => String(index))];
-const familyStatusOptions = ['', 'Middle class', 'Upper middle class', 'Rich / affluent', 'Other'];
-const familyLocationOptions = ['', 'Bangalore', 'Tirupati', 'Chennai', 'Hyderabad', 'Mumbai', 'Pune', 'Delhi', 'Kolkata', 'Other'];
-const idealPartnerOptions = [
-  '',
-  'Kind, caring, and family-oriented',
-  'Well educated and professionally settled',
-  'Respectful, honest, and understanding',
-  'Traditional values with a modern outlook',
-  'Ambitious, supportive, and compassionate',
-  'Simple, responsible, and good-natured',
-  'Open to mutual respect and lifelong companionship',
-];
-
 const sections: Record<Exclude<TabId, 'photos' | 'verification'>, FieldConfig[]> = {
   basic: [
-    { key: 'first_name', label: 'First name', placeholder: 'Enter your first name' },
-    { key: 'last_name', label: 'Last name', placeholder: 'Enter your last name' },
-    { key: 'mobile_number', label: 'Mobile number', placeholder: 'Enter your mobile number' },
+    { key: 'first_name', label: 'First Name', placeholder: 'Enter your first name' },
+    { key: 'last_name', label: 'Last Name', placeholder: 'Enter your last name' },
+    { key: 'mobile_number', label: 'Mobile Number', placeholder: 'Enter your mobile number' },
     { key: 'gender', label: 'Gender', placeholder: 'e.g. Male, Female, Other' },
-    { key: 'profile_created_by', label: 'Profile created by', placeholder: 'e.g. Self, Parent, Sibling' },
-    { key: 'date_of_birth', label: 'Date of birth', type: 'date' },
-    { key: 'work_location', label: 'Current city', placeholder: 'Where do you currently live?' },
-    { key: 'about', label: 'About me', type: 'textarea', placeholder: 'Share a thoughtful introduction about yourself' },
-    { key: 'hobbies', label: 'Hobbies and interests', placeholder: 'Reading, travel, music' },
+    { key: 'profile_created_by', label: 'Profile Created By', placeholder: 'e.g. Self, Parent, Sibling' },
+    { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+    { key: 'work_location', label: 'Current City', placeholder: 'Where do you currently live?' },
+    { key: 'about', label: 'About Me', type: 'textarea', placeholder: 'Share a thoughtful introduction about your life, values, and aspirations' },
+    { key: 'hobbies', label: 'Hobbies & Interests', placeholder: 'e.g. Reading, travel, music, photography' },
   ],
   personal: [
-    { key: 'marital_status', label: 'Marital status', placeholder: 'e.g. Never Married, Divorced, Widowed' },
+    { key: 'marital_status', label: 'Marital Status', placeholder: 'e.g. Never Married, Divorced, Widowed' },
     { key: 'height', label: 'Height', type: 'select', options: heightOptions },
     { key: 'weight', label: 'Weight', placeholder: 'e.g. 65 kg' },
-    { key: 'blood_group', label: 'Blood group', placeholder: 'e.g. A+, B+, O+' },
+    { key: 'blood_group', label: 'Blood Group', placeholder: 'e.g. A+, B+, O+' },
     { key: 'complexion', label: 'Complexion', placeholder: 'e.g. Fair, Wheatish, Dark' },
     { key: 'religion', label: 'Religion', placeholder: 'e.g. Hindu, Muslim, Christian, Sikh' },
-    { key: 'mother_tongue', label: 'Mother tongue', placeholder: 'e.g. Hindi, Tamil, Telugu' },
-    { key: 'caste', label: 'Caste or community' },
-    { key: 'sub_caste', label: 'Sub-caste' },
-    { key: 'gothra', label: 'Gothra' },
-    { key: 'star_nakshatra', label: 'Star or Nakshatra' },
+    { key: 'mother_tongue', label: 'Mother Tongue', placeholder: 'e.g. Hindi, Kannada, Tamil, Telugu' },
+    { key: 'caste', label: 'Caste / Community', placeholder: 'e.g. Brahmin, Reddy, Nair' },
+    { key: 'sub_caste', label: 'Sub-Caste', placeholder: 'Enter sub-caste' },
+    { key: 'gothra', label: 'Gothra', placeholder: 'Enter gothra' },
+    { key: 'star_nakshatra', label: 'Star / Nakshatra', placeholder: 'Enter star or nakshatra' },
   ],
   family: [
-    { key: 'father_status', label: "Father's status", placeholder: 'e.g. Software professional, Business owner' },
-    { key: 'mother_status', label: "Mother's status", placeholder: 'e.g. Homemaker, Business owner' },
-    { key: 'num_brothers', label: 'Number of brothers', type: 'number', placeholder: 'e.g. 0, 1, 2' },
-    { key: 'num_sisters', label: 'Number of sisters', type: 'number', placeholder: 'e.g. 0, 1, 2' },
-    { key: 'family_type', label: 'Family type', placeholder: 'e.g. Nuclear, Joint' },
-    { key: 'family_status', label: 'Family status', placeholder: 'e.g. Middle class, Upper middle class' },
-    { key: 'family_location', label: 'Family location', placeholder: 'e.g. Bangalore, Chennai, Mumbai' },
+    { key: 'father_status', label: "Father's Status", placeholder: 'e.g. Business Owner, Government Employee, Retired' },
+    { key: 'mother_status', label: "Mother's Status", placeholder: 'e.g. Homemaker, Business Owner, Teacher' },
+    { key: 'num_brothers', label: 'Number of Brothers', type: 'number', placeholder: '0' },
+    { key: 'num_sisters', label: 'Number of Sisters', type: 'number', placeholder: '0' },
+    { key: 'family_type', label: 'Family Type', placeholder: 'e.g. Nuclear, Joint' },
+    { key: 'family_status', label: 'Family Status', placeholder: 'e.g. Middle class, Upper middle class' },
+    { key: 'family_location', label: 'Family Location', placeholder: 'e.g. Bangalore, Chennai, Hyderabad' },
   ],
   career: [
-    { key: 'highest_education', label: 'Highest education', placeholder: 'e.g. B.Tech, MBA, PhD' },
-    { key: 'education_detail', label: 'Education details', placeholder: 'e.g. B.Tech in Computer Science' },
-    { key: 'occupation', label: 'Occupation', placeholder: 'e.g. Software professional, Doctor' },
-    { key: 'employed_in', label: 'Employed in', placeholder: 'e.g. Private company, Government / public sector' },
-    { key: 'company', label: 'Company', placeholder: 'e.g. Company name or organization' },
-    { key: 'annual_income', label: 'Annual income', placeholder: 'e.g. ₹5–7 lakh, ₹10–15 lakh' },
+    { key: 'highest_education', label: 'Highest Education', placeholder: 'e.g. B.Tech, MBA, MBBS, MS' },
+    { key: 'education_detail', label: 'Education Details', placeholder: 'e.g. Computer Science, Finance, Architecture' },
+    { key: 'occupation', label: 'Occupation', placeholder: 'e.g. Software Engineer, Doctor, Banking Professional' },
+    { key: 'employed_in', label: 'Employed In', placeholder: 'e.g. Private Company, Government / Public Sector' },
+    { key: 'company', label: 'Company Name', placeholder: 'e.g. Google, Infosys, Self Employed' },
+    { key: 'annual_income', label: 'Annual Income', placeholder: 'e.g. ₹10–15 lakh, ₹20–30 lakh' },
   ],
   preferences: [
-    { key: 'pref_age_min', label: 'Minimum age', type: 'number', placeholder: 'e.g. 25' },
-    { key: 'pref_age_max', label: 'Maximum age', type: 'number', placeholder: 'e.g. 35' },
-    { key: 'pref_height_min', label: 'Minimum height', placeholder: "e.g. 5'4\"" },
-    { key: 'pref_height_max', label: 'Maximum height', placeholder: "e.g. 6'0\"" },
-    { key: 'pref_religion', label: 'Preferred religion', placeholder: 'e.g. Any, Hindu, Muslim' },
-    { key: 'pref_caste', label: 'Preferred caste', placeholder: 'e.g. Any, Brahmin, Kamma' },
-    { key: 'pref_location', label: 'Preferred locations', placeholder: 'e.g. Bangalore, Any' },
-    { key: 'pref_education', label: 'Preferred education', placeholder: 'e.g. Any, B.Tech, MBA' },
-    { key: 'pref_occupation', label: 'Preferred occupation', placeholder: 'e.g. Any, Software professional' },
-    { key: 'pref_marital_status', label: 'Preferred marital status', placeholder: 'e.g. Any, Never Married' },
-    { key: 'pref_about', label: 'About my ideal partner', placeholder: 'Describe your ideal partner' },
+    { key: 'pref_age_min', label: 'Minimum Preferred Age', type: 'number', placeholder: '24' },
+    { key: 'pref_age_max', label: 'Maximum Preferred Age', type: 'number', placeholder: '32' },
+    { key: 'pref_height_min', label: 'Minimum Preferred Height', placeholder: "e.g. 5'3\"" },
+    { key: 'pref_height_max', label: 'Maximum Preferred Height', placeholder: "e.g. 6'0\"" },
+    { key: 'pref_religion', label: 'Preferred Religion', placeholder: 'e.g. Any, Hindu, Christian' },
+    { key: 'pref_caste', label: 'Preferred Caste', placeholder: 'e.g. Any, Brahmin, No caste bar' },
+    { key: 'pref_location', label: 'Preferred Locations', placeholder: 'e.g. Bangalore, Hyderabad, Chennai, Any' },
+    { key: 'pref_education', label: 'Preferred Education', placeholder: 'e.g. Any, Graduate, Post Graduate' },
+    { key: 'pref_occupation', label: 'Preferred Occupation', placeholder: 'e.g. Any, Software, Healthcare, Business' },
+    { key: 'pref_marital_status', label: 'Preferred Marital Status', placeholder: 'e.g. Any, Never Married' },
+    { key: 'pref_about', label: 'About Ideal Partner', type: 'textarea', placeholder: 'Describe what you are looking for in a lifelong companion' },
   ],
 };
 
 const tabs = [
-  { id: 'basic' as const, label: 'Basic & lifestyle', shortLabel: 'Basics', icon: UserRound, description: 'Identity, location, introduction, and interests' },
-  { id: 'photos' as const, label: 'Profile photos', shortLabel: 'Photos', icon: Camera, description: 'Manage the photos people see first' },
-  { id: 'personal' as const, label: 'Personal & religion', shortLabel: 'Personal', icon: HeartHandshake, description: 'Personal, cultural, and religious background' },
-  { id: 'family' as const, label: 'Family details', shortLabel: 'Family', icon: UsersRound, description: 'Family structure, location, and background' },
-  { id: 'career' as const, label: 'Career & education', shortLabel: 'Career', icon: BriefcaseBusiness, description: 'Education, profession, and employment details' },
-  { id: 'preferences' as const, label: 'Partner preferences', shortLabel: 'Preferences', icon: SlidersHorizontal, description: 'Describe the person you hope to meet' },
-  { id: 'verification' as const, label: 'Verification', shortLabel: 'Verification', icon: ShieldCheck, description: 'Contact checks and private documents' },
+  { id: 'basic' as const, label: 'Basic & Lifestyle', shortLabel: 'Basic', icon: UserRound, description: 'Identity, location, contact, and personal introduction' },
+  { id: 'photos' as const, label: 'Profile Photos', shortLabel: 'Photos', icon: Camera, description: 'Upload authentic photos to increase connection requests' },
+  { id: 'personal' as const, label: 'Personal & Religion', shortLabel: 'Personal', icon: HeartHandshake, description: 'Cultural, physical, and religious background' },
+  { id: 'family' as const, label: 'Family Details', shortLabel: 'Family', icon: UsersRound, description: 'Family structure, background, and location' },
+  { id: 'career' as const, label: 'Career & Education', shortLabel: 'Career', icon: BriefcaseBusiness, description: 'Educational qualifications and professional background' },
+  { id: 'preferences' as const, label: 'Partner Preferences', shortLabel: 'Preferences', icon: SlidersHorizontal, description: 'Define the partner criteria you hope to match with' },
+  { id: 'verification' as const, label: 'Verification', shortLabel: 'Verification', icon: ShieldCheck, description: 'Mobile verification and private identity documents' },
 ];
 
 const numberFields = new Set(['num_brothers', 'num_sisters', 'pref_age_min', 'pref_age_max']);
 const allowedPhotoTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 const allowedPhotoFilename = /\.(?:jpe?g|png|webp)$/i;
+
+const calculateAge = (dobString?: string) => {
+  if (!dobString) return null;
+  const dob = new Date(dobString);
+  if (Number.isNaN(dob.getTime())) return null;
+  const diff = Date.now() - dob.getTime();
+  const ageDate = new Date(diff);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
+};
+
+const calculateProfileCompleteness = (formState: FormState, photosCount: number, isVerified: boolean) => {
+  let score = 0;
+  if (formState.first_name) score += 5;
+  if (formState.last_name) score += 5;
+  if (formState.gender) score += 5;
+  if (formState.date_of_birth) score += 5;
+  if (formState.work_location) score += 5;
+  if (formState.about && formState.about.length > 20) score += 10;
+  if (formState.marital_status) score += 5;
+  if (formState.height) score += 5;
+  if (formState.religion) score += 5;
+  if (formState.highest_education) score += 10;
+  if (formState.occupation) score += 10;
+  if (formState.annual_income) score += 5;
+  if (formState.family_type || formState.family_location) score += 5;
+  if (photosCount > 0) score += 10;
+  if (photosCount >= 2) score += 5;
+  if (isVerified) score += 5;
+  return Math.min(100, Math.max(15, score));
+};
 
 const validateProfileForm = (form: FormState): string | null => {
   const firstName = form.first_name?.trim() || '';
@@ -182,20 +183,6 @@ const validateProfileForm = (form: FormState): string | null => {
     if (Number.isNaN(date.getTime()) || date > new Date()) return 'Date of birth cannot be in the future.';
   }
 
-  for (const field of profileFieldsForValidation) {
-    const value = form[field.key]?.trim() || '';
-    // Fields are free-text (only Height uses a dropdown), so never reject a
-    // value that isn't an exact option match. This is what caused the
-    // "Choose a valid religion." error for legitimately-typed values.
-    if (field.type === 'textarea' && value.length > 1200) return `${field.label} must be 1,200 characters or fewer.`;
-    if (field.key !== 'about' && field.key !== 'pref_about' && value.length > 180) return `${field.label} must be 180 characters or fewer.`;
-    if (field.type === 'number' && value) {
-      const number = Number(value);
-      if (!Number.isInteger(number) || number < 0) return `${field.label} must be a whole number of zero or more.`;
-      if (field.key.startsWith('pref_age_') && (number < 18 || number > 100)) return `${field.label} must be between 18 and 100.`;
-    }
-  }
-
   const minAge = Number(form.pref_age_min || 0);
   const maxAge = Number(form.pref_age_max || 0);
   if (minAge && maxAge && minAge > maxAge) return 'Minimum preferred age cannot exceed maximum preferred age.';
@@ -203,29 +190,6 @@ const validateProfileForm = (form: FormState): string | null => {
   const maxHeight = heightOptions.indexOf(form.pref_height_max || '');
   if (minHeight > 0 && maxHeight > 0 && minHeight > maxHeight) return 'Minimum preferred height cannot exceed maximum preferred height.';
   return null;
-};
-
-const profileFieldsForValidation = Object.values(sections).flat();
-
-const statusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    approved: 'Approved',
-    pending_review: 'Under review',
-    rejected: 'Changes requested',
-    changes_requested: 'Changes requested',
-    submitted: 'Submitted',
-    draft: 'Draft',
-    not_started: 'Draft',
-  };
-  return labels[status?.toLowerCase()] || 'Draft';
-};
-
-const statusTone = (status: string) => {
-  const normalized = status?.toLowerCase();
-  if (normalized === 'approved') return 'is-approved';
-  if (normalized === 'pending_review' || normalized === 'submitted') return 'is-pending';
-  if (normalized === 'rejected' || normalized === 'changes_requested') return 'is-rejected';
-  return 'is-draft';
 };
 
 const messageFrom = (error: unknown) => {
@@ -242,11 +206,6 @@ const messageFrom = (error: unknown) => {
   if (error && typeof error === 'object') {
     const record = error as { message?: unknown; data?: unknown };
     if (typeof record.message === 'string') return record.message;
-    if (record.data && typeof record.data === 'object') {
-      const data = record.data as { message?: unknown; detail?: unknown };
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.detail === 'string') return data.detail;
-    }
   }
   return error instanceof Error ? error.message : 'The request could not be completed.';
 };
@@ -272,7 +231,6 @@ export default function EditProfilePage() {
   const [resendIn, setResendIn] = useState(0);
   const editorTopRef = useRef<HTMLDivElement>(null);
 
-  // 30-second Resend OTP cooldown timer
   useEffect(() => {
     if (resendIn <= 0) return;
     const timer = setInterval(() => setResendIn((prev) => prev - 1), 1000);
@@ -306,7 +264,7 @@ export default function EditProfilePage() {
     let cancelled = false;
     fetchApi<UserType>('/member-auth/me/')
       .then((fresh) => { if (!cancelled) updateUser(fresh); })
-      .catch(() => { /* Keep the cached user when refreshing fails. */ });
+      .catch(() => { /* Maintain cache */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -326,10 +284,6 @@ export default function EditProfilePage() {
     setActiveTab(tab);
     setNotice(null);
     requestAnimationFrame(() => {
-      if (pathname.startsWith('/settings/')) {
-        document.getElementById(`profile-section-${tab}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-      }
       editorTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   };
@@ -506,58 +460,81 @@ export default function EditProfilePage() {
 
   if (!profile) {
     return (
-      <div className="ep-state-page">
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
         {authLoading ? (
-          <div className="ep-loader" role="status"><span /><p>Preparing your profile editor…</p></div>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-[#e11d48]" />
+            <p className="text-xs text-slate-500 font-medium">Preparing your profile editor…</p>
+          </div>
         ) : (
-          <div className="ep-empty-state">
-            <UserRound size={28} />
-            <h1>Sign in to edit your profile</h1>
-            <p>Your profile details are available inside your private member account.</p>
-            <a href="/login">Go to sign in</a>
+          <div className="max-w-md w-full text-center bg-white border border-slate-200 rounded-2xl p-8 shadow-xs">
+            <UserRound className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+            <h1 className="text-base font-bold text-slate-900 mb-1">Sign in to edit your profile</h1>
+            <p className="text-xs text-slate-500 mb-4">Your profile details are available inside your private member account.</p>
+            <a href="/login" className="inline-flex px-4 py-2 rounded-xl bg-[#e11d48] text-white text-xs font-bold hover:bg-[#be123c] transition-colors">
+              Go to sign in
+            </a>
           </div>
         )}
       </div>
     );
   }
 
-  const status = String(profile.profile_status || 'draft');
   const activeMeta = tabs.find((tab) => tab.id === activeTab) || tabs[0];
   const ActiveIcon = activeMeta.icon;
   const documents = Array.isArray(profile.documents) ? profile.documents as Array<Record<string, unknown>> : [];
-  const isEmbeddedInSettings = pathname.startsWith('/settings/');
+
+  const displayName = form.first_name
+    ? `${form.first_name} ${form.last_name || ''}`.trim()
+    : profile.full_name || 'Member Profile';
+
+  const memberId = profile.id ? `MDP-${String(profile.id).slice(0, 6).toUpperCase()}` : 'MDP-MEMBER';
+  const age = calculateAge(form.date_of_birth || (profile.date_of_birth as string));
+  const completeness = calculateProfileCompleteness(form, photosList.length, Boolean(profile.is_mobile_verified));
 
   const renderProfileFields = (tab: Exclude<TabId, 'photos' | 'verification'> = activeTab as Exclude<TabId, 'photos' | 'verification'>) => {
     if (!(tab in sections)) return null;
     const fields = sections[tab];
     return (
-      <div className="ep-form-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {fields.map((field) => {
           const id = `ep-${field.key}`;
-          const wide = field.type === 'textarea' || field.key === 'hobbies';
+          const isWide = field.type === 'textarea' || field.key === 'hobbies' || field.key === 'pref_about';
           return (
-            <div key={field.key} className={`ep-field${wide ? ' ep-field--wide' : ''}`}>
-              <div className="ep-field-label">
-                <label htmlFor={id}>{field.label}</label>
-                {field.type === 'textarea' && <small>{(form[field.key] || '').length} characters</small>}
+            <div key={field.key} className={isWide ? 'sm:col-span-2' : ''}>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor={id} className="text-xs font-bold text-slate-700">
+                  {field.label}
+                </label>
+                {field.type === 'textarea' && (
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {(form[field.key] || '').length} characters
+                  </span>
+                )}
               </div>
-              <div className={`ep-control${field.type === 'textarea' ? ' ep-control--textarea' : ''}`}>
+              <div className="relative">
                 {field.type === 'textarea' ? (
                   <textarea
                     id={id}
-                    rows={5}
+                    rows={4}
                     value={form[field.key] || ''}
                     placeholder={field.placeholder}
                     onChange={(event) => setValue(field.key, event.target.value)}
+                    className="w-full p-3.5 rounded-xl border border-slate-200 bg-[#f8fafc] text-xs text-slate-900 focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-rose-500/10 focus:outline-hidden transition-all resize-y min-h-[100px] placeholder:text-slate-400"
                   />
                 ) : field.type === 'select' ? (
                   <>
-                    <select id={id} value={form[field.key] || ''} onChange={(event) => setValue(field.key, event.target.value)}>
+                    <select
+                      id={id}
+                      value={form[field.key] || ''}
+                      onChange={(event) => setValue(field.key, event.target.value)}
+                      className="w-full h-11 px-3.5 pr-10 rounded-xl border border-slate-200 bg-[#f8fafc] text-xs text-slate-900 focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-rose-500/10 focus:outline-hidden appearance-none transition-all cursor-pointer"
+                    >
                       {field.options?.map((value) => (
-                        <option key={value} value={value}>{value || `Select ${field.label.toLowerCase()}`}</option>
+                        <option key={value} value={value}>{value || `Select ${field.label}`}</option>
                       ))}
                     </select>
-                    <ChevronDown size={16} aria-hidden="true" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </>
                 ) : (
                   <input
@@ -565,8 +542,9 @@ export default function EditProfilePage() {
                     type={field.type || 'text'}
                     min={field.type === 'number' ? 0 : undefined}
                     value={form[field.key] || ''}
-                    placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                    placeholder={field.placeholder || `Enter ${field.label}`}
                     onChange={(event) => setValue(field.key, event.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-[#f8fafc] text-xs text-slate-900 focus:bg-white focus:border-[#e11d48] focus:ring-2 focus:ring-rose-500/10 focus:outline-hidden transition-all placeholder:text-slate-400"
                   />
                 )}
               </div>
@@ -578,370 +556,548 @@ export default function EditProfilePage() {
   };
 
   const renderPhotos = () => (
-    <div className="ep-photo-grid">
-      {Array.from({ length: maxPhotos }).map((_, index) => {
-        const photo = photosList[index];
-        if (photo) {
-          return (
-            <article key={photo.id} className="ep-photo-card">
-              <ProfileImage
-                photoId={photo.id}
-                src={photo.thumbnail_url}
-                variant="thumbnail"
-                version={photo.updated_at}
-                alt={`Profile photo ${index + 1}`}
-                size="full"
-                aspectRatio="4:5"
-                shape="square"
-                className="ep-photo-image"
-              />
-              <div className="ep-photo-badges">
-                {photo.is_primary && <span className="is-primary"><Star size={11} /> Primary</span>}
-                <span className={`is-${photo.status}`}>{photo.status}</span>
-              </div>
-              <div className="ep-photo-actions">
-                {!photo.is_primary && photo.status === 'approved' && (
-                  <button type="button" onClick={() => setPhotoPrimary(photo.id)} disabled={busy}>
-                    <Star size={14} /> Make primary
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {Array.from({ length: maxPhotos }).map((_, index) => {
+          const photo = photosList[index];
+          if (photo) {
+            return (
+              <div key={photo.id} className="relative group rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 flex flex-col">
+                <div className="aspect-4/5 w-full relative">
+                  <ProfileImage
+                    photoId={photo.id}
+                    src={photo.thumbnail_url}
+                    variant="thumbnail"
+                    version={photo.updated_at}
+                    alt={`Profile photo ${index + 1}`}
+                    size="full"
+                    aspectRatio="4:5"
+                    shape="square"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 left-2 flex flex-col gap-1">
+                    {photo.is_primary && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#e11d48] text-white flex items-center gap-1 shadow-sm">
+                        <Star className="w-3 h-3 fill-current" /> Primary
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${
+                      photo.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                    }`}>
+                      {photo.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                  {!photo.is_primary && photo.status === 'approved' ? (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoPrimary(photo.id)}
+                      disabled={busy}
+                      className="px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:text-[#e11d48] hover:bg-[#fff1f2] rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Star className="w-3 h-3" /> Make Primary
+                    </button>
+                  ) : <span />}
+
+                  <button
+                    type="button"
+                    onClick={() => deletePhoto(photo.id)}
+                    disabled={busy}
+                    aria-label="Delete photo"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 ml-auto"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                )}
-                <button type="button" className="is-delete" onClick={() => deletePhoto(photo.id)} disabled={busy} aria-label="Delete photo">
-                  <Trash2 size={15} /> <span>Remove</span>
-                </button>
+                </div>
               </div>
-              {photo.rejection_reason && <p className="ep-photo-reason">{photo.rejection_reason}</p>}
-            </article>
-          );
-        }
-        if (index === photosList.length) {
+            );
+          }
+
+          if (index === photosList.length) {
+            return (
+              <label
+                key={index}
+                className="aspect-4/5 rounded-2xl border-2 border-dashed border-slate-200 hover:border-[#e11d48] bg-[#f8fafc] hover:bg-[#fff5f7] transition-all flex flex-col items-center justify-center p-4 text-center cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 group-hover:text-[#e11d48] group-hover:border-[#ffe4e6] flex items-center justify-center mb-2 shadow-xs transition-colors">
+                  <ImagePlus className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-800 group-hover:text-[#e11d48]">Add Photo</span>
+                <span className="text-[10px] text-slate-400 mt-1">JPEG, PNG or WebP<br />Up to 10 MB</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} disabled={busy} className="hidden" />
+              </label>
+            );
+          }
+
           return (
-            <label key={index} className="ep-photo-upload">
-              <span><ImagePlus size={26} /></span>
-              <strong>Add a photo</strong>
-              <small>JPEG, PNG or WebP · up to 10 MB</small>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} disabled={busy} />
-            </label>
+            <div
+              key={index}
+              className="aspect-4/5 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center p-4 text-slate-300"
+            >
+              <Camera className="w-6 h-6 mb-1 opacity-40" />
+              <span className="text-[10px] font-semibold opacity-50">Slot {index + 1}</span>
+            </div>
           );
-        }
-        return (
-          <div key={index} className="ep-photo-empty" aria-hidden="true">
-            <Camera size={21} /><span>Photo slot {index + 1}</span>
-          </div>
-        );
-      })}
+        })}
+      </div>
+      <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-2">
+        <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+        High quality, clear front-facing portraits receive 3x more interest requests from matches.
+      </p>
     </div>
   );
 
   const renderVerification = () => {
-    const contacts: Array<{
-      id: VerificationTarget;
-      label: string;
-      value: string;
-      verified: boolean;
-      icon: typeof Mail;
-    }> = [
-      { id: 'mobile', label: 'Mobile number', value: String(profile.mobile_number || ''), verified: Boolean(profile.is_mobile_verified), icon: Smartphone },
-    ];
+    const isMobileVerified = Boolean(profile.is_mobile_verified);
     const documentStatus = String(profile.document_status || 'draft');
 
     return (
-      <div className="ep-verification-stack">
-        <section className="ep-subsection">
-          <div className="ep-subsection-heading">
-            <div><span className="ep-mini-icon"><BadgeCheck size={18} /></span><div><h3>Contact verification</h3><p>Verify the mobile number connected to your account.</p></div></div>
-          </div>
-          <article className="ep-contact-card">
-            <div className="ep-contact-top">
-              <span className="ep-contact-icon"><Mail size={19} /></span>
-              <span className="ep-verification-badge is-verified"><CheckCircle2 size={13} /> Saved</span>
+      <div className="space-y-6">
+        {/* Contact Checks */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Contact Verification</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {/* Email Card */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-[#f8fafc]">
+              <div className="flex items-center justify-between mb-2">
+                <Mail className="w-4 h-4 text-slate-500" />
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Confirmed
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Registered Email</span>
+              <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">{String(profile.email || 'Not provided')}</span>
             </div>
-            <h4>Email address</h4>
-            <p>{String(profile.email || 'Not provided')}</p>
-          </article>
-          <div className="ep-contact-grid">
-            {contacts.map(({ id, label, value, verified, icon: Icon }) => (
-              <article key={id} className={`ep-contact-card${verified ? ' is-verified' : ''}`}>
-                <div className="ep-contact-top">
-                  <span className="ep-contact-icon"><Icon size={19} /></span>
-                  <span className={`ep-verification-badge${verified ? ' is-verified' : ''}`}>
-                    {verified ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-                    {verified ? 'Verified' : 'Not verified'}
-                  </span>
-                </div>
-                <h4>{label}</h4>
-                <p>{value || 'Not provided'}</p>
-                {!verified && value && (
-                  verifyTarget === id ? (
-                    <>
-                      <div className="ep-otp-row">
+
+            {/* Mobile Card */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-[#f8fafc]">
+              <div className="flex items-center justify-between mb-2">
+                <Smartphone className="w-4 h-4 text-slate-500" />
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                  isMobileVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {isMobileVerified ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                  {isMobileVerified ? 'Verified' : 'Not Verified'}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Registered Mobile</span>
+              <span className="text-xs font-bold text-slate-800 block mt-0.5">{String(profile.mobile_number || 'Not provided')}</span>
+
+              {!isMobileVerified && profile.mobile_number && (
+                <div className="mt-3 pt-3 border-t border-slate-200/80">
+                  {verifyTarget === 'mobile' ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
                         <input
                           type="text"
                           inputMode="numeric"
                           maxLength={6}
-                          placeholder="Enter OTP"
+                          placeholder="Enter 6-digit OTP"
                           value={otpCode}
-                          onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ''))}
-                          aria-label={`${label} verification code`}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                          className="flex-1 h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-mono tracking-widest text-slate-900 focus:outline-hidden focus:border-[#e11d48]"
                         />
-                        <button type="button" onClick={verifyOtp} disabled={verifying || otpCode.length < 4}>
-                          {verifying ? <Loader2 size={15} className="ep-spin" /> : 'Verify'}
+                        <button
+                          type="button"
+                          onClick={verifyOtp}
+                          disabled={verifying || otpCode.length < 4}
+                          className="px-3 h-9 rounded-lg bg-[#e11d48] text-white text-xs font-bold hover:bg-[#be123c] transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {verifying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Verify'}
                         </button>
                       </div>
-                      <div className="mt-2 flex items-center justify-center gap-1 text-xs">
-                        {resendIn > 0 ? (
-                          <span className="font-semibold text-slate-400">Resend code in {resendIn}s</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => sendOtp(id)}
-                            disabled={verifying}
-                            className="font-bold text-rose-600 transition hover:underline disabled:opacity-50"
-                          >
-                            Didn't get the code? Resend
-                          </button>
-                        )}
-                      </div>
-                    </>
+                      {resendIn > 0 ? (
+                        <span className="text-[11px] text-slate-400 block text-center">Resend code in {resendIn}s</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => sendOtp('mobile')}
+                          disabled={verifying}
+                          className="text-[11px] text-[#e11d48] font-bold hover:underline block text-center mx-auto"
+                        >
+                          Resend verification OTP
+                        </button>
+                      )}
+                    </div>
                   ) : (
-                    <button type="button" className="ep-contact-action" onClick={() => sendOtp(id)} disabled={verifying}>
-                      {verifying ? 'Sending code…' : 'Send verification code'}
+                    <button
+                      type="button"
+                      onClick={() => sendOtp('mobile')}
+                      disabled={verifying}
+                      className="w-full py-1.5 rounded-lg border border-[#e11d48] text-[#e11d48] hover:bg-[#fff1f2] font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      {verifying ? 'Sending...' : 'Verify Mobile via OTP'}
                     </button>
-                  )
-                )}
-              </article>
-            ))}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </section>
+        </div>
 
-        <section className="ep-subsection">
-          <div className="ep-subsection-heading">
-            <div><span className="ep-mini-icon"><FileText size={18} /></span><div><h3>Identity documents</h3><p>Documents remain private and are used only for account verification.</p></div></div>
-          </div>
+        {/* Identity Verification Documents */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Identity Document Proof</h3>
 
-          <div className={`ep-document-status ${statusTone(documentStatus)}`}>
-            <ShieldCheck size={22} />
+          <div className="p-4 rounded-xl border border-slate-200 bg-white mb-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#fff1f2] text-[#e11d48] flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
             <div>
-              <span>Verification status</span>
-              <strong>{statusLabel(documentStatus)}</strong>
-              <p>
-                {documentStatus === 'approved' && 'Your identity verification is complete.'}
-                {documentStatus === 'pending_review' && 'Your documents are securely waiting for review.'}
-                {documentStatus === 'rejected' && 'Please review the feedback and upload a new document.'}
-                {!['approved', 'pending_review', 'rejected'].includes(documentStatus) && 'Upload a government-approved document to begin verification.'}
+              <span className="text-xs font-bold text-slate-800">Verification Status: </span>
+              <span className="text-xs font-bold text-[#e11d48] capitalize">{documentStatus.replace(/_/g, ' ')}</span>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {documentStatus === 'approved'
+                  ? 'Your identity verification is approved. Verified badge active on your profile.'
+                  : 'Upload an official government ID (Aadhaar, Passport, or PAN) to receive your verified profile badge.'}
               </p>
             </div>
           </div>
 
           {documents.length > 0 && (
-            <div className="ep-document-list">
-              {documents.map((document, index) => {
-                const documentId = String(document.id || index);
-                const documentType = String(document.document_type || 'Document');
-                const documentState = String(document.status || 'PENDING');
+            <div className="space-y-2 mb-4">
+              {documents.map((doc, idx) => {
+                const docId = String(doc.id || idx);
+                const type = String(doc.document_type || 'Document');
+                const docStatus = String(doc.status || 'PENDING');
                 return (
-                  <article key={documentId}>
-                    <span className="ep-document-icon"><FileText size={18} /></span>
-                    <div>
-                      <strong>{documentType.replace(/_/g, ' ')}</strong>
-                      <small>Uploaded {document.uploaded_at ? new Date(String(document.uploaded_at)).toLocaleDateString() : 'recently'}</small>
-                      {Boolean(document.rejection_reason) && <p>{String(document.rejection_reason)}</p>}
+                  <div key={docId} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-[#f8fafc] text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <div>
+                        <span className="font-bold text-slate-800 block">{type.replace(/_/g, ' ')}</span>
+                        <span className="text-[10px] text-slate-400">Uploaded {doc.uploaded_at ? new Date(String(doc.uploaded_at)).toLocaleDateString() : 'recently'}</span>
+                      </div>
                     </div>
-                    <div className="ep-document-actions">
-                      <span className={`is-${documentState.toLowerCase()}`}>{documentState}</span>
-                      <button type="button" onClick={() => setViewDoc({ id: documentId, type: documentType })}>View</button>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 capitalize">{docStatus}</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewDoc({ id: docId, type })}
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-white text-[11px] font-bold text-slate-700 cursor-pointer transition-colors"
+                      >
+                        View
+                      </button>
                     </div>
-                  </article>
+                  </div>
                 );
               })}
             </div>
           )}
 
-          <form onSubmit={uploadDocument} className="ep-upload-document">
-            <div className="ep-upload-copy">
-              <span><Upload size={20} /></span>
-              <div><h4>Upload a verification document</h4><p>PDF, JPEG or PNG files are accepted.</p></div>
-            </div>
-            <div className="ep-upload-fields">
-              <label>
-                <span>Document type</span>
-                <div className="ep-control">
-                  <select value={docType} onChange={(event) => setDocType(event.target.value)}>
+          {/* Upload Form */}
+          <form onSubmit={uploadDocument} className="p-4 rounded-xl border border-slate-200 bg-[#f8fafc] space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Upload className="w-3.5 h-3.5 text-[#e11d48]" /> Upload Verification Document
+            </h4>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Document Type</label>
+                <div className="relative">
+                  <select
+                    value={docType}
+                    onChange={(e) => setDocType(e.target.value)}
+                    className="w-full h-10 px-3 pr-8 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-hidden focus:border-[#e11d48] appearance-none"
+                  >
                     <option value="AADHAAR">Aadhaar Card</option>
                     <option value="PAN">PAN Card</option>
                     <option value="PASSPORT">Passport</option>
                     <option value="DRIVING_LICENCE">Driving Licence</option>
                     <option value="VOTER_ID">Voter ID</option>
-                    <option value="BIRTH_CERTIFICATE">Birth Certificate</option>
-                    <option value="ADDRESS_PROOF">Address Proof</option>
-                    <option value="INCOME_CERTIFICATE">Income Certificate</option>
                     <option value="DEGREE_CERTIFICATE">Degree Certificate</option>
-                    <option value="TENTH_MARKSHEET">10th Marks Card</option>
-                    <option value="TWELFTH_MARKSHEET">12th Marks Card</option>
-                    <option value="DIPLOMA_CERTIFICATE">Diploma Certificate</option>
-                    <option value="EMPLOYMENT_PROOF">Employment Proof</option>
-                    <option value="SALARY_SLIP">Salary Slip</option>
-                    <option value="DIVORCE_CERTIFICATE">Divorce Certificate</option>
-                    <option value="DEATH_CERTIFICATE">Death Certificate</option>
-                    <option value="OTHER">Other</option>
+                    <option value="OTHER">Other Official Document</option>
                   </select>
-                  <ChevronDown size={16} />
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
-              </label>
+              </div>
+
               {docType === 'OTHER' && (
-                <label>
-                  <span>Document name</span>
-                  <input type="text" value={customDocName} onChange={(event) => setCustomDocName(event.target.value)} placeholder="e.g. Caste certificate" />
-                </label>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Document Name</label>
+                  <input
+                    type="text"
+                    value={customDocName}
+                    onChange={(e) => setCustomDocName(e.target.value)}
+                    placeholder="e.g. Caste Certificate"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-hidden focus:border-[#e11d48]"
+                  />
+                </div>
               )}
-              <label className="ep-file-field">
-                <span>Select file</span>
-                <input id="ep-document-file" type="file" required accept=".pdf,.jpg,.jpeg,.png" onChange={(event) => setDocFile(event.target.files?.[0] || null)} />
-              </label>
+
+              <div className={docType === 'OTHER' ? 'sm:col-span-2' : ''}>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Select File (PDF, JPEG, PNG)</label>
+                <input
+                  id="ep-document-file"
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white file:border-slate-200 file:text-slate-700 hover:file:bg-slate-50 cursor-pointer"
+                />
+              </div>
             </div>
-            <button type="submit" className="ep-upload-button" disabled={busy || !docFile}>
-              {busy ? <Loader2 size={16} className="ep-spinner" /> : <Upload size={16} />}
-              <span>Submit document for verification</span>
+
+            <button
+              type="submit"
+              disabled={busy || !docFile}
+              className="px-4 py-2 rounded-xl bg-[#e11d48] hover:bg-[#be123c] text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              <span>Submit Document for Verification</span>
             </button>
           </form>
-
-          {/* Terms & Conditions Digital Audit Proof */}
-          <article className="ep-verification-card ep-verification-card--terms border-2 border-emerald-100 bg-emerald-50/50 rounded-2xl p-5 mt-6">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck size={22} />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    Terms of Service & Privacy Policy Agreement
-                  </h4>
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white flex items-center gap-1 shadow-sm">
-                    <Check size={14} /> Verified & Binding
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 mb-2">
-                  You accepted the digital Terms of Service & Privacy Policy during account creation.
-                </p>
-                <div className="text-xs font-semibold text-emerald-800 bg-emerald-100/80 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5">
-                  <strong>Agreement Timestamp Proof:</strong> {profile.terms_accepted_at ? new Date(String(profile.terms_accepted_at)).toLocaleString() : profile.created_at ? new Date(String(profile.created_at)).toLocaleString() : 'On Registration'}
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className={`ep-page${isEmbeddedInSettings ? ' ep-page--settings' : ''}`}>
-      <div className="ep-shell">
-        {notice && (
-          <div className={`ep-notice${notice.error ? ' is-error' : ''}`} role="status">
-            {notice.error ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* ── Notification Banner ── */}
+      {notice && (
+        <div
+          className={`p-4 rounded-xl text-xs font-medium flex items-center justify-between gap-3 ${
+            notice.error ? 'bg-rose-50 border border-rose-200 text-rose-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notice.error ? <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" /> : <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />}
             <span>{notice.text}</span>
-            <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><XCircle size={16} /></button>
           </div>
-        )}
+          <button type="button" onClick={() => setNotice(null)} className="text-slate-400 hover:text-slate-600">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
-        {status === 'rejected' && Boolean(profile.rejection_reason) && (
-          <div className="ep-review-note"><AlertCircle size={18} /><p><strong>Review note</strong>{String(profile.rejection_reason)}</p></div>
-        )}
-
-        <div className="ep-workspace">
-          <aside className="ep-sidebar">
-            <div className="ep-member-card">
-              <div className="ep-avatar-wrap">
-                <ProfileImage
-                  photoId={primaryPhoto?.id}
-                  src={primaryPhoto?.thumbnail_url}
-                  variant="thumbnail"
-                  version={primaryPhoto?.updated_at}
-                  alt="Your profile photo"
-                  size="md"
-                  aspectRatio="4:5"
-                  shape="rounded"
-                  className="ep-avatar"
-                />
-                <button type="button" onClick={() => selectTab('photos')} aria-label="Manage profile photos"><Camera size={14} /></button>
-              </div>
-              <div><strong>{profile.full_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Your profile'}</strong><span>{profile.email}</span></div>
+      {/* ── Top Profile Overview & Strength Card ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          {/* Avatar: Hidden on desktop to prevent duplicate images; shown as a circle in mobile view */}
+          <div className="relative lg:hidden shrink-0">
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-xs">
+              <ProfileImage
+                photoId={primaryPhoto?.id}
+                src={primaryPhoto?.thumbnail_url}
+                variant="thumbnail"
+                version={primaryPhoto?.updated_at}
+                alt="Profile avatar"
+                size="full"
+                aspectRatio="1:1"
+                shape="circle"
+                className="w-full h-full object-cover"
+              />
             </div>
+            <button
+              type="button"
+              onClick={() => selectTab('photos')}
+              className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#e11d48] text-white flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-transform"
+              title="Manage photos"
+            >
+              <Camera className="w-3 h-3" />
+            </button>
+          </div>
 
-            <nav className="ep-tabs" aria-label="Profile editor sections">
-              {tabs.map(({ id, label, shortLabel, icon: Icon }) => (
-                <button
-                  type="button"
-                  key={id}
-                  className={activeTab === id ? 'is-active' : ''}
-                  aria-current={activeTab === id ? 'page' : undefined}
-                  onClick={() => selectTab(id)}
-                >
-                  <span><Icon size={17} /></span>
-                  <strong>{label}</strong>
-                  <small>{shortLabel}</small>
-                  {id === 'photos' && <em>{photosList.length}/{maxPhotos}</em>}
-                  {id === 'verification' && Boolean(profile.is_mobile_verified) && <Check size={14} />}
-                </button>
-              ))}
-            </nav>
-
-            <div className="ep-sidebar-tip">
-              <ShieldCheck size={18} />
-              <p><strong>Your privacy matters</strong>You control which details are visible to other members.</p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg font-black text-[#0f0f10]">{displayName}</h1>
+              {Boolean(profile.is_mobile_verified) && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Verified Member
+                </span>
+              )}
             </div>
-          </aside>
+            <p className="text-xs text-slate-500 mt-0.5">{profile.email} • <span className="font-mono font-bold text-slate-700">{memberId}</span></p>
+          </div>
+        </div>
 
-          <section className="ep-editor" ref={editorTopRef}>
-            <div className="ep-editor-heading">
-              <span className="ep-editor-icon"><ActiveIcon size={21} /></span>
-              <div>
-                <span>{isEmbeddedInSettings ? 'One profile, one save' : 'Profile section'}</span>
-                <h2>{isEmbeddedInSettings ? 'Build your complete profile' : activeMeta.label}</h2>
-                <p>{isEmbeddedInSettings ? 'Update every profile section here, then save all your changes once.' : activeMeta.description}</p>
-              </div>
-              {isEmbeddedInSettings && <small>{hasChanges ? 'Changes ready to save' : 'All changes saved'}</small>}
-              {!isEmbeddedInSettings && activeTab === 'photos' && <small>{photosList.length} of {maxPhotos} photos uploaded</small>}
-            </div>
-
-            <div className="ep-editor-content">
-              {isEmbeddedInSettings ? (
-                <div className="ep-all-sections">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <section id={`profile-section-${tab.id}`} key={tab.id} className="ep-profile-section">
-                        <header className="ep-profile-section-heading">
-                          <span><Icon size={18} /></span>
-                          <div><h3>{tab.label}</h3><p>{tab.description}</p></div>
-                          {tab.id === 'photos' && <small>{photosList.length}/{maxPhotos} photos</small>}
-                        </header>
-                        {tab.id === 'photos'
-                          ? renderPhotos()
-                          : tab.id === 'verification'
-                            ? renderVerification()
-                            : renderProfileFields(tab.id)}
-                      </section>
-                    );
-                  })}
-                </div>
-              ) : activeTab === 'photos' ? renderPhotos() : activeTab === 'verification' ? renderVerification() : renderProfileFields()}
-            </div>
-
-            <footer className="ep-save-bar">
-              <div className={hasChanges ? 'has-changes' : ''}>
-                <span>{hasChanges ? 'Unsaved changes' : 'Profile is up to date'}</span>
-                <small>{hasChanges ? 'Save before leaving this page.' : 'Your latest changes are safely stored.'}</small>
-              </div>
-              <button type="button" onClick={save} disabled={busy || !hasChanges}>
-                {busy ? <Loader2 size={17} className="ep-spin" /> : <Save size={17} />}
-                {busy ? 'Saving profile…' : isEmbeddedInSettings ? 'Save all profile changes' : 'Save changes'}
-              </button>
-            </footer>
-          </section>
+        {/* Profile Completeness Meter */}
+        <div className="w-full md:w-64 bg-[#f8fafc] border border-slate-100 rounded-xl p-3.5">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-[#e11d48]" /> Profile Strength
+            </span>
+            <span className="font-black text-[#e11d48]">{completeness}%</span>
+          </div>
+          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#e11d48] to-rose-400 rounded-full transition-all duration-500"
+              style={{ width: `${completeness}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-slate-400 mt-1 block">
+            {completeness < 80 ? 'Complete remaining sections to get 3x more match views.' : 'All-Star profile! High discoverability active.'}
+          </span>
         </div>
       </div>
 
+      {/* ── Horizontal Navigation Tabs ── */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar shadow-xs">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              type="button"
+              key={tab.id}
+              onClick={() => selectTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                isActive
+                  ? 'bg-[#e11d48] text-white shadow-sm shadow-rose-500/20'
+                  : 'text-slate-600 hover:bg-[#f7f4f5] hover:text-[#0f0f10]'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" strokeWidth={isActive ? 2.2 : 1.85} />
+              <span>{tab.label}</span>
+              {tab.id === 'photos' && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {photosList.length}/{maxPhotos}
+                </span>
+              )}
+              {tab.id === 'verification' && Boolean(profile.is_mobile_verified) && (
+                <Check className={`w-3 h-3 ${isActive ? 'text-white' : 'text-emerald-600'}`} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Main 2-Column Responsive Workspace ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Focused Edit Card */}
+        <div className="lg:col-span-8 space-y-6" ref={editorTopRef}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-[#fff1f2] text-[#e11d48] border border-[#ffe4e6] flex items-center justify-center">
+                <ActiveIcon className="w-5 h-5" strokeWidth={1.85} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-[#0f0f10]">{activeMeta.label}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{activeMeta.description}</p>
+              </div>
+            </div>
+
+            {activeTab === 'photos' ? (
+              renderPhotos()
+            ) : activeTab === 'verification' ? (
+              renderVerification()
+            ) : (
+              renderProfileFields()
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Live Match Storycard Preview (Desktop Sticky) */}
+        <aside className="lg:col-span-4 hidden lg:block sticky top-20">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <Eye className="w-3.5 h-3.5 text-[#e11d48]" /> Match Card Preview
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                Live
+              </span>
+            </div>
+
+            {/* Simulated Match Card */}
+            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+              <div className="aspect-4/5 w-full bg-slate-100 relative overflow-hidden">
+                {primaryPhoto?.thumbnail_url ? (
+                  <ProfileImage
+                    photoId={primaryPhoto?.id}
+                    src={primaryPhoto?.thumbnail_url}
+                    variant="thumbnail"
+                    version={primaryPhoto?.updated_at}
+                    alt="Preview avatar"
+                    size="full"
+                    aspectRatio="4:5"
+                    shape="square"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                    <UserRound className="w-12 h-12 mb-1 opacity-50" />
+                    <span className="text-xs">No primary photo set</span>
+                  </div>
+                )}
+
+                <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+                  {Boolean(profile.is_mobile_verified) && (
+                    <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-white/90 backdrop-blur-md text-emerald-700 border border-emerald-100 shadow-sm flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" /> ID Verified
+                    </span>
+                  )}
+                </div>
+
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 text-white">
+                  <h3 className="text-base font-bold leading-tight">
+                    {displayName}{age ? `, ${age}` : ''}
+                  </h3>
+                  <div className="flex items-center gap-1 text-xs text-white/80 mt-1">
+                    <MapPin className="w-3 h-3 text-rose-400" />
+                    <span>{form.work_location || 'Location not specified'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-2.5 text-xs">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <BriefcaseBusiness className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{form.occupation || form.highest_education || 'Profession not added'}</span>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-600">
+                  <HeartHandshake className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{form.religion ? `${form.religion}${form.caste ? ` • ${form.caste}` : ''}` : 'Community not added'}</span>
+                </div>
+
+                {form.about && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <p className="text-[11px] text-slate-500 line-clamp-3 italic">
+                      "{form.about}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-1.5">
+              <Lock className="w-3 h-3 shrink-0" /> Full contact details remain hidden until you accept an interest request.
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Sticky Bottom Save Bar ── */}
+      <div className="sticky bottom-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3.5 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-md flex items-center justify-between">
+        <div>
+          {hasChanges ? (
+            <span className="flex items-center gap-2 text-xs font-bold text-amber-600">
+              <AlertCircle className="w-4 h-4" /> Unsaved changes ready to save
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> All profile changes are saved
+            </span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy || !hasChanges}
+          className="px-6 py-2.5 rounded-xl bg-[#e11d48] hover:bg-[#be123c] text-white font-bold text-xs transition-all flex items-center gap-2 shadow-sm shadow-rose-500/20 disabled:opacity-50 cursor-pointer"
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          <span>{busy ? 'Saving Profile…' : 'Save Changes'}</span>
+        </button>
+      </div>
+
+      {/* Document View Modal */}
       {viewDoc && (
         <ProtectedDocumentViewer
           documentId={viewDoc.id}

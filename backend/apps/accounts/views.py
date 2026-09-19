@@ -711,6 +711,42 @@ class MemberAccountDeletionView(APIView):
         return clear_auth_cookies(response)
 
 
+class MemberAccountPauseView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def get(self, request):
+        return ApiResponse(
+            data={
+                'is_hidden': request.user.is_hidden,
+                'is_paused': request.user.is_hidden,
+                'status': 'paused' if request.user.is_hidden else 'active',
+            }
+        )
+
+    def post(self, request):
+        member = request.user
+        pause = request.data.get('pause')
+        if pause is None:
+            member.is_hidden = not member.is_hidden
+        else:
+            member.is_hidden = bool(pause)
+        member.save(update_fields=('is_hidden', 'updated_at'))
+        status_text = 'paused' if member.is_hidden else 'resumed'
+        record_security_audit_event(
+            f'MEMBER_PROFILE_{status_text.upper()}',
+            request=request,
+            account=member,
+        )
+        return ApiResponse(
+            data={
+                'is_hidden': member.is_hidden,
+                'is_paused': member.is_hidden,
+                'status': 'paused' if member.is_hidden else 'active',
+            },
+            message=f'Profile {status_text} successfully.',
+        )
+
+
 class MemberAccountRecoveryVerifyView(APIView):
     permission_classes = (permissions.AllowAny,)
 

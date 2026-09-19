@@ -96,7 +96,7 @@ def create_member(email, password, **data):
 @transaction.atomic
 def update_member(member, **data):
     profile_data, preference_data = _split_profile_data(data)
-    for field in ('first_name', 'last_name', 'mobile_number', 'gender', 'date_of_birth', 'profile_created_by', 'chat_public_key'):
+    for field in ('first_name', 'last_name', 'mobile_number', 'gender', 'date_of_birth', 'profile_created_by', 'chat_public_key', 'is_hidden'):
         if field in data:
             setattr(member, field, data[field])
     member.save()

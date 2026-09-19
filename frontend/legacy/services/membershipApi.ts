@@ -90,6 +90,8 @@ export interface MembershipSummary {
   end_date: string | null;
   days_remaining: number | null;
   daily_profile_unlock_limit: number | null;
+  daily_profile_unlocks_used?: number;
+  daily_profile_unlocks_remaining?: number | null;
   daily_interest_limit: number | null;
   can_message: boolean;
   can_use_advanced_search: boolean;

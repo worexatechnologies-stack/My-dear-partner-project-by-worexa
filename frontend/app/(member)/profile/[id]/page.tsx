@@ -48,8 +48,9 @@ import {
   useSendInterestMutation,
 } from '@/legacy/services/profileApi';
 import type { MemberPhoto } from '@/legacy/services/photoApi';
-import { getInterests, getShortlists, toggleShortlist, updateInterestStatus } from '@/legacy/services/dataService';
+import { getInterests, getShortlists, toggleShortlist, updateInterestStatus, cacheSentInterestId, getCachedSentInterestIds } from '@/legacy/services/dataService';
 import { fetchApi } from '@/legacy/services/apiClient';
+import { useToast } from '@/components/ui';
 
 function DetailRow({ label, value, icon: Icon }: { label: string; value?: string | number | null; icon: React.ElementType }) {
   if (value === undefined || value === null || value === '') return null;
@@ -120,17 +121,45 @@ export default function ProfilePage() {
 
   const [shortlisted, setShortlisted] = useState(false);
   const [interestInfo, setInterestInfo] = useState<InterestInfo>({ state: null, interestId: null });
-  const interestState = interestInfo.state;
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
+
+  // Synchronous instant check from session cache
+  const isInstantSent = useMemo(() => {
+    if (interestInfo.state) return false;
+    const cached = getCachedSentInterestIds();
+    return Boolean(
+      (profileId && cached.has(String(profileId))) ||
+      (memberId && cached.has(String(memberId)))
+    );
+  }, [interestInfo.state, profileId, memberId]);
+
+  const interestState = interestInfo.state || (isInstantSent ? 'SENT' : null);
+
+  // When profileData returns with interest state from backend, update immediately
+  useEffect(() => {
+    if (profileData?.interest?.state) {
+      setInterestInfo({
+        state: profileData.interest.state,
+        interestId: profileData.interest.interestId || profileData.interest.id || null,
+        direction: profileData.interest.direction || null,
+      });
+      if (profileData.interest.state === 'SENT' || profileData.interest.state === 'ACCEPTED') {
+        if (memberId) cacheSentInterestId(memberId);
+        if (profileId) cacheSentInterestId(profileId);
+      }
+    }
+  }, [profileData?.interest, memberId, profileId]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | null>(null);
+  const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | 'unlimited_views' | null>(null);
   const [showMessageTerms, setShowMessageTerms] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('Fake profile');
   const [reportDetails, setReportDetails] = useState('');
   const [blocked, setBlocked] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState<null | 'block' | 'unblock'>(null);
   const [mounted, setMounted] = useState(false);
+  const { showToast } = useToast();
 
   const isOwnProfile = Boolean(memberId && user?.id === memberId);
 
@@ -182,23 +211,30 @@ export default function ProfilePage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex, photos.length]);
+
   useEffect(() => {
     if (!memberId) return;
     let cancelled = false;
-    setInterestInfo({ state: null, interestId: null });
     getShortlists()
       .then((response) => {
         if (!cancelled) setShortlisted(response.results.some((profile) => profile.id === memberId));
       })
       .catch(() => undefined);
 
-    // Accepted interests are mutual matches, not merely sent requests. Read
-    // both directions so the label stays correct for either member.
+    // Reconcile in background without wiping existing instantaneous state
     Promise.all([
       getInterests('outgoing').catch(() => []),
       getInterests('incoming').catch(() => []),
     ]).then(([outgoing, incoming]) => {
-      if (!cancelled) setInterestInfo(resolveInterestState(outgoing, incoming, memberId));
+      if (!cancelled) {
+        const resolved = resolveInterestState(outgoing, incoming, memberId);
+        if (resolved.state) {
+          setInterestInfo(resolved);
+          if (resolved.state === 'SENT' || resolved.state === 'ACCEPTED') {
+            cacheSentInterestId(memberId);
+          }
+        }
+      }
     });
 
     return () => { cancelled = true; };
@@ -214,19 +250,36 @@ export default function ProfilePage() {
   };
 
   const handleInterest = async () => {
-    if (!profileData?.profile.id || interestState) return;
+    const targetId = profileData?.profile.id || memberId || profileId;
+    if (!targetId || interestState) return;
+
+    // Instant optimistic update (0ms delay)
+    setInterestInfo({ state: 'SENT', interestId: null, direction: 'sent' });
+    cacheSentInterestId(targetId);
+    showToast('Interest sent successfully 💕', 'success');
+
     try {
-      const interest = await sendInterest(profileData.profile.id).unwrap();
-      setInterestInfo({ state: interest.status === 'ACCEPTED' ? 'ACCEPTED' : 'SENT', interestId: interest?.id || null });
+      const interest = await sendInterest(targetId).unwrap();
+      setInterestInfo({
+        state: interest.status === 'ACCEPTED' ? 'ACCEPTED' : 'SENT',
+        interestId: interest?.id || null,
+        direction: 'sent',
+      });
       if (interest.status === 'ACCEPTED') void refetch();
     } catch (requestError: any) {
       const membershipError = requestError?.data?.code === 'MEMBERSHIP_REQUIRED'
         || requestError?.code === 'MEMBERSHIP_REQUIRED'
         || requestError?.status === 402
         || requestError?.status === 403;
-      if (membershipError) setUpgradeFeature('messaging');
-      else if (requestError?.status === 409) setInterestInfo({ state: 'SENT', interestId: null });
-      else window.alert('Interest could not be sent. Please try again.');
+      if (membershipError) {
+        setInterestInfo({ state: null, interestId: null });
+        setUpgradeFeature('messaging');
+      } else if (requestError?.status === 409) {
+        setInterestInfo({ state: 'SENT', interestId: null, direction: 'sent' });
+      } else {
+        setInterestInfo({ state: null, interestId: null });
+        showToast('Interest could not be sent. Please try again.', 'error');
+      }
     }
   };
 
@@ -269,15 +322,26 @@ export default function ProfilePage() {
     }
   };
 
-  const handleBlock = async () => {
-    if (blocked) return;
+  const confirmBlockAction = async () => {
+    if (!showBlockConfirm) return;
     setBlocking(true);
+    const targetId = (profileData?.profile?.user as any)?.id || profileData?.profile?.id || profileId;
     try {
-      await fetchApi('/blocks/', { method: 'POST', body: JSON.stringify({ profile_id: memberId || profileId }) });
-      setBlocked(true);
-      window.alert('This profile has been blocked. You can unblock it anytime from Blocked & Rejected.');
+      if (showBlockConfirm === 'block') {
+        await fetchApi('/blocks/', { method: 'POST', body: JSON.stringify({ profile_id: targetId, member_id: targetId }) });
+        setBlocked(true);
+        setShowBlockConfirm(null);
+        showToast('Profile has been blocked.', 'info');
+        void refetch();
+      } else {
+        await fetchApi(`/blocks/${targetId}/`, { method: 'DELETE' });
+        setBlocked(false);
+        setShowBlockConfirm(null);
+        showToast('Profile has been unblocked successfully.', 'success');
+        void refetch();
+      }
     } catch {
-      window.alert('Profile could not be blocked. Please try again.');
+      showToast(`Could not ${showBlockConfirm} profile. Please try again.`, 'error');
     } finally {
       setBlocking(false);
     }
@@ -294,6 +358,90 @@ export default function ProfilePage() {
   }
 
   if (error || !profileData?.profile) {
+    const errData = (error as any)?.data || (error as any);
+    const isDailyLimitReached =
+      Boolean(error) &&
+      (
+        (error as any)?.status === 403 ||
+        errData?.code === 'daily_profile_unlock_limit_reached' ||
+        errData?.error === 'DAILY_LIMIT_REACHED' ||
+        errData?.entitlement === 'daily_profile_view_limit' ||
+        (typeof errData?.message === 'string' && errData.message.toLowerCase().includes('limit')) ||
+        (typeof errData?.detail === 'string' && errData.detail.toLowerCase().includes('limit'))
+      ) &&
+      errData?.code !== 'blocked_by_user' &&
+      errData?.code !== 'you_blocked';
+
+    if (isDailyLimitReached) {
+      const limitValue = errData?.limit ?? errData?.views_limit ?? errData?.daily_limit ?? 10;
+      const planName = errData?.current_plan || (user as any)?.active_membership?.plan_name || 'Free';
+      return (
+        <div className="flex h-full min-h-[36rem] flex-col items-center justify-center bg-[#f4f6f7] px-4 py-12 text-center pb-24 lg:pb-12">
+          <div className="relative w-full max-w-lg rounded-3xl border border-amber-200/80 bg-gradient-to-b from-white via-[#FFFDF9] to-[#FFF9F2] p-7 sm:p-9 shadow-xl text-center overflow-hidden">
+            {/* Ambient Background Accent */}
+            <div className="pointer-events-none absolute -top-12 -right-12 h-36 w-36 rounded-full bg-amber-200/40 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-rose-200/30 blur-2xl" />
+
+            {/* Icon */}
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-[0_8px_20px_-4px_rgba(217,119,6,0.4)]">
+              <Lock className="h-9 w-9" />
+            </div>
+
+            {/* Pill */}
+            <div className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-100/90 border border-amber-300/80 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-amber-900">
+              <Crown className="h-3.5 w-3.5 text-amber-700" /> Daily Limit Reached (0 / {limitValue} Left)
+            </div>
+
+            <h1 className="mt-4 font-display text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              You&apos;ve viewed all {limitValue} profiles today
+            </h1>
+
+            <p className="mt-3 text-xs sm:text-sm leading-relaxed text-slate-600">
+              You have exhausted your daily limit of <strong className="font-bold text-slate-800">{limitValue} profile views</strong> on your <span className="font-semibold text-amber-900">{planName} Plan</span>. Your daily allowance will automatically refresh tomorrow.
+            </p>
+
+            {/* Feature Callout */}
+            <div className="mt-6 rounded-2xl border border-amber-200/70 bg-white/90 p-4 text-left shadow-2xs backdrop-blur-sm space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Upgrade to Premium for <strong>unlimited profile views</strong></span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Direct contact details, verified matchmaking & direct chat</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setUpgradeFeature('unlimited_views')}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-rose-600 to-pink-600 px-6 py-3 text-sm font-extrabold text-white shadow-md hover:brightness-110 active:scale-98 transition-all"
+              >
+                <Crown className="h-4 w-4" /> Upgrade for Unlimited Views
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+              >
+                <ArrowLeft className="h-4 w-4" /> Go Back
+              </button>
+            </div>
+          </div>
+
+          {upgradeFeature && (
+            <UpgradeModal
+              isOpen={Boolean(upgradeFeature)}
+              onClose={() => setUpgradeFeature(null)}
+              feature={upgradeFeature}
+            />
+          )}
+        </div>
+      );
+    }
+
     if (typeof error === 'object' && error && (error as any)?.code === 'blocked_by_user') {
       return (
         <div className="flex h-full min-h-[34rem] flex-col items-center justify-center bg-[#f4f6f7] px-5 text-center pb-20 lg:pb-0">
@@ -313,21 +461,92 @@ export default function ProfilePage() {
     if (typeof error === 'object' && error && (error as any)?.code === 'you_blocked') {
       return (
         <div className="flex h-full min-h-[34rem] flex-col items-center justify-center bg-[#f4f6f7] px-5 text-center pb-20 lg:pb-0">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
-            <Ban className="h-9 w-9 text-slate-300" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-rose-50 shadow-sm border border-rose-100">
+            <Ban className="h-9 w-9 text-rose-500" />
           </div>
           <h1 className="mt-6 text-2xl font-extrabold text-[#17232d]">You have blocked this user</h1>
           <p className="mt-2 max-w-sm text-sm text-slate-500">
-            Unblock them if you'd like to reconnect. You can do this from Blocked &amp; Rejected.
+            Unblock them if you'd like to view their details or reconnect.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/blocked" className="inline-flex items-center gap-2 rounded-lg bg-[#bd304d] px-4 py-2.5 text-sm font-bold text-white">
-              <ShieldCheck className="h-4 w-4" /> Manage blocked
+            <button
+              type="button"
+              onClick={() => setShowBlockConfirm('unblock')}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-2.5 text-sm font-extrabold text-white shadow-md hover:brightness-110 active:scale-95 transition-all"
+            >
+              <ShieldCheck className="h-4 w-4" /> Unblock Profile
+            </button>
+            <Link href="/blocked" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-2xs">
+              Manage blocked
             </Link>
-            <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-lg bg-[#17232d] px-4 py-2.5 text-sm font-bold text-white">
+            <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-900 shadow-2xs">
               <ArrowLeft className="h-4 w-4" /> Go back
             </button>
           </div>
+
+          {mounted && showBlockConfirm && createPortal(
+            <div
+              className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto"
+              role="dialog"
+              aria-modal="true"
+              onClick={() => { if (!blocking) setShowBlockConfirm(null); }}
+            >
+              <div
+                className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-4 my-auto transform transition-all text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs bg-emerald-50 border border-emerald-100 text-emerald-600">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBlockConfirm(null)}
+                    disabled={blocking}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    Unblock this profile?
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                    Are you sure you want to unblock this member? You will immediately be able to view their full profile, photos, and reconnect with them.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBlockConfirm(null)}
+                    disabled={blocking}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void confirmBlockAction()}
+                    disabled={blocking}
+                    className="flex-1 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                  >
+                    {blocking ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" /> Unblock Profile
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       );
     }
@@ -370,6 +589,10 @@ export default function ProfilePage() {
           ? 'Declined'
           : 'Connect';
 
+  const remainingToday = profileData?.usage?.remaining_today;
+  const dailyLimit = profileData?.usage?.daily_limit;
+  const usedToday = profileData?.usage?.used_today;
+
   const highlights = [
     { label: 'Age', value: profile.age ? `${profile.age} years` : 'Private', icon: CalendarDays },
     { label: 'Height', value: profile.height || 'Private', icon: Ruler },
@@ -380,28 +603,108 @@ export default function ProfilePage() {
   return (
     <div className="min-h-full bg-[#f4f6f7] px-3 pb-24 sm:px-5 lg:px-7 lg:pb-10">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold text-slate-600 hover:bg-white" aria-label="Back">
-            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Back to results</span>
-          </button>
+        {/* Highlight Banner when 1 or 2 views remain */}
+        {typeof remainingToday === 'number' && remainingToday <= 2 && remainingToday >= 0 && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-2xs">
+                <Crown className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-black text-amber-950">
+                  ⚠️ Only {remainingToday} profile view{remainingToday === 1 ? '' : 's'} remaining today!
+                </p>
+                <p className="text-[11px] sm:text-xs text-amber-800 font-medium">
+                  You have viewed {usedToday ?? (dailyLimit ? dailyLimit - remainingToday : 0)} of your {dailyLimit ?? 10} daily profiles. Upgrade to Premium for unlimited views.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUpgradeFeature('unlimited_views')}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 via-rose-600 to-pink-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+            >
+              <Crown className="h-3.5 w-3.5" /> Upgrade Plan
+            </button>
+          </div>
+        )}
+
+        <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold text-slate-600 hover:bg-white" aria-label="Back">
+              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Back to results</span>
+            </button>
+            {typeof remainingToday === 'number' && (
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                remainingToday <= 2
+                  ? 'border border-amber-300 bg-amber-100 text-amber-950 shadow-2xs'
+                  : 'border border-slate-200 bg-white text-slate-600'
+              }`}>
+                <Eye className="h-3.5 w-3.5 text-slate-500" />
+                <span>{remainingToday} {remainingToday === 1 ? 'view' : 'views'} left today</span>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
             {!isOwnProfile && (
-              <button type="button" onClick={() => setShowReport(true)} title="Report profile" aria-label="Report profile" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-[#bd304d]">
-                <Flag className="h-4 w-4" />
-              </button>
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => setShowReport(true)}
+                  aria-label="Report profile"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-[#bd304d] transition-colors"
+                >
+                  <Flag className="h-4 w-4" />
+                </button>
+                <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-[10px] font-bold text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                  Report
+                </span>
+              </div>
             )}
             {!isOwnProfile && (
-              <button type="button" onClick={() => void handleBlock()} title={blocked ? 'Blocked' : 'Block profile'} aria-label={blocked ? 'Blocked' : 'Block profile'} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-[#bd304d]" disabled={blocking}>
-                {blocked ? <ShieldCheck className="h-4 w-4 text-[#bd304d]" /> : <ShieldCheck className="h-4 w-4" />}
-              </button>
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => setShowBlockConfirm(blocked ? 'unblock' : 'block')}
+                  aria-label={blocked ? 'Unblock profile' : 'Block profile'}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-[#bd304d] transition-colors"
+                  disabled={blocking}
+                >
+                  {blocked ? <ShieldCheck className="h-4 w-4 text-[#bd304d]" /> : <ShieldCheck className="h-4 w-4" />}
+                </button>
+                <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-[10px] font-bold text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                  {blocked ? 'Blocked (Click to unblock)' : 'Block Profile'}
+                </span>
+              </div>
             )}
-            <Link href={`/compare?candidate=${profileId}`} title="Compare profile" aria-label="Compare profile" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-white">
-              <Scale className="h-4 w-4" />
-            </Link>
+            <div className="relative group">
+              <Link
+                href={`/compare?candidate=${profileId}`}
+                aria-label="Compare profile"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+              >
+                <Scale className="h-4 w-4" />
+              </Link>
+              <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-[10px] font-bold text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                Compare
+              </span>
+            </div>
             {!isOwnProfile && (
-              <button type="button" onClick={() => void handleShortlist()} title={shortlisted ? 'Remove from shortlist' : 'Save profile'} aria-label={shortlisted ? 'Remove from shortlist' : 'Save profile'} className={`flex h-9 w-9 items-center justify-center rounded-full ${shortlisted ? 'bg-[#f6c65b] text-[#17232d]' : 'text-slate-500 hover:bg-white'}`}>
-                {shortlisted ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-              </button>
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => void handleShortlist()}
+                  aria-label={shortlisted ? 'Remove from shortlist' : 'Save profile'}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-all ${
+                    shortlisted ? 'bg-[#f6c65b] text-[#17232d] shadow-xs' : 'text-slate-500 hover:bg-white hover:text-slate-900'
+                  }`}
+                >
+                  {shortlisted ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                </button>
+                <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-[10px] font-bold text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                  {shortlisted ? 'Shortlisted' : 'Shortlist'}
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -946,6 +1249,82 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>, document.body)}
+
+      {mounted && showBlockConfirm && createPortal(
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { if (!blocking) setShowBlockConfirm(null); }}
+        >
+          <div
+            className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-4 my-auto transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs ${
+                showBlockConfirm === 'block' ? 'bg-rose-50 border border-rose-100 text-rose-600' : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+              }`}>
+                {showBlockConfirm === 'block' ? <Ban className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBlockConfirm(null)}
+                disabled={blocking}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                {showBlockConfirm === 'block' ? 'Block this profile?' : 'Unblock this profile?'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                {showBlockConfirm === 'block'
+                  ? `Are you sure you want to block ${profileUser.full_name || 'this member'}? They will no longer be able to message you or view your profile. You can unblock them anytime from Blocked & Rejected.`
+                  : `Are you sure you want to unblock ${profileUser.full_name || 'this member'}? They will be able to see your profile and connect with you again.`}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBlockConfirm(null)}
+                disabled={blocking}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmBlockAction()}
+                disabled={blocking}
+                className={`flex-1 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                  showBlockConfirm === 'block'
+                    ? 'bg-rose-600 hover:bg-rose-700 active:scale-95'
+                    : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                }`}
+              >
+                {blocking ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : showBlockConfirm === 'block' ? (
+                  <>
+                    <Ban className="w-4 h-4" /> Block Profile
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Unblock Profile
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

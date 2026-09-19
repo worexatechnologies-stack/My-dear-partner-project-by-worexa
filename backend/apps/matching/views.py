@@ -44,12 +44,25 @@ class ProfileBlockView(APIView):
     @transaction.atomic
     def post(self, request):
         profile_id = request.data.get('profile_id') or request.data.get('member_id')
-        profile = get_object_or_404(Member.objects.filter(is_active=True), pk=profile_id)
-        if profile.pk == request.user.pk:
+        if not profile_id:
+            return Response({'detail': 'profile_id or member_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Direct Member lookup by pk
+        target_member = Member.objects.filter(is_active=True, pk=profile_id).first()
+        if not target_member:
+            # 2. Lookup via MemberProfile id
+            from apps.accounts.models import Member as AccountMember
+            target_member = AccountMember.objects.filter(is_active=True, profile__id=profile_id).first()
+
+        if not target_member:
+            return Response({'detail': 'Member not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target_member.pk == request.user.pk:
             return Response({'detail': 'You cannot block your own profile.'}, status=status.HTTP_400_BAD_REQUEST)
-        block, created = ProfileBlock.objects.get_or_create(blocker=request.user, blocked=profile)
+
+        block, created = ProfileBlock.objects.get_or_create(blocker=request.user, blocked=target_member)
         return Response(
-            {'success': True, 'blocked': True, 'created': created, 'member_id': str(profile.pk)},
+            {'success': True, 'blocked': True, 'created': created, 'member_id': str(target_member.pk)},
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -57,7 +70,14 @@ class ProfileBlockView(APIView):
     def delete(self, request, member_id=None):
         if not member_id:
             return Response({'detail': 'member_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
         deleted, _ = ProfileBlock.objects.filter(blocker=request.user, blocked_id=member_id).delete()
+        if not deleted:
+            # Check if member_id was a profile id
+            target_member = Member.objects.filter(profile__id=member_id).first()
+            if target_member:
+                deleted, _ = ProfileBlock.objects.filter(blocker=request.user, blocked_id=target_member.pk).delete()
+
         if not deleted:
             return Response({'detail': 'Block not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'success': True, 'blocked': False, 'member_id': str(member_id)})
@@ -120,9 +140,22 @@ class PassListView(APIView):
             Q(blocker=request.user) | Q(blocked=request.user)
         ).values_list('blocker_id', 'blocked_id')
         excluded_ids = {value for pair in blocked_pairs for value in pair}
+
+        # Mutually exclusive: profiles user has an active outgoing like to or an accepted match with
+        # must never be counted as passed
+        active_interest_pairs = set(
+            Interest.objects.filter(
+                Q(sender=request.user, status__in=[Interest.Status.PENDING, Interest.Status.ACCEPTED]) |
+                Q(receiver=request.user, status=Interest.Status.ACCEPTED)
+            )
+            .values_list('receiver_id', 'sender_id')
+        )
+        active_member_ids = {mid for pair in active_interest_pairs for mid in pair if mid != request.user.pk}
+
         rows = (
             MemberPass.objects.filter(user=request.user)
             .exclude(profile__member_id__in=excluded_ids)
+            .exclude(profile__member_id__in=active_member_ids)
             .select_related("profile__member")
             .prefetch_related(
                 Prefetch(
@@ -140,26 +173,47 @@ class PassListView(APIView):
         profile_id = request.data.get("profile_id") or request.data.get("member_id")
         if not profile_id:
             return Response({"detail": "profile_id is required."}, status=status.HTTP_400_BAD_REQUEST)
-        profile = get_object_or_404(
-            MemberProfile.objects.select_related("member"),
-            member_id=profile_id,
+        
+        profile_filter = Q(member_id=profile_id) | Q(member__id=profile_id)
+        if str(profile_id).isdigit():
+            profile_filter |= Q(id=int(profile_id))
+
+        profile = MemberProfile.objects.filter(
+            profile_filter,
             member__is_active=True,
             member__deleted_at__isnull=True,
-        )
+        ).select_related("member").first()
+        if not profile:
+            return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
         if profile.member_id == request.user.pk:
             return Response(
                 {"detail": "You cannot pass your own profile."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         obj, created = MemberPass.objects.get_or_create(user=request.user, profile=profile)
+        # Mutually exclusive: passing a profile withdraws/removes any pending interest sent to them
+        Interest.objects.filter(
+            sender=request.user,
+            receiver=profile.member,
+            status=Interest.Status.PENDING,
+        ).delete()
         return Response({"success": True, "action": "passed", "created": created})
 
     @transaction.atomic
     def delete(self, request, profile_id=None):
         target_id = profile_id or request.data.get("profile_id") or request.data.get("member_id")
         if not target_id:
-            return Response({"detail": "profile_id is required."}, status=status.HTTP_400_BAD_REQUEST)
-        deleted, _ = MemberPass.objects.filter(user=request.user, profile__member_id=target_id).delete()
+            deleted, _ = MemberPass.objects.filter(user=request.user).delete()
+            return Response({"success": True, "action": "cleared", "deleted": bool(deleted)})
+        
+        pass_filter = Q(profile__member_id=target_id) | Q(profile__member__id=target_id)
+        if str(target_id).isdigit():
+            pass_filter |= Q(profile__id=int(target_id))
+
+        deleted, _ = MemberPass.objects.filter(
+            pass_filter,
+            user=request.user,
+        ).delete()
         return Response({"success": True, "action": "restored", "deleted": bool(deleted)})
 
 
@@ -223,16 +277,28 @@ class InterestListCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Mutually exclusive: if this member was previously passed, remove it from passes
+        MemberPass.objects.filter(
+            user=request.user,
+            profile__member=receiver,
+        ).delete()
+
         reverse = Interest.objects.select_for_update().filter(
             sender=receiver,
             receiver=request.user,
-            status=Interest.Status.PENDING,
         ).first()
         if reverse:
-            reverse.status = Interest.Status.ACCEPTED
-            reverse.save(update_fields=("status", "updated_at"))
-            MatchClosureService.reopen_match(reverse.sender, reverse.receiver)
-            return Response(MemberInterestSerializer(reverse, context={"request": request}).data)
+            if reverse.status == Interest.Status.PENDING:
+                reverse.status = Interest.Status.ACCEPTED
+                reverse.save(update_fields=("status", "updated_at"))
+                MatchClosureService.reopen_match(reverse.sender, reverse.receiver)
+            if reverse.status == Interest.Status.ACCEPTED:
+                # Also ensure any forward interest is synchronized as accepted
+                existing = Interest.objects.filter(sender=request.user, receiver=receiver).first()
+                if existing and existing.status != Interest.Status.ACCEPTED:
+                    existing.status = Interest.Status.ACCEPTED
+                    existing.save(update_fields=("status", "updated_at"))
+                return Response(MemberInterestSerializer(reverse, context={"request": request}).data)
 
         existing = Interest.objects.select_for_update().filter(
             sender=request.user,
@@ -316,9 +382,24 @@ class InterestDetailView(APIView):
         interest.save(update_fields=("status", "updated_at"))
         if new_status == Interest.Status.ACCEPTED:
             MatchClosureService.reopen_match(interest.sender, interest.receiver)
+            # Synchronize any reciprocal interest between the two users
+            Interest.objects.filter(
+                sender=interest.receiver,
+                receiver=interest.sender,
+            ).update(status=Interest.Status.ACCEPTED)
+            # Remove any pass record between the two users
+            MemberPass.objects.filter(
+                Q(user=interest.receiver, profile__member=interest.sender) |
+                Q(user=interest.sender, profile__member=interest.receiver)
+            ).delete()
         elif closes_match:
             MatchClosureService.close_match(interest, request.user)
             self._notify_match_removed(interest, request.user)
+            Interest.objects.filter(
+                sender=interest.receiver,
+                receiver=interest.sender,
+                status=Interest.Status.ACCEPTED,
+            ).update(status=Interest.Status.DECLINED)
 
         return Response(MemberInterestSerializer(interest, context={"request": request}).data)
 
@@ -345,6 +426,11 @@ class InterestDetailView(APIView):
         if closes_match:
             MatchClosureService.close_match(interest, request.user)
             self._notify_match_removed(interest, request.user)
+            Interest.objects.filter(
+                sender=interest.receiver,
+                receiver=interest.sender,
+                status=Interest.Status.ACCEPTED,
+            ).update(status=Interest.Status.WITHDRAWN)
         return Response(MemberInterestSerializer(interest, context={"request": request}).data)
 
     @staticmethod

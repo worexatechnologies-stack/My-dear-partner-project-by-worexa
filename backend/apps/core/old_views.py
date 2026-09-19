@@ -319,45 +319,91 @@ class ProfileDetailView(APIView):
             'blocked_by_user': bool(payload.get('blocked_by_user', False)),
             'compatibility': payload['compatibility'],
             'access': payload['access'],
+            'interest': payload.get('interest'),
         })
 
 
 class ProfileVisitorListView(APIView):
-    """List recent unique profile visitors without leaking locked identities."""
+    """List recent unique profile visitors with configurable LinkedIn-style visibility limit."""
 
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def get(self, request):
         from apps.core.entitlements import get_active_entitlements
 
-        try:
-            limit = max(1, min(int(request.query_params.get("limit", 3)), 20))
-        except (TypeError, ValueError):
-            return bad_request("limit must be an integer between 1 and 20.")
-
         base = ProfileViewLog.objects.filter(viewed=request.user)
         total_unique_visitors = base.values("viewer_id").distinct().count()
         entitlements = get_active_entitlements(request.user)
-        can_view_visitors = entitlements.can_see_who_viewed_profile
-        if not can_view_visitors:
-            return ApiResponse(data={
-                "can_view_visitors": False,
-                "total_unique_visitors": total_unique_visitors,
-                "results": [],
-            })
+
+        # Configurable visitor visibility limit from membership plan
+        # None = Unlimited
+        plan_limit = getattr(entitlements, 'profile_visitors_limit', None)
+
+        try:
+            requested_limit = int(request.query_params.get("limit", 20))
+        except (TypeError, ValueError):
+            requested_limit = 20
+
+        if plan_limit is not None and plan_limit >= 0:
+            effective_limit = plan_limit
+        else:
+            effective_limit = requested_limit
 
         latest_for_viewer = base.filter(viewer_id=OuterRef("viewer_id")).order_by("-viewed_at", "-pk")
-        visits = (
+        all_visits_qs = (
             base.filter(pk=Subquery(latest_for_viewer.values("pk")[:1]))
             .select_related("viewer", "viewer__profile")
             .prefetch_related(
                 Prefetch("viewer__profile_photos", queryset=ProfilePhoto.objects.without_binary())
             )
-            .order_by("-viewed_at", "-pk")[:limit]
+            .order_by("-viewed_at", "-pk")
         )
+
+        def _build_blurred_visitor(visit):
+            serialized_member = MemberPublicSerializer(visit.viewer, context={"request": request}).data
+            photo = serialized_member.get("photo")
+            if not photo:
+                for p in visit.viewer.profile_photos.all():
+                    if not p.is_deleted:
+                        from apps.profiles.serializers import photo_endpoint_urls
+                        photo = photo_endpoint_urls(p).get("image_url")
+                        break
+            elif isinstance(photo, str) and "/thumbnail/" in photo:
+                photo = photo.replace("/thumbnail/", "/image/")
+            return {
+                "id": str(visit.pk),
+                "viewed_at": visit.viewed_at.isoformat(),
+                "photo": photo,
+            }
+
+        if effective_limit == 0:
+            blurred_visitors = [_build_blurred_visitor(v) for v in all_visits_qs[:20]]
+            return ApiResponse(data={
+                "can_view_visitors": False,
+                "total_unique_visitors": total_unique_visitors,
+                "visible_limit": 0,
+                "locked_count": total_unique_visitors,
+                "blurred_visitors": blurred_visitors,
+                "results": [],
+            })
+
+        visits_qs = all_visits_qs
+        if effective_limit > 0:
+            visits_qs = visits_qs[:effective_limit]
+
+        visits = list(visits_qs)
+        locked_count = max(0, total_unique_visitors - len(visits))
+
+        blurred_visitors = []
+        if locked_count > 0:
+            blurred_visitors = [_build_blurred_visitor(v) for v in all_visits_qs[effective_limit:effective_limit + 20]]
+
         return ApiResponse(data={
             "can_view_visitors": True,
             "total_unique_visitors": total_unique_visitors,
+            "visible_limit": plan_limit,
+            "locked_count": locked_count,
+            "blurred_visitors": blurred_visitors,
             "results": [
                 {
                     "id": str(visit.pk),

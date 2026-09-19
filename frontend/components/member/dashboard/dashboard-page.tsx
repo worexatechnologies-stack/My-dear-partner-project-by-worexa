@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import SmartImage from '@/components/shared/smart-image';
 import { useState, useEffect, useCallback } from 'react';
@@ -13,12 +13,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import { getInterests, getConversations, getProfiles, updateInterestStatus } from '@/legacy/services/dataService';
+import { fetchInterestStats } from '@/lib/interest-stats';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { DashboardSkeleton } from '@/legacy/components/SkeletonLoader';
 import { useGetUnlockUsageQuery } from '@/legacy/services/profileApi';
 import { profileHref } from '@/lib/profile-url';
 
-/* ─────────────────────────── types & helpers ─────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ types & helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const fieldLabels: Record<string, string> = {
   mobile_number: 'Mobile Number',
@@ -67,11 +68,11 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-/* ─────────────────────────── sub-components ─────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /**
  * Decorative mandala/floral SVG pattern for the hero banner.
- * Renders concentric petal rings — Indian-matrimony motif at low opacity.
+ * Renders concentric petal rings â€” Indian-matrimony motif at low opacity.
  */
 function FloralPattern({ className }: { className?: string }) {
   return (
@@ -177,7 +178,7 @@ function ProfileArc({ percentage }: { percentage: number }) {
   );
 }
 
-/** Dark glass Daily Usage panel — inlined for design cohesion */
+/** Dark glass Daily Usage panel â€” inlined for design cohesion */
 function DailyUsagePanel() {
   const { data: usage, refetch, isLoading } = useGetUnlockUsageQuery();
 
@@ -238,8 +239,8 @@ function DailyUsagePanel() {
             {lowUnlocks && <span className="text-[9px] font-bold text-amber-400 bg-amber-400/15 px-1.5 py-0.5 rounded-full">Low</span>}
           </div>
           <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-xl font-black text-rose-300">{usage.remaining_today ?? '∞'}</span>
-            <span className="text-xs text-white/30">/{usage.daily_limit ?? '∞'}</span>
+            <span className="text-xl font-black text-rose-300">{usage.remaining_today ?? 'âˆž'}</span>
+            <span className="text-xs text-white/30">/{usage.daily_limit ?? 'âˆž'}</span>
           </div>
           {usage.daily_limit && usage.daily_limit > 0 && (
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -260,8 +261,8 @@ function DailyUsagePanel() {
             {lowInterests && <span className="text-[9px] font-bold text-amber-400 bg-amber-400/15 px-1.5 py-0.5 rounded-full">Low</span>}
           </div>
           <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-xl font-black text-rose-300">{usage.interest_remaining_today ?? '∞'}</span>
-            <span className="text-xs text-white/30">/{usage.interest_limit ?? '∞'}</span>
+            <span className="text-xl font-black text-rose-300">{usage.interest_remaining_today ?? 'âˆž'}</span>
+            <span className="text-xs text-white/30">/{usage.interest_limit ?? 'âˆž'}</span>
           </div>
           {usage.interest_limit && usage.interest_limit > 0 && (
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -398,7 +399,7 @@ function MatchCard({
   );
 }
 
-/* ─────────────────────────── main page ─────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -413,13 +414,13 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [incoming, outgoing, conversations, profiles, visitorData] = await Promise.all([
+      const [incoming, conversations, profiles, visitorData, iStats] = await Promise.all([
         getInterests('incoming').catch(() => []),
-        getInterests('outgoing').catch(() => []),
         getConversations().catch(() => []),
         getProfiles().catch(() => ({ results: [] })),
         fetchApi<ProfileVisitorsResponse>('/profile-visitors/', { params: { limit: 5 } })
           .catch(() => ({ can_view_visitors: false, total_unique_visitors: 0, results: [] })),
+        fetchInterestStats().catch(() => ({ received: 0, accepted: 0, sent: 0, declined: 0 })),
       ]);
 
       const pendingIncoming = incoming.filter((i: any) => i.status === 'PENDING');
@@ -429,11 +430,10 @@ export default function DashboardPage() {
       setCanViewVisitors(visitorData.can_view_visitors);
       setVisitorCount(visitorData.total_unique_visitors);
 
-      const allInterests = [...incoming, ...outgoing];
       setStats({
-        receivedCount: incoming.length,
-        sentCount: outgoing.length,
-        acceptedCount: allInterests.filter((i: any) => i.status === 'ACCEPTED').length,
+        receivedCount: iStats.received,
+        sentCount: iStats.sent,
+        acceptedCount: iStats.accepted,
         chatsCount: conversations.length,
       });
     } catch (err) {
@@ -524,9 +524,9 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pt-6">
 
-        {/* ══════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             HERO BANNER
-        ══════════════════════════════════ */}
+        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -600,7 +600,7 @@ export default function DashboardPage() {
                   className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight leading-tight"
                   style={{ fontFamily: '"Manrope", Georgia, serif' }}
                 >
-                  Welcome back, {user?.first_name || 'Member'} <span aria-hidden="true">✨</span>
+                  Welcome back, {user?.first_name || 'Member'} <span aria-hidden="true">âœ¨</span>
                 </h1>
                 <p className="text-slate-500 text-sm max-w-md leading-relaxed">
                   Discover new matches curated just for you. Complete your profile to maximise your visibility.
@@ -632,9 +632,9 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* ══════════════════════════════════
-            STAT CARDS — gradient + hover lift
-        ══════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            STAT CARDS â€” gradient + hover lift
+        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {statCards.map((stat, i) => (
             <motion.div
@@ -661,12 +661,12 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* ══════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             BENTO GRID
-        ══════════════════════════════════ */}
+        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
 
-          {/* ── Main column ── */}
+          {/* â”€â”€ Main column â”€â”€ */}
           <div className="space-y-6">
 
             {/* Pending Interests */}
@@ -819,10 +819,10 @@ export default function DashboardPage() {
             </motion.section>
           </div>
 
-          {/* ── Sidebar ── */}
+          {/* â”€â”€ Sidebar â”€â”€ */}
           <div className="space-y-5">
 
-            {/* Daily Usage — dark glass */}
+            {/* Daily Usage â€” dark glass */}
             <DailyUsagePanel />
 
             {/* Profile Visitors */}
@@ -893,7 +893,7 @@ export default function DashboardPage() {
               </div>
             </motion.section>
 
-            {/* Profile Score — dark glass */}
+            {/* Profile Score â€” dark glass */}
             <motion.section
               aria-labelledby="score-heading"
               initial={{ opacity: 0, x: 16 }}
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                     to="/settings"
                     className="block w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/10 transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                   >
-                    Complete Profile →
+                    Complete Profile â†’
                   </Link>
                 </div>
               )}

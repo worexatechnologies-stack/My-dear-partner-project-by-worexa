@@ -70,9 +70,17 @@ export function extractErrorMessage(data: unknown, status: number, retryAfter?: 
   if (!('message' in record) && !('code' in record) && !('errors' in record) && !('data' in record)) {
     return fieldErrorsMessage(record) || getFriendlyStatusMessage(status, retryAfter);
   }
+  // Django REST Framework returns {detail: "...", code: "..."} — prefer `detail` over `message`
+  // when `message` is absent (standard DRF error format).
+  const messageField =
+    typeof record.message === 'string'
+      ? record.message
+      : typeof record.detail === 'string'
+      ? record.detail
+      : null;
   return friendlyMessage({
     code: typeof record.code === 'string' ? record.code : null,
-    message: typeof record.message === 'string' ? record.message : null,
+    message: messageField,
     status,
     // Some Django validation responses use field names at the top level,
     // while standardized responses nest them under `errors`.

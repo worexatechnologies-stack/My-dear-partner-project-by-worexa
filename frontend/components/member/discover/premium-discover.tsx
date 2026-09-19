@@ -5,10 +5,10 @@ import { profileHref } from '@/lib/profile-url';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Eye, Heart, MapPin, MoreHorizontal,
+  Eye, Heart, MapPin, MoreHorizontal, Bookmark,
   ShieldCheck, SlidersHorizontal, Star, X, Flag, Ban, EyeOff,
   ChevronRight, Crown, ArrowRight, RotateCcw, CheckCircle2,
-  Briefcase, GraduationCap, Check,
+  Briefcase, GraduationCap, Check, Send, MessageCircle, TrendingUp,
 } from 'lucide-react';
 
 import SmartImage from '@/components/shared/smart-image';
@@ -17,7 +17,14 @@ import { useAuth } from '@/legacy/contexts/AuthContext';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { getProfiles, getInterests, getShortlists, sendInterest, toggleShortlist } from '@/legacy/services/dataService';
 import type { Profile } from '@/legacy/types/domain';
-import { savePassedProfile, getPassedCount } from '@/lib/discover-actions';
+import {
+  savePassedProfile,
+  removePassedProfile,
+  fetchPassedProfilesFromBackend,
+  getLocalPassedProfiles,
+  cleanPassedAgainstLikes,
+} from '@/lib/discover-actions';
+import { interestFeedback } from '@/components/member/interest-feedback';
 
 /* ─────────────────────────────── Types ─────────────────────────────── */
 
@@ -38,23 +45,35 @@ const DEFAULT_FILTERS: Filters = {
 };
 
 const DISMISS_STORAGE_KEY = 'mdp-discover-dismissed';
+const PASSED_IDS_KEY = 'mdp_discover_dismissed_v2';
 
 function loadDismissedIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
+  const set = new Set<string>();
   try {
-    const raw = localStorage.getItem(DISMISS_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+    for (const key of [DISMISS_STORAGE_KEY, PASSED_IDS_KEY]) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const id of parsed) {
+            if (id) set.add(String(id));
+          }
+        }
+      }
+    }
   } catch {
-    return new Set();
+    /* ignore */
   }
+  return set;
 }
 
 function saveDismissedIds(ids: Set<string>) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(DISMISS_STORAGE_KEY, JSON.stringify([...ids]));
+    const list = JSON.stringify([...ids]);
+    localStorage.setItem(DISMISS_STORAGE_KEY, list);
+    localStorage.setItem(PASSED_IDS_KEY, list);
   } catch { /* quota / private mode */ }
 }
 
@@ -133,7 +152,7 @@ function matchesFilters(p: Profile, f: Filters, tab: FeedTab) {
 
 const CSS = `
 /* Root */
-.d-root { height:100%; min-height:0; display:flex; flex-direction:column; background:radial-gradient(46rem 26rem at 110% -10%, rgba(182,74,104,0.06), transparent 60%), radial-gradient(36rem 24rem at -10% 110%, rgba(217,179,108,0.05), transparent 60%), #faf6f3; overflow:hidden; }
+.d-root { height:100%; min-height:0; display:flex; flex-direction:column; background:radial-gradient(46rem 26rem at 110% -10%, rgba(155,63,95,0.06), transparent 60%), radial-gradient(36rem 24rem at -10% 110%, rgba(217,179,108,0.05), transparent 60%), #faf6f3; overflow:hidden; }
 
 /* Body */
 .d-body { box-sizing:border-box; flex:1; width:100%; min-height:0; display:flex; gap:0.75rem; overflow:hidden; padding:0.5rem 0.75rem; }
@@ -153,8 +172,8 @@ const CSS = `
 /* ── Heading ── */
 .d-heading { flex-shrink:0; }
 .d-title-row { display:flex; align-items:center; gap:0.5rem; }
-.d-title { font-family:var(--font-heading); font-size:1.75rem; font-weight:800; color:#2c2928; margin:0; line-height:1; }
-.d-subtitle { font-size:0.8125rem; color:#9a8990; margin:0.25rem 0 0; }
+.d-title { font-family:var(--font-heading); font-size:1.75rem; font-weight:800; color:#29242A; margin:0; line-height:1; }
+.d-subtitle { font-size:0.8125rem; color:#887780; margin:0.25rem 0 0; }
 @media(max-width:639px){ .d-heading{display:none;} }
 
 /* ── Toolbar ── */
@@ -170,27 +189,27 @@ const CSS = `
   transition:all 0.18s ease; flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
 }
-.d-tab:not(.active):hover { background:#fdf5f7; border-color:#e3ccd4; color:#8e3d58; }
+.d-tab:not(.active):hover { background:#FCF5F7; border-color:#E9DDE1; color:#9B3F5F; }
 .d-tab.active {
-  background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); border-color:transparent; color:white;
-  box-shadow:0 6px 16px rgba(225,29,72,0.30), inset 0 1px 0 rgba(255,255,255,0.22);
+  background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 100%); border-color:transparent; color:white;
+  box-shadow:0 6px 16px rgba(155,63,95,0.30), inset 0 1px 0 rgba(255,255,255,0.22);
 }
 
 .d-filter-btn {
   display:inline-flex; align-items:center; gap:0.375rem;
   padding:0.45rem 1rem; border-radius:9999px;
-  border:1.5px solid rgba(182,74,104,0.28); background:rgba(255,255,255,0.9); color:#8e3d58;
+  border:1.5px solid rgba(155,63,95,0.28); background:rgba(255,255,255,0.9); color:#9B3F5F;
   font-size:0.6875rem; font-weight:700; letter-spacing:0.01em; cursor:pointer; flex-shrink:0;
   box-shadow:0 2px 8px rgba(67,22,39,0.05);
   transition:all 0.18s ease;
 }
-.d-filter-btn:hover { background:#fdf3f6; border-color:rgba(182,74,104,0.5); transform:translateY(-1px); box-shadow:0 6px 14px rgba(142,61,88,0.14); }
+.d-filter-btn:hover { background:#FCF5F7; border-color:rgba(155,63,95,0.5); transform:translateY(-1px); box-shadow:0 6px 14px rgba(155,63,95,0.14); }
 .d-filter-btn:active { transform:translateY(0) scale(0.97); }
 .d-filter-btn.active {
-  background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); border-color:transparent; color:white;
-  box-shadow:0 8px 18px rgba(225,29,72,0.32), inset 0 1px 0 rgba(255,255,255,0.22);
+  background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 100%); border-color:transparent; color:white;
+  box-shadow:0 8px 18px rgba(155,63,95,0.32), inset 0 1px 0 rgba(255,255,255,0.22);
 }
-.d-filter-btn.active:hover { filter:brightness(1.06); background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); }
+.d-filter-btn.active:hover { filter:brightness(1.06); background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 100%); }
 
 /* ── Card area ── */
 .d-card-area {
@@ -215,24 +234,9 @@ const CSS = `
 @media(min-width:1024px){ .d-center{max-width:480px;} }
 @media(min-width:1440px){ .d-center{max-width:520px;} }
 
-/* Peek cards */
-.d-peek {
-  position:absolute; top:3%; bottom:3%;
-  width:min(280px,43%); border-radius:1.75rem;
-  overflow:hidden; z-index:5; pointer-events:none;
-  display:none;
-  box-shadow:0 12px 36px rgba(0,0,0,0.18);
-}
-@media(min-width:960px){ .d-peek{display:block;} }
-.d-peek-left  { left:0;  transform:rotate(-6deg) translateX(8%); transform-origin:right center; }
-.d-peek-right { right:0; transform:rotate(6deg)  translateX(-8%); transform-origin:left center; }
-.d-peek-inner { position:relative; width:100%; height:100%; background:#1a0e13; }
-.d-peek-img   { width:100%; height:100%; object-fit:cover; object-position:center center; display:block; }
-.d-peek-init  { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; font-weight:800; color:#a5697c; background:linear-gradient(135deg,#fdf3f6,#f8e9ee); }
-.d-peek-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, rgba(15,7,12,0.1) 0%, rgba(15,7,12,0.6) 60%, rgba(15,7,12,0.92) 100%); }
-.d-peek-meta  { position:absolute; bottom:0; left:0; right:0; padding:1.25rem 1rem; }
-.d-peek-name  { font-family:var(--font-heading); font-size:1.05rem; font-weight:800; color:white; margin:0 0 0.2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.d-peek-row   { display:flex; align-items:center; gap:0.3rem; font-size:0.6875rem; color:rgba(255,255,255,0.85); margin:0.15rem 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Peek cards disabled — clean single card mode */
+.d-peek { display: none !important; }
+
 
 /* ── Profile Card ── */
 .pc {
@@ -244,7 +248,7 @@ const CSS = `
   background:#1a0e13;
   display:flex; flex-direction:column; justify-content:flex-end;
 }
-@keyframes d-card-enter        { from { opacity:0; transform:translateY(10px) scale(.985); }                                   to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes d-card-enter        { from { opacity:0; transform:scale(.985); }                                   to { opacity:1; transform:scale(1); } }
 @keyframes d-card-enter-right  { from { opacity:0; transform:translateX(110px) rotate(8deg) scale(.94); }                   to { opacity:1; transform:translateX(0) rotate(0deg) scale(1); } }
 @keyframes d-card-enter-left   { from { opacity:0; transform:translateX(-110px) rotate(-8deg) scale(.94); }                  to { opacity:1; transform:translateX(0) rotate(0deg) scale(1); } }
 .pc.enter-right { animation:d-card-enter-right .42s cubic-bezier(.22,1,.36,1) both !important; }
@@ -283,8 +287,8 @@ const CSS = `
 .pc-verified-badge {
   display:flex; align-items:center; justify-content:center;
   width:2.125rem; height:2.125rem; border-radius:50%;
-  background:linear-gradient(135deg,#e11d48,#be123c); color:white; flex-shrink:0;
-  box-shadow:0 3px 10px rgba(225,29,72,0.4);
+  background:linear-gradient(135deg,#9B3F5F,#7F2948); color:white; flex-shrink:0;
+  box-shadow:0 3px 10px rgba(155,63,95,0.4);
 }
 /* Premium badge — crown chip in the top-right cluster */
 .pc-premium-badge {
@@ -360,7 +364,7 @@ const CSS = `
 }
 
 /* Swipe overlay */
-.pc-swipe { position:absolute; display:inline-flex; align-items:center; gap:0.375rem; padding:0.4rem 0.875rem; border-radius:9999px; font-size:0.75rem; font-weight:800; color:white; pointer-events:none; z-index:20; box-shadow:0 4px 14px rgba(0,0,0,0.18); top:50%; left:50%; transform:translate(-50%,-50%); background:#e11d48; }
+.pc-swipe { position:absolute; display:inline-flex; align-items:center; gap:0.375rem; padding:0.4rem 0.875rem; border-radius:9999px; font-size:0.75rem; font-weight:800; color:white; pointer-events:none; z-index:20; box-shadow:0 4px 14px rgba(0,0,0,0.18); top:50%; left:50%; transform:translate(-50%,-50%); background:#9B3F5F; }
 
 /* Info overlay — bottom of card */
 .pc-info {
@@ -377,7 +381,7 @@ const CSS = `
 .pc-name-verified {
   display:inline-flex; align-items:center; justify-content:center;
   width:1.25rem; height:1.25rem; border-radius:50%;
-  background:#e11d48; color:white; flex-shrink:0;
+  background:#9B3F5F; color:white; flex-shrink:0;
 }
 .pc-detail { display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; font-weight:500; color:rgba(255,255,255,0.92); margin:0; }
 .pc-detail-icon { flex-shrink:0; opacity:0.85; }
@@ -410,56 +414,56 @@ const CSS = `
 .pc-star {
   display:flex; align-items:center; justify-content:center;
   width:3.35rem; height:3.35rem; border-radius:50%;
-  border:1.5px solid rgba(255,255,255,0.65); background:rgba(255,255,255,0.92); cursor:pointer; color:#8e3d58;
+  border:1.5px solid rgba(255,255,255,0.65); background:rgba(255,255,255,0.92); cursor:pointer; color:#7F2948;
   box-shadow:0 8px 22px rgba(43,16,29,0.20), inset 0 1px 0 rgba(255,255,255,0.9);
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   transition:transform 0.16s ease, box-shadow 0.16s ease, color 0.16s ease; flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
 }
-.pc-star:hover { transform:scale(1.08); color:#b64a68; box-shadow:0 12px 28px rgba(43,16,29,0.26); }
+.pc-star:hover { transform:scale(1.08); color:#9B3F5F; box-shadow:0 12px 28px rgba(43,16,29,0.26); }
 .pc-star:active { transform:scale(0.94); }
-.pc-star.on    { background:linear-gradient(135deg,#fdf3f6,#f8e6ec); border-color:rgba(182,74,104,0.4); color:#b64a68; }
+.pc-star.on    { background:linear-gradient(135deg,#FCF5F7,#F5EAEF); border-color:rgba(155,63,95,0.4); color:#9B3F5F; }
 
 .pc-heart {
   display:flex; align-items:center; justify-content:center;
   width:4.35rem; height:4.35rem; border-radius:50%;
-  border:none; background:linear-gradient(135deg,#e11d48 0%,#b64a68 55%,#8e3d58 100%);
+  border:none; background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 55%,#5C1D33 100%);
   cursor:pointer; color:white;
-  box-shadow:0 12px 30px rgba(225,29,72,0.45), 0 0 0 6px rgba(225,29,72,0.10), inset 0 2px 0 rgba(255,255,255,0.25);
+  box-shadow:0 12px 30px rgba(155,63,95,0.45), 0 0 0 6px rgba(155,63,95,0.10), inset 0 2px 0 rgba(255,255,255,0.25);
   transition:transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease; flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
 }
-.pc-heart:hover  { transform:scale(1.08); filter:brightness(1.06); box-shadow:0 16px 38px rgba(225,29,72,0.55), 0 0 0 8px rgba(225,29,72,0.12), inset 0 2px 0 rgba(255,255,255,0.25); }
+.pc-heart:hover  { transform:scale(1.08); filter:brightness(1.06); box-shadow:0 16px 38px rgba(155,63,95,0.55), 0 0 0 8px rgba(155,63,95,0.12), inset 0 2px 0 rgba(255,255,255,0.25); }
 .pc-heart:active { transform:scale(0.95); }
-.pc-heart.sent   { background:linear-gradient(135deg,#702d45,#4a1d30); box-shadow:0 10px 24px rgba(74,29,48,0.4), inset 0 2px 0 rgba(255,255,255,0.12); }
+.pc-heart.sent   { background:linear-gradient(135deg,#4A1D30,#290F1B); box-shadow:0 10px 24px rgba(41,15,27,0.4), inset 0 2px 0 rgba(255,255,255,0.12); }
 
 /* Action-buttons entrance — plays each time a new card slides in */
-.pc-actions { animation:d-actions-in .55s cubic-bezier(.22,1,.36,1) both .12s; }
-@keyframes d-actions-in { from{ opacity:0; transform:translateY(18px); } to{ opacity:1; transform:translateY(0); } }
+.pc-actions { animation:d-actions-in .4s ease-out both .1s; }
+@keyframes d-actions-in { from{ opacity:0; transform:scale(0.94); } to{ opacity:1; transform:scale(1); } }
 
 /* ── Swipe hint — an animated "swipe" affordance below the deck ── */
 .d-hint {
   flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:0.6rem;
-  font-size:0.8rem; font-weight:800; color:#8e3d58; letter-spacing:0.02em;
+  font-size:0.8rem; font-weight:800; color:#7F2948; letter-spacing:0.02em;
   margin:0.125rem 0 0; padding:0.5rem 1.35rem; border-radius:9999px; align-self:center;
   position:relative;
-  background:linear-gradient(135deg,#ffffff,#fff3f6);
-  border:1.5px solid rgba(182,74,104,0.32);
-  box-shadow:0 10px 26px rgba(142,61,88,0.20), inset 0 1px 0 rgba(255,255,255,0.95);
+  background:linear-gradient(135deg,#ffffff,#FCF5F7);
+  border:1.5px solid rgba(155,63,95,0.25);
+  box-shadow:0 10px 26px rgba(155,63,95,0.15), inset 0 1px 0 rgba(255,255,255,0.95);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   animation:d-hint-float 2.6s cubic-bezier(.22,1,.36,1) infinite;
 }
 .d-hint::after {
   content:''; position:absolute; inset:-7px; border-radius:9999px; z-index:-1;
-  background:radial-gradient(closest-side, rgba(225,29,72,0.22), transparent);
+  background:radial-gradient(closest-side, rgba(155,63,95,0.18), transparent);
   filter:blur(7px); animation:d-hint-glow 2.6s ease-in-out infinite;
 }
 .d-hint-arrow {
   display:inline-flex; align-items:center; justify-content:center;
   width:1.8rem; height:1.8rem; border-radius:50%; line-height:0;
-  background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); color:#fff;
+  background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 100%); color:#fff;
   font-size:1rem; font-weight:900;
-  box-shadow:0 5px 14px rgba(225,29,72,0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+  box-shadow:0 5px 14px rgba(155,63,95,0.35), inset 0 1px 0 rgba(255,255,255,0.35);
 }
 .d-hint-left  { animation:d-hint-swipe-l 1.9s cubic-bezier(.22,1,.36,1) infinite; }
 .d-hint-right { animation:d-hint-swipe-r 1.9s cubic-bezier(.22,1,.36,1) infinite; }
@@ -484,19 +488,19 @@ const CSS = `
 .rp-lbl { font-size:0.5rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#c0a8b0; margin:0 0 0.5rem; }
 .rp-row  { display:flex; align-items:center; justify-content:space-between; }
 .rp-num  { font-family:var(--font-heading); font-size:1.125rem; font-weight:800; color:#3c3136; }
-.rp-week { font-size:0.5625rem; color:#9a8990; margin:0 0 0.375rem; }
+.rp-week { font-size:0.5625rem; color:#887780; margin:0 0 0.375rem; }
 
 /* Circular progress */
 .rp-circ-wrap { display:flex; align-items:flex-start; gap:0.625rem; margin-bottom:0.5rem; }
 .rp-circ-text { flex:1; min-width:0; }
 .rp-circ-msg  { font-size:0.6875rem; font-weight:700; color:#3c3136; margin:0 0 0.125rem; }
-.rp-circ-sub  { font-size:0.5625rem; color:#8a7a80; line-height:1.4; margin:0; }
+.rp-circ-sub  { font-size:0.5625rem; color:#887780; line-height:1.4; margin:0; }
 .rp-complete-btn {
   display:flex; align-items:center; justify-content:center;
   width:100%; height:2.5rem; border-radius:9999px; border:none;
-  background:linear-gradient(135deg,#e11d48,#b64a68); color:white;
+  background:linear-gradient(135deg,#9B3F5F,#7F2948); color:white;
   font-size:0.6875rem; font-weight:700; letter-spacing:0.01em; cursor:pointer; text-decoration:none;
-  box-shadow:0 8px 18px rgba(225,29,72,0.28), inset 0 1px 0 rgba(255,255,255,0.22);
+  box-shadow:0 8px 18px rgba(155,63,95,0.28), inset 0 1px 0 rgba(255,255,255,0.22);
   transition:filter 0.15s ease, transform 0.15s ease; margin-top:0.5rem;
 }
 .rp-complete-btn:hover { filter:brightness(1.06); transform:translateY(-1px); }
@@ -504,14 +508,14 @@ const CSS = `
 
 /* Avatars row */
 .rp-avatars { display:flex; align-items:center; margin:0.375rem 0; }
-.rp-avatar { width:2.125rem; height:2.125rem; border-radius:50%; border:2px solid white; overflow:hidden; background:#f8eef1; margin-left:-0.5rem; flex-shrink:0; cursor:pointer; text-decoration:none; display:block; position:relative; transition:transform 0.18s ease, box-shadow 0.18s ease; }
+.rp-avatar { width:2.125rem; height:2.125rem; border-radius:50%; border:2px solid white; overflow:hidden; background:#FCF5F7; margin-left:-0.5rem; flex-shrink:0; cursor:pointer; text-decoration:none; display:block; position:relative; transition:transform 0.18s ease, box-shadow 0.18s ease; }
 .rp-avatar:first-child { margin-left:0; }
 .rp-avatar img { width:100%; height:100%; object-fit:cover; }
-.rp-avatar:hover { transform:scale(1.12); z-index:10; box-shadow:0 4px 12px rgba(225,29,72,0.22); }
-.rp-avatar-more { display:flex; align-items:center; justify-content:center; font-size:0.625rem; font-weight:800; color:#e11d48; background:#fdf3f6; text-decoration:none; }
-.rp-badge { display:inline-flex; align-items:center; justify-content:center; min-width:1.25rem; height:1.25rem; padding:0 0.3rem; border-radius:9999px; background:#8e3d58; color:white; font-size:0.5rem; font-weight:700; }
-.rp-link  { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.5625rem; font-weight:800; color:#b64a68; text-decoration:none; margin-top:0.25rem; }
-.rp-link:hover { color:#8e3d58; }
+.rp-avatar:hover { transform:scale(1.12); z-index:10; box-shadow:0 4px 12px rgba(155,63,95,0.22); }
+.rp-avatar-more { display:flex; align-items:center; justify-content:center; font-size:0.625rem; font-weight:800; color:#9B3F5F; background:#FCF5F7; text-decoration:none; }
+.rp-badge { display:inline-flex; align-items:center; justify-content:center; min-width:1.25rem; height:1.25rem; padding:0 0.3rem; border-radius:9999px; background:#7F2948; color:white; font-size:0.5rem; font-weight:700; }
+.rp-link  { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.5625rem; font-weight:800; color:#9B3F5F; text-decoration:none; margin-top:0.25rem; }
+.rp-link:hover { color:#7F2948; }
 
 .rp-title-bold { font-family:var(--font-heading); font-size:0.95rem; font-weight:800; color:#1a1015; margin:0; display:flex; align-items:center; gap:0.4rem; }
 .rp-num-bold { font-family:var(--font-heading); font-size:1.15rem; font-weight:800; color:#1a1015; }
@@ -519,24 +523,24 @@ const CSS = `
 .rp-view-btn {
   display:flex; align-items:center; justify-content:center;
   width:100%; padding:0.65rem; border-radius:9999px;
-  background:linear-gradient(135deg,#fdf3f6,#f9e4eb); color:#b61e46;
+  background:linear-gradient(135deg,#FCF5F7,#F5EAEF); color:#7F2948;
   font-size:0.75rem; font-weight:800; text-decoration:none;
-  margin-top:1rem; border:1px solid rgba(182,74,104,0.18);
+  margin-top:1rem; border:1px solid rgba(155,63,95,0.2);
   transition:all 0.18s ease;
 }
-.rp-view-btn:hover { border-color:rgba(182,74,104,0.4); transform:translateY(-1px); box-shadow:0 6px 14px rgba(142,61,88,0.14); }
+.rp-view-btn:hover { border-color:rgba(155,63,95,0.4); transform:translateY(-1px); box-shadow:0 6px 14px rgba(155,63,95,0.14); }
 
 /* Premium card */
-.rp-prem { position:relative; overflow:hidden; border-radius:1.25rem; border:1px solid rgba(217,179,108,0.32); background:radial-gradient(12rem 8rem at 100% 0%, rgba(217,179,108,0.16), transparent 60%), linear-gradient(135deg,#fffaf3 0%,#fdf1f5 100%); padding:0.875rem; margin-bottom:0.625rem; box-shadow:0 4px 16px rgba(67,22,39,0.06), inset 0 1px 0 rgba(255,255,255,0.9); }
+.rp-prem { position:relative; overflow:hidden; border-radius:1.25rem; border:1px solid rgba(217,179,108,0.32); background:radial-gradient(12rem 8rem at 100% 0%, rgba(217,179,108,0.16), transparent 60%), linear-gradient(135deg,#fffaf3 0%,#FCF5F7 100%); padding:0.875rem; margin-bottom:0.625rem; box-shadow:0 4px 16px rgba(67,22,39,0.06), inset 0 1px 0 rgba(255,255,255,0.9); }
 .rp-prem-title { font-family:var(--font-heading); font-size:0.875rem; font-weight:800; color:#3c3136; margin:0.375rem 0 0.125rem; }
-.rp-prem-sub   { font-size:0.5625rem; color:#8a7a80; margin:0; }
-.rp-prem-link  { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.625rem; font-weight:800; color:#b64a68; text-decoration:none; margin-top:0.375rem; }
+.rp-prem-sub   { font-size:0.5625rem; color:#887780; margin:0; }
+.rp-prem-link  { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.625rem; font-weight:800; color:#9B3F5F; text-decoration:none; margin-top:0.375rem; }
 .rp-upgrade-btn {
   display:flex; align-items:center; justify-content:center; gap:0.25rem;
   width:100%; margin-top:0.625rem; padding:0.55rem; border-radius:9999px;
-  border:none; background:linear-gradient(135deg,#b64a68,#8e3d58); color:white;
+  border:none; background:linear-gradient(135deg,#9B3F5F,#7F2948); color:white;
   font-size:0.625rem; font-weight:700; letter-spacing:0.02em; cursor:pointer; text-decoration:none;
-  transition:filter 0.15s, transform 0.15s; box-shadow:0 6px 16px rgba(142,61,88,0.32), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition:filter 0.15s, transform 0.15s; box-shadow:0 6px 16px rgba(155,63,95,0.32), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .rp-upgrade-btn:hover { filter:brightness(1.06); transform:translateY(-1px); }
 .rp-upgrade-btn:active { transform:translateY(0) scale(0.98); }
@@ -555,20 +559,20 @@ const CSS = `
 .d-fd-inner  { padding:1rem 1.25rem; }
 .d-fd-head   { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.125rem; }
 .d-fd-title  { font-family:var(--font-heading); font-size:1rem; font-weight:800; color:#2c2928; margin:0; display:flex; align-items:center; gap:0.5rem; }
-.d-fd-close  { width:2rem; height:2rem; border-radius:50%; border:none; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8a7a80; transition:background 0.15s ease; }
-.d-fd-close:hover { background:#f8eef1; color:#8e3d58; }
+.d-fd-close  { width:2rem; height:2rem; border-radius:50%; border:none; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#887780; transition:background 0.15s ease; }
+.d-fd-close:hover { background:#FCF5F7; color:#9B3F5F; }
 .d-fd-lbl    { display:block; font-size:0.5rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#9a8a90; margin:0.875rem 0 0.375rem; }
 .d-fd-field  { width:100%; border-radius:0.85rem; border:1.5px solid #eadfd9; background:#faf6f3; padding:0.625rem 0.85rem; font-size:0.8125rem; color:#4c4145; outline:none; transition:border-color 0.18s, box-shadow 0.18s, background 0.18s; box-sizing:border-box; }
-.d-fd-field:focus { border-color:#b64a68; background:white; box-shadow:0 0 0 3px rgba(182,74,104,0.12); }
+.d-fd-field:focus { border-color:#9B3F5F; background:white; box-shadow:0 0 0 3px rgba(155,63,95,0.12); }
 .d-fd-grid   { display:grid; grid-template-columns:1fr 1fr; gap:0.625rem; }
 .d-fd-foot   { display:flex; gap:0.625rem; margin-top:1.125rem; padding-top:0.75rem; border-top:1px solid #f0e7ea; }
 .d-fd-reset  { display:inline-flex; align-items:center; gap:0.375rem; height:2.75rem; padding:0 1.1rem; border-radius:9999px; border:1.5px solid #eadfd9; background:white; font-size:0.75rem; font-weight:700; color:#6f5f66; cursor:pointer; flex-shrink:0; transition:border-color 0.18s, color 0.18s; }
-.d-fd-reset:hover { border-color:rgba(182,74,104,0.45); color:#8e3d58; }
-.d-fd-apply  { flex:1; height:2.75rem; border-radius:9999px; border:none; background:linear-gradient(135deg,#e11d48 0%,#b64a68 55%,#8e3d58 100%); color:white; font-size:0.75rem; font-weight:700; letter-spacing:0.02em; cursor:pointer; box-shadow:0 8px 20px rgba(225,29,72,0.28), inset 0 1px 0 rgba(255,255,255,0.22); transition:filter 0.15s, transform 0.15s; }
+.d-fd-reset:hover { border-color:rgba(155,63,95,0.45); color:#9B3F5F; }
+.d-fd-apply  { flex:1; height:2.75rem; border-radius:9999px; border:none; background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 55%,#5C1D33 100%); color:white; font-size:0.75rem; font-weight:700; letter-spacing:0.02em; cursor:pointer; box-shadow:0 8px 20px rgba(155,63,95,0.28), inset 0 1px 0 rgba(255,255,255,0.22); transition:filter 0.15s, transform 0.15s; }
 .d-fd-apply:hover { filter:brightness(1.06); transform:translateY(-1px); }
 .d-fd-apply:active { transform:translateY(0) scale(0.98); }
 .d-toggle-row { display:flex; align-items:center; justify-content:space-between; border-radius:0.85rem; border:1.5px solid #efe3e6; padding:0.625rem 0.75rem; cursor:pointer; background:#faf6f3; width:100%; margin-top:0.375rem; transition:border-color 0.18s; }
-.d-toggle-row:hover { border-color:rgba(182,74,104,0.3); }
+.d-toggle-row:hover { border-color:rgba(155,63,95,0.3); }
 .d-toggle-lbl { font-size:0.75rem; font-weight:600; color:#5c4e54; }
 .d-toggle-track { position:relative; width:2.25rem; height:1.25rem; border-radius:9999px; transition:background 0.18s; flex-shrink:0; }
 .d-toggle-thumb { position:absolute; top:0.125rem; height:1rem; width:1rem; border-radius:50%; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.18); transition:transform 0.18s; }
@@ -576,30 +580,91 @@ const CSS = `
 /* ── More menu ── */
 .d-more-menu { position:absolute; right:0.75rem; top:3rem; z-index:30; width:13rem; border-radius:1.25rem; background:rgba(255,255,255,0.97); border:1px solid rgba(67,22,39,0.08); box-shadow:0 20px 48px rgba(43,16,29,0.20), inset 0 1px 0 rgba(255,255,255,0.9); overflow:hidden; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }
 .d-more-item { display:flex; align-items:center; gap:0.625rem; width:100%; padding:0.625rem 1rem; font-size:0.75rem; font-weight:600; color:#5c4e54; background:none; border:none; cursor:pointer; transition:background 0.15s, color 0.15s; text-align:left; }
-.d-more-item:hover { background:#fdf3f6; color:#8e3d58; }
+.d-more-item:hover { background:#FCF5F7; color:#9B3F5F; }
 .d-more-item svg { color:#a5697c; flex-shrink:0; }
-.d-more-item:hover svg { color:#8e3d58; }
+.d-more-item:hover svg { color:#9B3F5F; }
 
 /* ── Skeleton ── */
 .d-skel { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; }
 .d-skel-card { width:100%; max-width:360px; height:100%; border-radius:1.5rem; border:1px solid #f0e7ea; background:white; overflow:hidden; }
-.d-skel-photo { height:60%; background:linear-gradient(90deg,#f6ecef 25%,#fdf3f6 50%,#f6ecef 75%); background-size:200% 100%; animation:shimmer 1.6s infinite; }
+.d-skel-photo { height:60%; background:linear-gradient(90deg,#f6ecef 25%,#FCF5F7 50%,#f6ecef 75%); background-size:200% 100%; animation:shimmer 1.6s infinite; }
 .d-skel-body  { padding:0.875rem; }
-.d-skel-line  { border-radius:9999px; background:linear-gradient(90deg,#f6ecef 25%,#fdf3f6 50%,#f6ecef 75%); background-size:200% 100%; animation:shimmer 1.6s infinite; margin-bottom:0.5rem; }
+.d-skel-line  { border-radius:9999px; background:linear-gradient(90deg,#f6ecef 25%,#FCF5F7 50%,#f6ecef 75%); background-size:200% 100%; animation:shimmer 1.6s infinite; margin-bottom:0.5rem; }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-/* ── State screens ── */
+/* ── State screens & Empty Card ── */
 .d-state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.75rem; padding:1.5rem; text-align:center; }
-.d-state-icon  { width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg,#fdf3f6,#f8e6ec); border:1px solid rgba(182,74,104,0.18); box-shadow:0 10px 24px rgba(142,61,88,0.14); display:flex; align-items:center; justify-content:center; }
-.d-state-title { font-family:var(--font-heading); font-size:1rem; font-weight:800; color:#3c3136; margin:0; }
-.d-state-sub   { font-size:0.75rem; color:#8a7a80; max-width:22rem; line-height:1.55; margin:0; }
-.d-state-btn   { padding:0.6rem 1.5rem; border-radius:9999px; border:none; background:linear-gradient(135deg,#b64a68,#8e3d58); color:white; font-size:0.75rem; font-weight:700; letter-spacing:0.01em; cursor:pointer; box-shadow:0 8px 18px rgba(142,61,88,0.28), inset 0 1px 0 rgba(255,255,255,0.18); transition:filter 0.15s, transform 0.15s; }
+.d-state-icon  { width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg,#FCF5F7,#F5EAEF); border:1px solid rgba(155,63,95,0.18); box-shadow:0 10px 24px rgba(155,63,95,0.14); display:flex; align-items:center; justify-content:center; }
+.d-state-title { font-family:var(--font-heading); font-size:1rem; font-weight:800; color:#29242A; margin:0; }
+.d-state-sub   { font-size:0.75rem; color:#887780; max-width:22rem; line-height:1.55; margin:0; }
+.d-state-btn   { padding:0.6rem 1.5rem; border-radius:9999px; border:none; background:linear-gradient(135deg,#9B3F5F,#7F2948); color:white; font-size:0.75rem; font-weight:700; letter-spacing:0.01em; cursor:pointer; box-shadow:0 8px 18px rgba(155,63,95,0.28), inset 0 1px 0 rgba(255,255,255,0.18); transition:filter 0.15s, transform 0.15s; }
 .d-state-btn:hover { filter:brightness(1.06); transform:translateY(-1px); }
 .d-state-actions { display:flex; align-items:center; justify-content:center; gap:0.625rem; flex-wrap:wrap; margin-top:0.25rem; }
-.d-state-btn-ghost { background:#fff; color:#8e3d58; border:1.5px solid rgba(182,74,104,0.3); box-shadow:none; }
-.d-state-btn-ghost:hover { background:#fdf3f6; filter:none; transform:translateY(-1px); }
-.d-state-spin { width:2.75rem; height:2.75rem; border-radius:50%; border:3px solid #f3dbe3; border-top-color:#e11d48; animation:d-spin .8s linear infinite; }
+.d-state-btn-ghost { background:#fff; color:#9B3F5F; border:1.5px solid rgba(155,63,95,0.3); box-shadow:none; }
+.d-state-btn-ghost:hover { background:#FCF5F7; filter:none; transform:translateY(-1px); }
+.d-state-spin { width:2.75rem; height:2.75rem; border-radius:50%; border:3px solid #F5EAEF; border-top-color:#9B3F5F; animation:d-spin .8s linear infinite; }
 @keyframes d-spin { to { transform:rotate(360deg); } }
+
+/* Highlighted Empty State Card */
+.d-empty-card {
+  width:100%; max-width:440px;
+  background:linear-gradient(165deg, #ffffff 0%, #FCF5F7 60%, #F8EEF2 100%);
+  border:1.5px solid #E9DDE1;
+  border-radius:2.25rem;
+  padding:2.5rem 1.75rem;
+  box-shadow:0 24px 60px rgba(41,36,42,0.10), 0 6px 18px rgba(41,36,42,0.04);
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  position:relative; overflow:hidden; margin:auto;
+  animation:d-card-enter .4s cubic-bezier(.22,1,.36,1) both;
+}
+.d-empty-card-glow {
+  position:absolute; inset:-30px;
+  background:radial-gradient(circle at 50% 25%, rgba(155,63,95,0.10), transparent 70%);
+  pointer-events:none;
+}
+.d-empty-badge {
+  display:inline-flex; align-items:center; gap:0.35rem;
+  padding:0.32rem 0.85rem; border-radius:9999px;
+  background:rgba(255,255,255,0.85); border:1px solid #E9DDE1;
+  color:#9B3F5F; font-size:0.6875rem; font-weight:700;
+  margin-bottom:1rem; box-shadow:0 2px 6px rgba(155,63,95,0.05);
+}
+.d-empty-icon-box {
+  width:4.75rem; height:4.75rem; border-radius:50%;
+  background:linear-gradient(135deg,#ffffff,#FCF5F7);
+  border:2px solid #E9DDE1;
+  box-shadow:0 12px 28px rgba(155,63,95,0.14), inset 0 2px 0 rgba(255,255,255,0.95);
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:1.15rem; position:relative;
+}
+.d-empty-title {
+  font-family:var(--font-heading); font-size:1.4rem; font-weight:800; color:#29242A;
+  margin:0 0 0.45rem; line-height:1.25; letter-spacing:-0.01em;
+}
+.d-empty-desc {
+  font-size:0.8125rem; color:#77686F; line-height:1.55; max-width:22rem; margin:0 0 1.5rem;
+}
+.d-empty-actions {
+  display:flex; align-items:center; justify-content:center; gap:0.75rem;
+  width:100%; max-width:20rem; flex-wrap:wrap; position:relative; z-index:2;
+}
+.d-empty-btn-primary {
+  display:inline-flex; align-items:center; justify-content:center; gap:0.45rem;
+  flex:1; min-width:8.5rem; padding:0.7rem 1.25rem; border-radius:9999px; border:none;
+  background:linear-gradient(135deg,#9B3F5F 0%,#7F2948 100%); color:white;
+  font-size:0.8125rem; font-weight:700; cursor:pointer;
+  box-shadow:0 8px 20px rgba(155,63,95,0.28), inset 0 1px 0 rgba(255,255,255,0.22);
+  transition:all 0.16s ease; text-decoration:none;
+}
+.d-empty-btn-primary:hover { filter:brightness(1.06); transform:translateY(-1px); box-shadow:0 10px 24px rgba(155,63,95,0.35); }
+.d-empty-btn-secondary {
+  display:inline-flex; align-items:center; justify-content:center; gap:0.45rem;
+  flex:1; min-width:8.5rem; padding:0.7rem 1.25rem; border-radius:9999px;
+  background:white; color:#7F2948; border:1.5px solid #E9DDE1;
+  font-size:0.8125rem; font-weight:700; cursor:pointer;
+  box-shadow:0 3px 10px rgba(67,22,39,0.04); transition:all 0.16s ease; text-decoration:none;
+}
+.d-empty-btn-secondary:hover { background:#FCF5F7; border-color:#9B3F5F; transform:translateY(-1px); }
 
 /* ── Deck under-card (stack depth effect) ── */
 .d-center-under {
@@ -613,95 +678,22 @@ const CSS = `
 @media(min-width:1024px){ .d-center-under{max-width:480px;} }
 @media(min-width:1440px){ .d-center-under{max-width:520px;} }
 
-/* ── End of deck celebration card ── */
-.d-end-card {
-  width:100%; height:100%; min-height:0;
-  position:relative; border-radius:2rem; overflow:hidden;
-  border:1.5px solid rgba(182,74,104,0.22);
-  background:linear-gradient(155deg, #ffffff 0%, #fff7f9 45%, #fde8ee 100%);
-  box-shadow:0 24px 60px rgba(43,16,29,0.18), 0 6px 20px rgba(43,16,29,0.08);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:2.5rem 1.75rem; text-align:center;
-  animation:d-card-enter .4s cubic-bezier(.22,1,.36,1) both;
-}
-.d-end-glow {
-  position:absolute; inset:-40px; pointer-events:none;
-  background:radial-gradient(circle at 50% 30%, rgba(225,29,72,0.16), transparent 70%);
-}
-.d-end-icon-wrap {
-  position:relative; width:5.5rem; height:5.5rem; margin-bottom:1.25rem;
-  display:flex; align-items:center; justify-content:center;
-}
-.d-end-icon-pulse {
-  position:absolute; inset:0; border-radius:50%;
-  background:linear-gradient(135deg,#e11d48,#b64a68);
-  opacity:0.22; animation:d-end-pulse 2.2s ease-in-out infinite;
-}
-.d-end-icon {
-  width:4.25rem; height:4.25rem; border-radius:50%;
-  background:linear-gradient(135deg,#ffffff,#fff0f4);
-  border:2px solid rgba(225,29,72,0.28);
-  box-shadow:0 12px 28px rgba(225,29,72,0.22), inset 0 2px 0 rgba(255,255,255,0.9);
-  display:flex; align-items:center; justify-content:center;
-  position:relative; z-index:2;
-}
-@keyframes d-end-pulse { 0%,100%{ transform:scale(0.9); opacity:0.18; } 50%{ transform:scale(1.3); opacity:0.38; } }
-.d-end-title {
-  font-family:var(--font-heading); font-size:1.55rem; font-weight:800; color:#321122;
-  margin:0 0 0.5rem; line-height:1.2; letter-spacing:-0.01em;
-}
-.d-end-desc {
-  font-size:0.8125rem; color:#7d6b73; line-height:1.55; max-width:21rem; margin:0 0 1.5rem;
-}
-.d-end-actions {
-  display:flex; flex-direction:column; gap:0.625rem; width:100%; max-width:18rem;
-  position:relative; z-index:3;
-}
-.d-end-btn-primary {
-  display:inline-flex; align-items:center; justify-content:center; gap:0.5rem;
-  width:100%; padding:0.75rem 1.25rem; border-radius:9999px; border:none;
-  background:linear-gradient(135deg,#e11d48 0%,#b64a68 100%); color:white;
-  font-size:0.8125rem; font-weight:700; cursor:pointer;
-  box-shadow:0 10px 24px rgba(225,29,72,0.34), inset 0 1px 0 rgba(255,255,255,0.3);
-  transition:transform 0.16s ease, filter 0.16s ease;
-}
-.d-end-btn-primary:hover { transform:scale(1.03); filter:brightness(1.06); }
-.d-end-btn-secondary {
-  display:inline-flex; align-items:center; justify-content:center; gap:0.45rem;
-  width:100%; padding:0.65rem 1.25rem; border-radius:9999px;
-  background:white; color:#8e3d58; border:1.5px solid rgba(182,74,104,0.35);
-  font-size:0.75rem; font-weight:700; cursor:pointer;
-  box-shadow:0 4px 12px rgba(67,22,39,0.06);
-  transition:all 0.16s ease;
-}
-.d-end-btn-secondary:hover { background:#fdf5f7; border-color:#b64a68; transform:scale(1.02); }
-.d-end-btn-ghost {
-  display:inline-flex; align-items:center; justify-content:center; gap:0.35rem;
-  padding:0.45rem 0.75rem; color:#8a7a80; font-size:0.75rem; font-weight:600;
-  text-decoration:none; transition:color 0.15s ease;
-}
-.d-end-btn-ghost:hover { color:#b64a68; text-decoration:underline; }
+
 
 /* ── Mobile immersive swipe deck (Tinder-style) ── */
 @media(max-width:639px){
   .d-hint    { font-size:0.6875rem; padding:0.35rem 0.9rem; margin-top:0.125rem; }
-  /* Deck fills the remaining space so the photo stretches edge-to-edge even
-     after the swipe hint collapses (no empty bottom gap). */
   .d-card-area { min-height:0; max-height:none; }
   .d-center  { width:100%; max-width:none; }
-  /* Full-bleed photo, gently biased toward the face for nicer crops */
   .pc-photo  { width:100%; height:100%; }
   .pc-img    { object-position:center 20%; }
-  /* Redesigned floating glass info panel */
   .pc-info {
     margin:0 0.5rem max(0.625rem, env(safe-area-inset-bottom)) 0.5rem;
     padding:0.875rem 1rem 0.75rem;
     border-radius:1.375rem;
     background:transparent;
   }
-  /* Softer gradient behind the glass sheet */
   .pc-gradient { background:linear-gradient(to bottom, transparent 0%, transparent 45%, rgba(15,7,12,0.30) 60%, rgba(15,7,12,0.62) 80%, rgba(15,7,12,0.88) 100%); }
-  /* Bigger, friendlier touch targets */
   .pc-pass, .pc-star { width:3.5rem; height:3.5rem; }
   .pc-heart { width:4.5rem; height:4.5rem; }
   .pc-name   { font-size:1.375rem; }
@@ -733,29 +725,7 @@ function CircularProgress({ value }: { value: number }) {
   );
 }
 
-/* ─────────────────────────────── PeekCard ─────────────────────────────── */
 
-function PeekCard({ profile, side }: { profile: Profile; side: 'left' | 'right' }) {
-  const photo = visiblePhoto(profile);
-  const location = useful(profile.location);
-  const job = useful(profile.occupation);
-  return (
-    <div className={`d-peek d-peek-${side}`}>
-      <div className="d-peek-inner">
-        {photo
-          ? <SmartImage src={photo} alt={profile.name || ''} sizes="28vw" aspectRatio="none" shape="none" className="d-peek-img w-full h-full" />
-          : <div className="d-peek-init">{initials(profile.name)}</div>
-        }
-        <div className="d-peek-overlay" />
-        <div className="d-peek-meta">
-          <p className="d-peek-name">{profile.name}{profile.age ? `, ${profile.age}` : ''}</p>
-          {location && <p className="d-peek-row"><MapPin size={10} strokeWidth={2.2} style={{ flexShrink: 0 }} /> {location}</p>}
-          {job && <p className="d-peek-row"><Briefcase size={10} strokeWidth={2.2} style={{ flexShrink: 0 }} /> {job}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ─────────────────────────────── ProfileCard ─────────────────────────────── */
 
@@ -799,7 +769,6 @@ function ProfileCard({
   const showPass = !isUnderCard && (flingDir === 'left' || (dragOffset && dragOffset.x < -15));
   const likeOpacity = flingDir === 'right' ? 1 : Math.min(1, Math.max(0, ((dragOffset?.x ?? 0) - 15) / 70));
   const passOpacity = flingDir === 'left' ? 1 : Math.min(1, Math.max(0, (-(dragOffset?.x ?? 0) - 15) / 70));
-  const swipeU = !isUnderCard && dragOffset && dragOffset.y < -75 && Math.abs(dragOffset.y) > Math.abs(dragOffset.x);
 
   const enterClass = enterFrom === 'right' ? 'enter-right' : enterFrom === 'left' ? 'enter-left' : '';
   return (
@@ -838,9 +807,6 @@ function ProfileCard({
           <span>PASS</span>
         </div>
       )}
-
-      {/* Swipe feedback */}
-      {swipeU && <div className="pc-swipe"><Eye size={12} /> View Profile</div>}
 
       {/* Top badges */}
       <div className="pc-top">
@@ -881,7 +847,7 @@ function ProfileCard({
         </div>
 
         {location && (
-          <p className="pc-detail"><MapPin size={13} strokeWidth={2.2} className="pc-detail-icon text-rose-400" /> {location}</p>
+          <p className="pc-detail"><MapPin size={13} strokeWidth={2.2} className="pc-detail-icon text-[#E9829B]" /> {location}</p>
         )}
         {job && (
           <p className="pc-detail"><Briefcase size={13} strokeWidth={2.2} className="pc-detail-icon" /> {job}</p>
@@ -906,7 +872,7 @@ function ProfileCard({
             <Heart size={28} fill="white" strokeWidth={0} />
           </button>
           <button type="button" className={`pc-star ${shortlisted ? 'on' : ''}`} onClick={() => onShortlist(profile.id)} aria-label="Shortlist">
-            <Star size={22} fill={shortlisted ? '#e11d48' : 'none'} strokeWidth={shortlisted ? 0 : 2.2} />
+            <Star size={22} fill={shortlisted ? '#9B3F5F' : 'none'} color={shortlisted ? '#9B3F5F' : '#7F2948'} strokeWidth={shortlisted ? 0 : 2.2} />
           </button>
         </div>
       </div>
@@ -1014,6 +980,125 @@ function FilterDialog({ open, onClose, filters, onApply, onReset }: {
   );
 }
 
+/* ─────────────────────────── Daily Limit Modal ─────────────────────────── */
+
+function DailyLimitModal({
+  open,
+  onClose,
+  onShortlistCurrent,
+}: {
+  open: boolean;
+  onClose(): void;
+  onShortlistCurrent?(): void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[340px] bg-white rounded-3xl p-5 border border-rose-100 shadow-[0_24px_54px_rgba(53,19,32,0.18)] text-center animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal
+        aria-label="Daily Interest Limit Reached"
+      >
+        {/* Close button (matching sidebar subtle hover style) */}
+        <button
+          type="button"
+          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-[#fdfafb] hover:bg-rose-50 border border-rose-100 flex items-center justify-center text-[#443c40] hover:text-[#351320] transition-colors cursor-pointer"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <X className="w-3.5 h-3.5" strokeWidth={1.85} />
+        </button>
+
+        {/* Support UI-style icon badge (matching Support category card icon containers) */}
+        <div className="flex justify-center mt-0.5 mb-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-[#8e3d58] shadow-xs transition-transform hover:scale-105 duration-200">
+            <Heart className="w-7 h-7 fill-[#8e3d58]/15 text-[#8e3d58]" strokeWidth={1.85} />
+          </div>
+        </div>
+
+        {/* Website brand allowance pill */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-rose-50 border border-rose-100 mb-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#8e3d58]" />
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#8e3d58]">
+            Daily Allowance Done
+          </span>
+        </div>
+
+        {/* Title & description */}
+        <h3 className="text-base font-bold text-[#351320] tracking-tight mb-1">
+          Daily Interests Completed
+        </h3>
+        <p className="text-xs text-gray-600 leading-relaxed px-1 mb-3.5">
+          You&apos;ve sent all your free interests for today. Upgrade to send unlimited likes and chat directly!
+        </p>
+
+        {/* Support Category Card style perks preview (matching Support cards & Member Sidebar icons) */}
+        <div className="grid grid-cols-2 gap-2.5 mb-4 text-left">
+          <div className="flex items-center gap-2.5 p-2.5 rounded-xl border border-rose-100 bg-[#fffbfc] hover:bg-rose-50/60 transition-colors group">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-100 bg-rose-50 text-[#8e3d58]">
+              <Heart className="w-4 h-4 fill-[#8e3d58]/15 text-[#8e3d58] transition-transform duration-200 group-hover:scale-110" strokeWidth={1.85} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#351320] leading-tight truncate">Unlimited</p>
+              <p className="text-[10px] text-gray-500 leading-tight truncate">Daily Likes</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 p-2.5 rounded-xl border border-rose-100 bg-[#fffbfc] hover:bg-rose-50/60 transition-colors group">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-100 bg-rose-50 text-[#262626]">
+              <MessageCircle className="w-4 h-4 text-[#262626] transition-transform duration-200 group-hover:scale-110" strokeWidth={1.85} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#351320] leading-tight truncate">Direct Chat</p>
+              <p className="text-[10px] text-gray-500 leading-tight truncate">Connect Fast</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons (Support page button color & sidebar icon styling) */}
+        <div className="space-y-2">
+          <Link
+            href="/membership"
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-[#8e3d58] hover:bg-[#702d45] text-white font-bold text-xs shadow-md shadow-rose-200/60 transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            onClick={onClose}
+          >
+            <Crown className="w-3.5 h-3.5" strokeWidth={1.85} />
+            <span>Upgrade to Premium</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-0.5 opacity-90" strokeWidth={1.85} />
+          </Link>
+
+          {onShortlistCurrent && (
+            <button
+              type="button"
+              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-white text-[#351320] font-semibold text-xs border border-rose-200/80 shadow-xs hover:bg-rose-50/60 hover:border-[#8e3d58] transition-all cursor-pointer"
+              onClick={() => {
+                onShortlistCurrent();
+                onClose();
+              }}
+            >
+              <Bookmark className="w-3.5 h-3.5 text-[#8e3d58]" strokeWidth={1.85} />
+              <span>Save to Shortlist Instead</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="w-full pt-1.5 pb-0.5 text-[11px] font-semibold text-gray-500 hover:text-[#351320] transition-colors cursor-pointer"
+            onClick={onClose}
+          >
+            Continue Browsing
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────── RightPanel ─────────────────────────────── */
 
 function RightPanel({ completion, visitors, matches, sentCount, passedCount, isPremium, planName }: {
@@ -1022,8 +1107,6 @@ function RightPanel({ completion, visitors, matches, sentCount, passedCount, isP
   visitors: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
   matches: { count: number; items?: SidebarMemberItem[]; photos?: string[] };
 }) {
-  const completionMsg = completion >= 90 ? 'Almost done!' : completion >= 70 ? 'Almost there!' : 'Looking good!';
-
   const visitorList: SidebarMemberItem[] = visitors.items && visitors.items.length > 0
     ? visitors.items
     : (visitors.photos || []).map((src) => ({ photo: src, href: '/visitors', name: 'Visitor' }));
@@ -1032,142 +1115,258 @@ function RightPanel({ completion, visitors, matches, sentCount, passedCount, isP
     ? matches.items
     : (matches.photos || []).map((src) => ({ photo: src, href: '/interests/received', name: 'Match' }));
 
+  // Strict deduplication by unique key (href, photo url, or name)
+  const seenMatchKeys = new Set<string>();
+  const uniqueMatches: SidebarMemberItem[] = [];
+  for (const m of matchList) {
+    const key = (m.href && m.href !== '/profile' ? m.href : '') || (m.photo ? m.photo.split('?')[0] : '') || m.name.toLowerCase().trim();
+    if (key && !seenMatchKeys.has(key)) {
+      seenMatchKeys.add(key);
+      uniqueMatches.push(m);
+    }
+  }
+
+  const seenAllKeys = new Set<string>();
+  const uniqueAllPeople: { item: SidebarMemberItem; label: string }[] = [];
+
+  for (const m of uniqueMatches) {
+    const key = (m.href && m.href !== '/profile' ? m.href : '') || (m.photo ? m.photo.split('?')[0] : '') || m.name.toLowerCase().trim();
+    if (key && !seenAllKeys.has(key)) {
+      seenAllKeys.add(key);
+      uniqueAllPeople.push({ item: m, label: 'Matched with you' });
+    }
+  }
+
+  for (const v of visitorList) {
+    const key = (v.href && v.href !== '/profile' ? v.href : '') || (v.photo ? v.photo.split('?')[0] : '') || v.name.toLowerCase().trim();
+    if (key && !seenAllKeys.has(key)) {
+      seenAllKeys.add(key);
+      uniqueAllPeople.push({ item: v, label: 'Viewed your profile' });
+    }
+  }
+
   return (
-    <div>
-      {/* Completion */}
-      <div className="rp">
-        <p className="rp-lbl">Profile Completion</p>
-        <div className="rp-circ-wrap">
-          <CircularProgress value={completion} />
-          <div className="rp-circ-text">
-            <p className="rp-circ-msg">{completionMsg}</p>
-            <p className="rp-circ-sub">Complete your profile to get more matches.</p>
+    <div className="space-y-3.5">
+      {/* 1. Match Queue Stories Tray */}
+      <div className="bg-white rounded-2xl p-3.5 border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center justify-between mb-3 px-0.5">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-[#e11d48]" />
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#a8989f]">Match Queue</h3>
           </div>
+          <Link href="/interests/received" className="text-xs font-semibold text-[#e11d48] hover:text-[#be123c] transition-colors">
+            View all
+          </Link>
         </div>
-        <Link href="/profile/edit" className="rp-complete-btn">Complete Profile</Link>
-      </div>
 
-      {/* Visitors */}
-      <div className="rp">
-        <div className="rp-row">
-          <h3 className="rp-title-bold">Profile Visitors</h3>
-          <span className="rp-num-bold">{visitors.count}</span>
-        </div>
-        <p className="rp-sub-text">See who recently viewed your profile.</p>
-
-        {visitors.count > 0 && (
-          <div className="rp-avatars">
-            {visitorList.slice(0, 4).map((item, i) => (
-              <Link
-                key={i}
-                href={item.href}
-                className="rp-avatar block"
-                title={`View ${item.name}'s profile`}
-                aria-label={`View ${item.name}'s profile`}
-              >
-                <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
-              </Link>
-            ))}
-            {visitors.count > 4 && (
-              <Link href="/visitors" className="rp-avatar rp-avatar-more" title="View all visitors">
-                +{visitors.count - 4}
-              </Link>
-            )}
-          </div>
-        )}
-        <Link href="/visitors" className="rp-view-btn">View All Visitors</Link>
-      </div>
-
-      {/* New Matches */}
-      <div className="rp">
-        <div className="rp-row">
-          <h3 className="rp-title-bold"><Heart size={16} color="#e11d48" fill="#e11d48" /> Matches</h3>
-          <span className="rp-num-bold">{matches.count}</span>
-        </div>
-        <p className="rp-sub-text">New members waiting to connect.</p>
-
-        {matches.count > 0 && (
-          <div className="rp-avatars">
-            {matchList.slice(0, 4).map((item, i) => (
-              <Link
-                key={i}
-                href={item.href}
-                className="rp-avatar block"
-                title={`View ${item.name}'s profile`}
-                aria-label={`View ${item.name}'s profile`}
-              >
-                <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
-              </Link>
-            ))}
-            {matches.count > 4 && (
-              <Link href="/interests/received" className="rp-avatar rp-avatar-more" title="View all matches">
-                +{matches.count - 4}
-              </Link>
-            )}
-          </div>
-        )}
-        <Link href="/interests/received" className="rp-view-btn">View All Matches</Link>
-      </div>
-
-      {/* Sent Likes Stats */}
-      <div className="rp">
-        <div className="rp-row">
-          <h3 className="rp-title-bold"><Heart size={16} color="#e11d48" fill="#e11d48" /> Sent Likes</h3>
-          <span className="rp-num-bold" style={{ color: '#e11d48' }}>{sentCount}</span>
-        </div>
-        <p className="rp-sub-text">Profiles you swiped right &amp; liked.</p>
-        <Link href="/interests/sent" className="rp-view-btn">View Sent Likes</Link>
-      </div>
-
-      {/* Passed / Disliked Profiles */}
-      <div className="rp">
-        <div className="rp-row">
-          <h3 className="rp-title-bold"><X size={16} color="#64748b" /> Passed Profiles</h3>
-          <span className="rp-num-bold" style={{ color: '#64748b' }}>{passedCount}</span>
-        </div>
-        <p className="rp-sub-text">Profiles you passed on Discover. Undo anytime.</p>
-        <Link href="/interests/declined" className="rp-view-btn">View &amp; Undo Passes</Link>
-      </div>
-
-      {/* Membership */}
-      <div className="rp-prem">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <Crown size={14} color={isPremium ? '#c08b2a' : '#b99aa7'} />
-          <p className="rp-lbl" style={{ margin: 0 }}>{isPremium ? "You're Premium" : "Go Premium"}</p>
-        </div>
-        <p className="rp-prem-title">{planName}</p>
-        {isPremium
-          ? <>
-            <p className="rp-prem-sub">Valid till Aug 2026</p>
-            <Link href="/membership" className="rp-prem-link">View Benefits <ChevronRight size={10} /></Link>
-          </>
-          : <>
-            <p className="rp-prem-sub">Unlock unlimited messages, profile views and more.</p>
-            <Link href="/membership" className="rp-upgrade-btn">Upgrade Now <ArrowRight size={11} /></Link>
-          </>
-        }
-      </div>
-
-      {/* Safety */}
-      <div className="rp" style={{ background: '#fffafb', border: '1px solid #f0e6e8' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-          <ShieldCheck size={14} color="#0f9d6b" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#4e4347', margin: '0 0 0.375rem' }}>Safety &amp; Verification</p>
-            {['Profile Verified', 'Photo Verified', 'ID Verified'].map(item => (
-              <div key={item} className="rp-safety-row">
-                <CheckCircle2 size={11} color="#0f9d6b" style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: '0.625rem', color: '#6f5f66' }}>{item}</span>
+        {/* Stories / Match Bubbles Row */}
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+          {/* New Likes Story Avatar */}
+          <Link
+            href="/interests/received"
+            className="flex flex-col items-center gap-1 shrink-0 group"
+            title={`${matches.count} New Matches`}
+          >
+            <div className="relative w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-[#e11d48] to-[#f43f5e] group-hover:scale-105 transition-transform shadow-xs">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                <Heart className="w-5 h-5 fill-[#e11d48] text-[#e11d48]" />
               </div>
+              {matches.count > 0 && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-[#e11d48] text-white text-[9px] font-bold px-1.5 rounded-full border-2 border-white">
+                  {matches.count}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-medium text-[#443c40]">Likes</span>
+          </Link>
+
+          {/* Visitors Story Avatar */}
+          <Link
+            href="/visitors"
+            className="flex flex-col items-center gap-1 shrink-0 group"
+            title={`${visitors.count} Profile Visitors`}
+          >
+            <div className="relative w-12 h-12 rounded-full p-0.5 bg-[#f0e8eb] border border-[#efefef] group-hover:border-[#262626] group-hover:scale-105 transition-all">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                <Eye className="w-5 h-5 text-[#262626]" strokeWidth={1.85} />
+              </div>
+              {visitors.count > 0 && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-[#262626] text-white text-[9px] font-bold px-1.5 rounded-full border-2 border-white">
+                  {visitors.count}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-medium text-[#443c40]">Visitors</span>
+          </Link>
+
+          {/* Individual Match / Viewer Avatars (Deduplicated) */}
+          {uniqueAllPeople.slice(0, 4).map(({ item }, idx) => (
+            <Link
+              key={idx}
+              href={item.href}
+              className="flex flex-col items-center gap-1 shrink-0 group"
+              title={`View ${item.name}`}
+            >
+              <div className="w-12 h-12 rounded-full p-0.5 bg-[#f0e8eb] border border-[#efefef] group-hover:border-[#e11d48] transition-all">
+                <div className="w-full h-full rounded-full overflow-hidden bg-[#f7f4f5]">
+                  <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
+                </div>
+              </div>
+              <span className="text-[11px] font-medium text-[#443c40] truncate max-w-[3rem]">
+                {item.name.split(' ')[0]}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Quick Activity Pills (Matching Member Sidebar Icons & Colors) */}
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href="/interests/received"
+          className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:bg-[#f7f4f5] hover:border-[#dfd8dc] transition-all group"
+        >
+          <div className="flex items-center gap-2">
+            <Heart className="w-4 h-4 text-[#e11d48] fill-[#e11d48]/15 group-hover:scale-110 transition-transform" strokeWidth={2} />
+            <span className="text-xs font-semibold text-[#0f0f10]">Matches</span>
+          </div>
+          <span className="text-xs font-bold text-[#e11d48] bg-[#fff0f2] border border-[#fecdd3] px-2 py-0.5 rounded-full">
+            {matches.count}
+          </span>
+        </Link>
+
+        <Link
+          href="/visitors"
+          className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:bg-[#f7f4f5] hover:border-[#dfd8dc] transition-all group"
+        >
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-[#262626] group-hover:scale-110 transition-transform" strokeWidth={1.85} />
+            <span className="text-xs font-semibold text-[#0f0f10]">Visitors</span>
+          </div>
+          <span className="text-xs font-bold text-[#262626] bg-[#f7f4f5] border border-[#efefef] px-2 py-0.5 rounded-full">
+            {visitors.count}
+          </span>
+        </Link>
+
+        <Link
+          href="/interests/sent"
+          className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:bg-[#f7f4f5] hover:border-[#dfd8dc] transition-all group"
+        >
+          <div className="flex items-center gap-2">
+            <Send className="w-4 h-4 text-[#262626] group-hover:scale-110 transition-transform" strokeWidth={1.85} />
+            <span className="text-xs font-semibold text-[#0f0f10]">Sent Likes</span>
+          </div>
+          <span className="text-xs font-bold text-[#262626] bg-[#f7f4f5] border border-[#efefef] px-2 py-0.5 rounded-full">
+            {sentCount}
+          </span>
+        </Link>
+
+        <Link
+          href="/interests/declined"
+          className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:bg-[#f7f4f5] hover:border-[#dfd8dc] transition-all group"
+        >
+          <div className="flex items-center gap-2">
+            <X className="w-4 h-4 text-[#262626] group-hover:scale-110 transition-transform" strokeWidth={1.85} />
+            <span className="text-xs font-semibold text-[#0f0f10]">Passed</span>
+          </div>
+          <span className="text-xs font-bold text-[#262626] bg-[#f7f4f5] border border-[#efefef] px-2 py-0.5 rounded-full">
+            {passedCount}
+          </span>
+        </Link>
+      </div>
+
+      {/* 3. Messages & Conversations Peek */}
+      <div className="bg-white rounded-2xl p-3.5 border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center justify-between mb-2.5 px-0.5">
+          <div className="flex items-center gap-1.5">
+            <MessageCircle className="w-4 h-4 text-[#262626]" strokeWidth={1.85} />
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#a8989f]">Direct Messages</h3>
+          </div>
+          <Link href="/messages" className="text-xs font-semibold text-[#e11d48] hover:text-[#be123c] transition-colors">
+            Open Chat →
+          </Link>
+        </div>
+
+        {uniqueAllPeople.length > 0 ? (
+          <div className="space-y-1">
+            {uniqueAllPeople.slice(0, 3).map(({ item, label }, idx) => (
+              <Link
+                key={idx}
+                href="/messages"
+                className="flex items-center justify-between p-2 rounded-xl hover:bg-[#f7f4f5] transition-colors group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[#f7f4f5] shrink-0 border border-[#efefef]">
+                    <SmartImage src={item.photo} alt={item.name} className="w-full h-full object-cover" shape="circle" watermark={false} />
+                    <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border-2 border-white rounded-full" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#0f0f10] truncate">{item.name}</p>
+                    <p className="text-[10px] text-[#8c7a82] truncate">{label}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-[#e11d48] opacity-0 group-hover:opacity-100 transition-opacity">
+                  Chat
+                </span>
+              </Link>
             ))}
           </div>
+        ) : (
+          <p className="text-xs text-[#8c7a82] text-center py-3">
+            Swipe right on profiles to start chatting!
+          </p>
+        )}
+      </div>
+
+      {/* 4. Profile Completion Mini Bar */}
+      {completion < 100 && (
+        <div className="p-3.5 bg-white rounded-2xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-bold text-[#0f0f10]">Profile Strength</span>
+            <span className="text-xs font-bold text-[#e11d48]">{completion}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-[#f4f0f2] rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-gradient-to-r from-[#e11d48] to-[#f43f5e] rounded-full transition-all duration-500"
+              style={{ width: `${completion}%` }}
+            />
+          </div>
+          <Link
+            href="/profile/edit"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#e11d48] hover:text-[#be123c] transition-colors"
+          >
+            Complete profile (+3x matches) <ChevronRight className="w-3 h-3" />
+          </Link>
         </div>
+      )}
+
+      {/* 5. Daily Match Tip & Insights */}
+      <div className="p-3.5 bg-white rounded-2xl border border-[#efefef] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-[#f7f4f5] border border-[#efefef] flex items-center justify-center shrink-0">
+            <TrendingUp className="w-3.5 h-3.5 text-[#262626]" strokeWidth={1.85} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-[#0f0f10] leading-tight">Daily Match Insight</p>
+            <p className="text-[10px] text-[#8c7a82]">Profile optimization tip</p>
+          </div>
+        </div>
+        <p className="text-[11px] text-[#443c40] leading-relaxed">
+          Profiles with at least 3 photos & complete preferences get <strong className="text-[#e11d48] font-bold">5x more responses</strong>.
+        </p>
+        <Link
+          href="/profile/edit"
+          className="inline-flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0f0f10] bg-[#f7f4f5] border border-[#efefef] hover:bg-[#efe9ec] hover:border-[#dfd8dc] transition-all"
+        >
+          <span>Boost Visibility</span>
+          <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────── Skeleton ─────────────────────────────── */
+/* =============================== Skeleton =============================== */
 
 function Skeleton() {
   return (
@@ -1198,11 +1397,12 @@ export function PremiumDiscover() {
   const [focusVersion, setFocusVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [idx, setIdx] = useState(0);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [tab, setTab] = useState<FeedTab>('all');
   const [filterOpen, setFilter] = useState(false);
   const [moreFor, setMoreFor] = useState<string | null>(null);
+  const [dailyLimitModalOpen, setDailyLimitModalOpen] = useState(false);
+  const [dailyInterestsDone, setDailyInterestsDone] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [flingDir, setFlingDir] = useState<'left' | 'right' | null>(null);
@@ -1212,15 +1412,45 @@ export function PremiumDiscover() {
   const shortlisted = useRef(new Set<string>());
   const hidden = useRef(loadDismissedIds());
   const [dismissedVersion, setDismissedVersion] = useState(0);
+  const [swipedHistory, setSwipedHistory] = useState<Profile[]>([]);
 
-  const resetDismissed = useCallback(() => {
+  const resetDismissed = useCallback(async () => {
     hidden.current.clear();
     saveDismissedIds(hidden.current);
-    setIdx(0);
+    setSwipedHistory([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(DISMISS_STORAGE_KEY);
+        localStorage.removeItem(PASSED_IDS_KEY);
+        localStorage.removeItem('mdp_discover_passed_profiles_v1');
+      } catch {
+        /* ignore */
+      }
+    }
+    setPassedCount(0);
     setDragOffset({ x: 0, y: 0 });
     setFlingDir(null);
+    setIsDragging(false);
+    isAnimatingOutRef.current = false;
+
+    // Reset backend passes if any
+    void fetchApi('/passes/', { method: 'DELETE' }).catch(() => {});
+
+    // Refresh deck profiles
+    try {
+      setLoading(true);
+      const d = await getProfiles({ page_size: '12', ordering: '-created_at' });
+      setProfiles(dedupeProfiles(d.results));
+      setPage(1);
+      setHasMore(d.next !== null);
+    } catch {
+      /* best effort */
+    } finally {
+      setLoading(false);
+    }
     setDismissedVersion((v) => v + 1);
-  }, []);
+    showToast('Deck refreshed with available profiles', 'success');
+  }, [showToast]);
 
   const ptrRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [visitors, setVisitors] = useState<{ count: number; items: SidebarMemberItem[]; photos: string[] }>({ count: 0, items: [], photos: [] });
@@ -1228,9 +1458,6 @@ export function PremiumDiscover() {
   const [passedCount, setPassedCount] = useState<number>(0);
   const [sentLikesCount, setSentLikesCount] = useState<number>(0);
 
-  useEffect(() => {
-    setPassedCount(getPassedCount());
-  }, []);
 
 const dedupeProfiles = (list: Profile[]): Profile[] => {
   const seen = new Set<string>();
@@ -1284,13 +1511,20 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     let live = true;
     (async () => {
       try {
-        const [vd, incoming, outgoing, shortlists] = await Promise.all([
+        const [vd, incoming, outgoing, shortlists, passedList, entitlementsData] = await Promise.all([
           fetchApi<unknown>('/profile-visitors/').catch(() => null),
           fetchApi<unknown>('/interests/?type=incoming').catch(() => null),
           getInterests('outgoing').catch(() => []),
           getShortlists().catch(() => ({ count: 0, results: [] })),
+          fetchPassedProfilesFromBackend().catch(() => getLocalPassedProfiles()),
+          fetchApi<{ data?: { usage?: { interests_remaining_today?: number | null } }; usage?: { interests_remaining_today?: number | null } }>('/member/entitlements/').catch(() => null),
         ]);
         if (!live) return;
+
+        const remainingToday = entitlementsData?.data?.usage?.interests_remaining_today ?? entitlementsData?.usage?.interests_remaining_today;
+        if (remainingToday === 0) {
+          setDailyInterestsDone(true);
+        }
 
         const vs = Array.isArray((vd as { results?: unknown[] })?.results)
           ? (vd as { results: unknown[] }).results
@@ -1321,17 +1555,34 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
         });
 
         const outgoingList = Array.isArray(outgoing) ? outgoing : [];
-        setSentLikesCount(outgoingList.length);
 
+        // Build set of liked profile IDs (mutually exclusive with passed)
+        const likedIds = new Set<string>();
         for (const interest of outgoingList) {
-          const receiverId = interest?.receiver?.id || interest?.receiver?.user_id || interest?.receiver_id;
+          const receiverId = interest?.receiver?.id || interest?.receiver?.user_id || interest?.receiver_id || interest?.receiver?.pk;
           if (receiverId) {
-            interested.current.add(String(receiverId));
+            const sId = String(receiverId);
+            interested.current.add(sId);
+            likedIds.add(sId);
           }
         }
+        setSentLikesCount(likedIds.size);
+
+        // Sanitize local passed storage so liked profiles are never kept as passed
+        cleanPassedAgainstLikes(likedIds);
+
         for (const profile of shortlists.results ?? []) {
           if (profile.id) shortlisted.current.add(profile.id);
         }
+
+        const rawPassed = Array.isArray(passedList) ? passedList : getLocalPassedProfiles();
+        // Strictly mutually exclusive: passed count only includes profiles that were NOT liked
+        const truePassedList = rawPassed.filter((item) => item?.id && !likedIds.has(String(item.id)));
+        for (const item of truePassedList) {
+          if (item?.id) hidden.current.add(String(item.id));
+        }
+        setPassedCount(truePassedList.length);
+        setDismissedVersion((v) => v + 1);
       } catch {
         /* best-effort */
       }
@@ -1341,9 +1592,8 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     };
   }, []);
 
-  /* Reset active index whenever filters change */
+  /* Reset drag offset whenever filters change */
   useEffect(() => {
-    setIdx(0);
     setDragOffset({ x: 0, y: 0 });
     setFlingDir(null);
   }, [filters, tab]);
@@ -1355,16 +1605,31 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
   );
 
   const deck = useMemo(() => {
-    const unswiped = matchingProfiles.filter((p) => !hidden.current.has(p.id));
-    if (unswiped.length > 0) return unswiped;
-    // If all matching profiles were dismissed in a previous session, auto-recycle
-    // so Discover never becomes a permanently empty screen
-    if (matchingProfiles.length > 0 && hidden.current.size > 0) {
-      hidden.current.clear();
-      saveDismissedIds(hidden.current);
-      return matchingProfiles;
-    }
-    return unswiped;
+    return matchingProfiles.filter((p) => {
+      const id = String(p.id);
+      const userId = (p as unknown as Record<string, string>).user_id ? String((p as unknown as Record<string, string>).user_id) : '';
+      const memberId = (p as unknown as Record<string, string>).member_id ? String((p as unknown as Record<string, string>).member_id) : '';
+
+      // Exclude if already sent interest
+      if (
+        (id && interested.current.has(id)) ||
+        (userId && interested.current.has(userId)) ||
+        (memberId && interested.current.has(memberId))
+      ) {
+        return false;
+      }
+
+      // Exclude if disliked / passed or swiped in session
+      if (
+        (id && hidden.current.has(id)) ||
+        (userId && hidden.current.has(userId)) ||
+        (memberId && hidden.current.has(memberId))
+      ) {
+        return false;
+      }
+
+      return true;
+    });
   }, [matchingProfiles, dismissedVersion]);
 
   const appendMore = useCallback(async () => {
@@ -1383,12 +1648,12 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     }
   }, [page, loading, hasMore, showToast]);
 
-  /* Pre-fetch next page when 2 cards remain */
+  /* Pre-fetch next page when 5 or fewer cards remain */
   useEffect(() => {
-    if (hasMore && !loading && deck.length > 0 && idx >= deck.length - 2) {
+    if (hasMore && !loading && deck.length <= 5 && deck.length > 0) {
       void appendMore();
     }
-  }, [idx, deck.length, hasMore, loading, appendMore]);
+  }, [deck.length, hasMore, loading, appendMore]);
 
   /* Auto-refill when deck is initially empty but more pages exist on server */
   useEffect(() => {
@@ -1400,38 +1665,83 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
   const triggerSwipe = useCallback(
     (dir: 'left' | 'right') => {
       if (isAnimatingOutRef.current) return;
-      const currentCard = deck[idx];
+      const currentCard = deck[0];
       if (!currentCard) return;
 
       isAnimatingOutRef.current = true;
       setFlingDir(dir);
       if (!hintGone) setHintGone(true);
 
-      // Save action
+      const cardId = String(currentCard.id);
+
+      // Save action — liked and passed are mutually exclusive
       if (dir === 'right') {
-        interested.current.add(currentCard.id);
-        hidden.current.add(currentCard.id);
+        if (dailyInterestsDone) {
+          setDailyLimitModalOpen(true);
+          showToast('Daily interests completed for today. Upgrade to Premium for unlimited likes!', 'info');
+          setDragOffset({ x: 0, y: 0 });
+          setFlingDir(null);
+          setIsDragging(false);
+          isAnimatingOutRef.current = false;
+          return;
+        }
+
+        // Like: remove from passed if previously passed
+        const wasAlreadyPassed = getLocalPassedProfiles().some((p) => String(p.id) === cardId);
+        if (wasAlreadyPassed) {
+          removePassedProfile(cardId);
+          setPassedCount((prev) => Math.max(0, prev - 1));
+        }
+        interested.current.add(cardId);
+        hidden.current.add(cardId);
         saveDismissedIds(hidden.current);
         setSentLikesCount((prev) => prev + 1);
-        showToast('Interest sent! 💕', 'success');
-        void sendInterest(currentCard.id).catch(() => {});
+        // Optimistically show success, then roll back cleanly on limit/plan errors
+        void sendInterest(currentCard.id).then(() => {
+          showToast('Interest sent successfully.', 'success');
+        }).catch((err: unknown) => {
+          const fb = interestFeedback(err);
+          if (fb.isDailyLimit) {
+            setDailyInterestsDone(true);
+            setDailyLimitModalOpen(true);
+            showToast('Daily interests completed for today. Upgrade for unlimited likes!', 'info');
+          } else if (fb.isMembershipRequired) {
+            setDailyLimitModalOpen(true);
+            showToast(fb.message, 'info');
+          } else {
+            showToast(fb.message, fb.tone);
+          }
+          // Roll back optimistic update cleanly
+          interested.current.delete(cardId);
+          hidden.current.delete(cardId);
+          saveDismissedIds(hidden.current);
+          setSentLikesCount((prev) => Math.max(0, prev - 1));
+          setDismissedVersion((v) => v + 1);
+        });
       } else {
+        // Pass: remove from liked count if previously liked (edge case)
+        const wasAlreadyLiked = interested.current.has(cardId);
+        if (wasAlreadyLiked) {
+          interested.current.delete(cardId);
+          setSentLikesCount((prev) => Math.max(0, prev - 1));
+        }
         savePassedProfile(currentCard);
-        setPassedCount(getPassedCount());
-        hidden.current.add(currentCard.id);
+        setPassedCount((prev) => (wasAlreadyLiked ? prev : prev + 1));
+        hidden.current.add(cardId);
         saveDismissedIds(hidden.current);
       }
 
       // Smooth advance after fly-off animation
       window.setTimeout(() => {
-        setIdx((prev) => prev + 1);
+        setSwipedHistory((prev) => [...prev.slice(-10), currentCard]);
         setFlingDir(null);
         setDragOffset({ x: 0, y: 0 });
         setIsDragging(false);
         isAnimatingOutRef.current = false;
-      }, 320);
+        setDismissedVersion((v) => v + 1);
+      }, 300);
     },
-    [deck, idx, hintGone, showToast]
+    [deck, hintGone, showToast]
   );
 
   const handleShortlist = useCallback(
@@ -1440,7 +1750,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
         const r = await toggleShortlist(id);
         if (r.shortlisted) shortlisted.current.add(id);
         else shortlisted.current.delete(id);
-        showToast(r.action === 'added' ? 'Added to shortlist ⭐' : 'Removed from shortlist', 'success');
+        showToast(r.action === 'added' ? 'Added to shortlist' : 'Removed from shortlist', 'success');
       } catch {
         showToast('Shortlist could not be updated.', 'error');
       }
@@ -1493,7 +1803,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
 
   /* ── Keyboard Shortcuts ── */
   useEffect(() => {
-    const p = deck[idx];
+    const p = deck[0];
     if (!p) return;
     const fn = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest('input, textarea, select')) return;
@@ -1503,7 +1813,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  }, [deck, idx, triggerSwipe]);
+  }, [deck, triggerSwipe]);
 
   /* ── Pointer Drag Handlers ── */
   const onPD = (e: React.PointerEvent) => {
@@ -1523,8 +1833,8 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     const s = ptrRef.current;
     if (!s) return;
     const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    setDragOffset({ x: dx, y: dy * 0.35 });
+    // Strictly lock vertical translation to 0 - only horizontal sliding is allowed
+    setDragOffset({ x: dx, y: 0 });
   };
 
   const onPU = (e: React.PointerEvent) => {
@@ -1546,19 +1856,14 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     }
 
     const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
     const dt = Math.max(1, Date.now() - s.time);
     const vx = Math.abs(dx) / dt;
 
-    const isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
-    const hasDistance = Math.abs(dx) > 80;
-    const hasFlick = Math.abs(dx) > 35 && vx > 0.42;
+    const hasDistance = Math.abs(dx) > 75;
+    const hasFlick = Math.abs(dx) > 30 && vx > 0.38;
 
-    if (isHorizontalSwipe && (hasDistance || hasFlick)) {
+    if (hasDistance || hasFlick) {
       triggerSwipe(dx > 0 ? 'right' : 'left');
-    } else if (dy < -90 && Math.abs(dy) > Math.abs(dx) && deck[idx]) {
-      window.location.assign(profileHref(deck[idx]));
-      setDragOffset({ x: 0, y: 0 });
     } else {
       setDragOffset({ x: 0, y: 0 });
     }
@@ -1567,49 +1872,49 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
   const onDoubleTap = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, [role="button"]')) return;
-    const p = deck[idx];
+    const p = deck[0];
     if (p) window.location.assign(profileHref(p));
   };
 
   /* ── Derived & Stack calculations ── */
-  const active = deck[idx];
-  const nextCard = deck[idx + 1];
+  const active = deck[0];
+  const nextCard = deck[1] && deck[1].id !== active?.id ? deck[1] : undefined;
+
   const completion = typeof user?.completion_percentage === 'number' ? user.completion_percentage : 60;
   const planName = (user as unknown as Record<string, Record<string, string>>)?.active_membership?.plan_name || 'Free Plan';
   const isPremium = Boolean((user as unknown as Record<string, unknown>)?.is_premium);
 
   const dragProgress = Math.min(1, Math.abs(dragOffset.x) / 140);
-  const underScale = 0.94 + dragProgress * 0.06;
-  const underTranslateY = 12 - dragProgress * 12;
-  const underOpacity = 0.82 + dragProgress * 0.18;
+  const underScale = 0.95 + dragProgress * 0.05;
+  const underOpacity = 0.85 + dragProgress * 0.15;
 
   const centerTransform = useMemo(() => {
     if (isDragging) {
       return {
-        transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${dragOffset.x * 0.045}deg) scale(1.02)`,
+        transform: `translate3d(${dragOffset.x}px, 0, 0) rotate(${dragOffset.x * 0.038}deg)`,
         transition: 'none',
       };
     }
     if (flingDir === 'right') {
       return {
-        transform: `translate3d(min(850px, 140vw), ${dragOffset.y - 30}px, 0) rotate(22deg) scale(0.92)`,
-        transition: 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease-out',
+        transform: 'translate3d(min(850px, 140vw), 0, 0) rotate(16deg)',
+        transition: 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease-out',
         opacity: 0,
       };
     }
     if (flingDir === 'left') {
       return {
-        transform: `translate3d(max(-850px, -140vw), ${dragOffset.y - 30}px, 0) rotate(-22deg) scale(0.92)`,
-        transition: 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease-out',
+        transform: 'translate3d(max(-850px, -140vw), 0, 0) rotate(-16deg)',
+        transition: 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease-out',
         opacity: 0,
       };
     }
-    // Elastic spring snap-back
+    // Elastic spring snap-back: strictly horizontal reset
     return {
-      transform: 'translate3d(0, 0, 0) rotate(0deg) scale(1)',
-      transition: 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      transform: 'translate3d(0, 0, 0) rotate(0deg)',
+      transition: 'transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)',
     };
-  }, [isDragging, dragOffset, flingDir]);
+  }, [isDragging, dragOffset.x, flingDir]);
 
   /* ── Render ── */
   return (
@@ -1628,14 +1933,14 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
               onPointerCancel={onPU}
               onDoubleClick={onDoubleTap}
             >
-              {deck[idx - 1] && <PeekCard profile={deck[idx - 1]} side="left" />}
+
 
               {/* Next card under the active card for smooth stack effect */}
               {nextCard && (
                 <div
                   className="d-center-under"
                   style={{
-                    transform: `scale(${underScale}) translateY(${underTranslateY}px)`,
+                    transform: `scale(${underScale})`,
                     opacity: underOpacity,
                     transition: isDragging ? 'none' : 'transform 0.32s ease, opacity 0.32s ease',
                     zIndex: 6,
@@ -1690,44 +1995,6 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
                 </div>
               )}
 
-              {/* End of Deck Card when all profiles are over */}
-              {!active && !loading && deck.length > 0 && (
-                <div className="d-center" style={{ zIndex: 10 }}>
-                  <div className="d-end-card">
-                    <div className="d-end-glow" />
-                    <div className="d-end-icon-wrap">
-                      <div className="d-end-icon-pulse" />
-                      <div className="d-end-icon">
-                        <Heart size={36} fill="#e11d48" color="#e11d48" />
-                      </div>
-                    </div>
-                    <h2 className="d-end-title">You&apos;re All Caught Up! 💕</h2>
-                    <p className="d-end-desc">
-                      You&apos;ve reviewed all available profiles for this filter. New members join every day — check back soon!
-                    </p>
-                    <div className="d-end-actions">
-                      <button
-                        type="button"
-                        className="d-end-btn-primary"
-                        onClick={resetDismissed}
-                      >
-                        <RotateCcw size={16} /> Review Deck Again
-                      </button>
-                      <button
-                        type="button"
-                        className="d-end-btn-secondary"
-                        onClick={() => setFilter(true)}
-                      >
-                        <SlidersHorizontal size={15} /> Adjust Filters
-                      </button>
-                      <Link href="/search" className="d-end-btn-ghost">
-                        Explore All Members <ArrowRight size={14} />
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Initial Loading Skeleton */}
               {loading && profiles.length === 0 && (
                 <div className="d-center" style={{ zIndex: 10 }}>
@@ -1750,7 +2017,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
               {!loading && error && profiles.length === 0 && (
                 <div className="d-center" style={{ zIndex: 10 }}>
                   <div className="d-state">
-                    <div className="d-state-icon"><X size={22} color="#b64a68" /></div>
+                    <div className="d-state-icon"><X size={22} color="#9B3F5F" /></div>
                     <h3 className="d-state-title">Something went wrong</h3>
                     <p className="d-state-sub">{error}</p>
                     <button
@@ -1759,7 +2026,6 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
                       onClick={() => {
                         setProfiles([]);
                         setPage(1);
-                        setIdx(0);
                         setHasMore(true);
                       }}
                     >
@@ -1769,34 +2035,44 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
                 </div>
               )}
 
-              {/* Empty Deck from start (strict filters) */}
+              {/* Empty Deck state (when all profiles for current filter have been viewed) */}
               {!loading && !error && deck.length === 0 && (
-                <div className="d-center" style={{ zIndex: 10 }}>
-                  <div className="d-state">
-                    <div className="d-state-icon"><Heart size={22} color="#b64a68" /></div>
-                    <h3 className="d-state-title">No matching profiles</h3>
-                    <p className="d-state-sub">Try adjusting your filters or search criteria to see more profiles.</p>
-                    <div className="d-state-actions">
+                <div className="d-center flex items-center justify-center" style={{ zIndex: 10 }}>
+                  <div className="d-empty-card">
+                    <div className="d-empty-card-glow" />
+                    <div className="d-empty-badge">
+                      <span>Discover Feed</span>
+                    </div>
+                    <div className="d-empty-icon-box">
+                      <Heart size={26} className="text-[#9B3F5F]" fill="none" strokeWidth={2.2} />
+                    </div>
+                    <h3 className="d-empty-title">You&apos;re All Caught Up</h3>
+                    <p className="d-empty-desc">
+                      You have reviewed all available profiles for your current filters. Adjust your criteria or search all members to discover fresh matches.
+                    </p>
+                    <div className="d-empty-actions">
                       <button
                         type="button"
-                        className="d-state-btn"
+                        className="d-empty-btn-primary"
                         onClick={() => {
                           setFilters(DEFAULT_FILTERS);
                           setTab('all');
                           resetDismissed();
                         }}
                       >
-                        Reset Filters
+                        <RotateCcw size={15} />
+                        <span>Reset Filters</span>
                       </button>
-                      <Link href="/search" className="d-state-btn d-state-btn-ghost" style={{ textDecoration: 'none' }}>
-                        Find Matches
+                      <Link href="/search" className="d-empty-btn-secondary">
+                        <ArrowRight size={15} />
+                        <span>Find Matches</span>
                       </Link>
                     </div>
                   </div>
                 </div>
               )}
 
-              {deck[idx + 2] && <PeekCard profile={deck[idx + 2]} side="right" />}
+
             </div>
 
             {/* Hint */}
@@ -1829,12 +2105,19 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           filters={filters}
           onApply={(f) => {
             setFilters(f);
-            setIdx(0);
           }}
           onReset={() => {
             setFilters(DEFAULT_FILTERS);
             setTab('all');
             resetDismissed();
+          }}
+        />
+
+        <DailyLimitModal
+          open={dailyLimitModalOpen}
+          onClose={() => setDailyLimitModalOpen(false)}
+          onShortlistCurrent={() => {
+            if (deck[0]) void handleShortlist(deck[0].id);
           }}
         />
       </div>

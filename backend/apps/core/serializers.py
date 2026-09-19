@@ -131,6 +131,7 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
             'can_view_contact_details': bool(value('can_view_contact', False) or value('contact_access_mode', 'NONE') != 'NONE'),
             'profile_visibility_boost': bool(value('can_use_profile_boost', False)),
             'can_see_who_viewed_profile': bool(value('can_view_profile_visitors', False)),
+            'profile_visitors_limit': value('profile_visitors_limit', 4),
             'can_view_received_interests': bool(value('can_view_received_interests', False)),
             'priority_support': value('support_priority', 'STANDARD') == 'HIGH',
             'max_photos': max(1, int((supplied.get('max_photos') if 'max_photos' in supplied else existing.get('max_photos', 6)) or 6)),
@@ -249,7 +250,7 @@ class MemberPublicSerializer(serializers.ModelSerializer):
         )
 
     def get_photo(self, obj):
-        """Return a thumbnail endpoint, never image binary or a media URL."""
+        """Return a high-resolution photo endpoint, never image binary or a media URL."""
         approved = self._approved_photos(obj)
         photo = next((item for item in approved if item.is_primary), None)
         viewer = self._get_viewer()
@@ -259,7 +260,7 @@ class MemberPublicSerializer(serializers.ModelSerializer):
         if not photo or not can_view_profile_photo(viewer, photo):
             return None
         urls = photo_endpoint_urls(photo)
-        return urls['thumbnail_url']
+        return urls['image_url']
 
     def get_photo_visibility(self, obj):
         """Tell discovery clients why a profile card has no photo URL."""

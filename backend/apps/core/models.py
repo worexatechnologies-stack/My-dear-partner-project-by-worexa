@@ -43,6 +43,12 @@ class MembershipPlan(models.Model):
     can_view_contact = models.BooleanField(default=False)
     can_view_private_photos = models.BooleanField(default=False)
     can_view_profile_visitors = models.BooleanField(default=False)
+    profile_visitors_limit = models.IntegerField(
+        null=True,
+        blank=True,
+        default=4,
+        help_text='Max profile visitors visible to member (e.g. 4 for basic/free, Null for unlimited)'
+    )
     can_view_received_interests = models.BooleanField(default=False)
     can_get_priority_listing = models.BooleanField(default=False)
     can_use_profile_boost = models.BooleanField(default=False)

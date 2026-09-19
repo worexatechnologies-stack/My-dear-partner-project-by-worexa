@@ -55,6 +55,9 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
   PHOTO_LIMIT_REACHED: 'You have reached the maximum number of profile photos.',
   MEMBERSHIP_LIMIT_REACHED: 'You have reached the limit allowed by your plan.',
+  DAILY_INTEREST_LIMIT: "Daily interests completed for today! Upgrade your plan for unlimited interests or try again tomorrow.",
+  MEMBERSHIP_REQUIRED: "Your current plan doesn’t allow sending likes. Please upgrade your plan to send likes.",
+  INTEREST_NOT_PENDING: 'This interest is no longer pending and cannot be changed.',
 
   // Server / network
   INTERNAL_SERVER_ERROR: "We couldn't complete your request right now. Please try again.",

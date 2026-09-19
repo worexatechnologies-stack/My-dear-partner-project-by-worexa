@@ -2377,6 +2377,27 @@ class AdminActivityListView(ScopedAPIView):
                 else:
                     readable_desc = action_str.replace('_', ' ').title()
 
+            city = item.city or ''
+            country = item.country or ''
+            lat = item.latitude
+            lon = item.longitude
+            if (not city or city == 'Local Network') and not country:
+                try:
+                    from apps.core.api_utils import _resolve_location
+                    r_lat, r_lon, r_city, r_country = _resolve_location(item.ip_address)
+                    if r_city and r_city != 'Local Network':
+                        city = r_city
+                        country = r_country
+                        lat = r_lat
+                        lon = r_lon
+                        item.city = city
+                        item.country = country
+                        item.latitude = lat
+                        item.longitude = lon
+                        item.save(update_fields=['city', 'country', 'latitude', 'longitude'])
+                except Exception:
+                    pass
+
             data.append({
                 'id': str(item.pk),
                 'actor_id': str(item.actor_id),
@@ -2390,10 +2411,10 @@ class AdminActivityListView(ScopedAPIView):
                 'target_account': target_account_info,
                 'ip_address': item.ip_address,
                 'user_agent': item.user_agent,
-                'latitude': item.latitude,
-                'longitude': item.longitude,
-                'city': item.city or '',
-                'country': item.country or '',
+                'latitude': lat,
+                'longitude': lon,
+                'city': city,
+                'country': country,
                 'was_successful': True,
                 'created_at': item.created_at,
             })

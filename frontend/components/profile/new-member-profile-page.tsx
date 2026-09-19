@@ -2,78 +2,86 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  User, Heart, ShieldCheck, Crown, MapPin, GraduationCap, Briefcase,
-  Calendar, Ruler, Users, ChevronRight, ChevronLeft, Edit, Camera, CheckCircle2,
-  XCircle, AlertTriangle, Trash2, Mail, Smartphone, BookOpen,
-  Compass, KeyRound, Phone, Lock, Scale, Check, Home, Utensils,
-  X, Eye, Maximize2
+  UserRound, ShieldCheck, Crown, MapPin, Briefcase,
+  ChevronRight, ChevronLeft, Camera, CheckCircle2,
+  Mail, Smartphone, BookOpen, Compass, Check, X, Eye,
+  Users, Lock, Heart, GraduationCap, ArrowRight, Trash2,
+  Home, Phone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ProfileImage from '@/components/profile/ProfileImage';
 import { useAuth } from '@/legacy/contexts/AuthContext';
+import { useMembership } from '@/components/member/membership-provider';
 import { fetchApi } from '@/legacy/services/apiClient';
+import { fetchInterestStats } from '@/lib/interest-stats';
 import { useDeletePhotoMutation, type MemberPhoto } from '@/legacy/services/photoApi';
+
+/* ── helpers ─────────────────────────────────────── */
 
 function DisplayValue({ value, fallback = 'Not specified' }: { value?: any; fallback?: string }) {
   if (value !== undefined && value !== null && String(value).trim() !== '') {
-    return <span className="font-extrabold text-gray-900">{value}</span>;
+    return <span className="font-bold text-slate-800 text-xs sm:text-sm">{String(value)}</span>;
   }
-  return <span className="text-gray-400 font-normal italic text-xs">{fallback}</span>;
+  return <span className="text-slate-400 font-normal italic text-xs">{fallback}</span>;
 }
 
-function statusBadge(status: string) {
+function StatusBadge({ status }: { status?: string }) {
   const s = status?.toLowerCase() || 'draft';
   const isApproved = s === 'approved';
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black ${
-      isApproved ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-    }`}>
-      {isApproved ? <CheckCircle2 className="w-3.5 h-3.5" /> : <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+        isApproved
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+          : 'bg-amber-50 text-amber-700 border border-amber-200/80'
+      }`}
+    >
+      {isApproved ? (
+        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+      ) : (
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+      )}
       {isApproved ? 'Approved' : 'Under Review'}
     </span>
   );
 }
 
+/* ── main component ──────────────────────────────── */
+
 export default function NewMemberProfilePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { membershipSummary } = useMembership();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'religion' | 'career' | 'family' | 'preferences'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'personal' | 'religion' | 'career' | 'family' | 'preferences' | 'photos'
+  >('overview');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [deletePhoto] = useDeletePhotoMutation();
 
-  useEffect(() => setMounted(true), []);
+  const [stats, setStats] = useState({
+    interestsReceived: 0,
+    interestsSent: 0,
+    mutualMatches: 0,
+    visitors: 0,
+  });
 
-  const handleDelete = async (photoId: string) => {
-    if (!window.confirm('Are you sure you want to delete this photo?')) return;
-    setDeletingId(photoId);
-    try {
-      await deletePhoto(photoId).unwrap();
-      setProfile((prev: any) => ({
-        ...prev,
-        photos: (prev.photos || []).filter((ph: any) => ph.id !== photoId),
-      }));
-    } catch {
-      setError('Failed to delete photo.');
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!user) {
       if (!authLoading) setLoading(false);
       return;
     }
-
     let active = true;
+
     fetchApi<any>('/member-auth/me/')
       .then((data) => {
         if (active) {
@@ -83,317 +91,704 @@ export default function NewMemberProfilePage() {
       })
       .catch((err: any) => {
         if (active) {
-          setError(err?.message || 'Failed to load profile details.');
+          setError(err?.message || 'Failed to load profile.');
           setLoading(false);
         }
       });
 
-    return () => { active = false; };
+    fetchInterestStats()
+      .then((s) => {
+        if (!active) return;
+        setStats((prev) => ({
+          ...prev,
+          interestsReceived: s.received,
+          interestsSent: s.sent,
+          mutualMatches: s.accepted,
+        }));
+      })
+      .catch(() => {});
+
+    fetchApi<any>('/visitors/')
+      .then((res) => {
+        if (!active) return;
+        const count = res?.total_unique_visitors ?? (Array.isArray(res?.results) ? res.results.length : 0);
+        setStats((prev) => ({ ...prev, visitors: count }));
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
   }, [user, authLoading]);
 
   useEffect(() => {
     if (lightboxIndex === null) return;
     const count = profile?.photos?.length || 0;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setLightboxIndex(null);
-      } else if (e.key === 'ArrowRight' && count > 1) {
-        setLightboxIndex((prev) => (prev !== null ? (prev + 1) % count : null));
-      } else if (e.key === 'ArrowLeft' && count > 1) {
-        setLightboxIndex((prev) => (prev !== null ? (prev - 1 + count) % count : null));
-      }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      else if (e.key === 'ArrowRight' && count > 1) setLightboxIndex((p) => (p !== null ? (p + 1) % count : 0));
+      else if (e.key === 'ArrowLeft' && count > 1) setLightboxIndex((p) => (p !== null ? (p - 1 + count) % count : 0));
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIndex, profile?.photos?.length]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxIndex, profile?.photos]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#fdf8f5] pt-28 pb-16 flex items-center justify-center">
-        <div className="text-center font-bold text-xs text-[#e11d48] animate-pulse">
-          Loading profile dashboard...
-        </div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-[#fdf8f5] pt-28 pb-16 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-3xl border border-rose-100 shadow-xs max-w-sm text-center space-y-4">
-          <User className="w-12 h-12 text-[#e11d48] mx-auto" />
-          <h2 className="text-lg font-black text-[#230914]">Access Required</h2>
-          <p className="text-xs text-gray-500">Please sign in to view and manage your profile dashboard.</p>
-          <Link href="/login" className="block w-full py-2.5 rounded-2xl bg-[#e11d48] text-white font-extrabold text-xs shadow-xs">
-            Sign In
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const p = profile;
-  const photos: MemberPhoto[] = p.photos || [];
-  const primaryPhoto = photos.find((ph) => ph.is_primary) || photos[0];
-  const completion = p.completion_percentage ?? 85;
-  const displayName = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'My Profile';
-  const profileId = p.profile_id || p.member_id || p.id;
-  const profileLocation = p.work_location || p.location || p.city;
-
-  const handleAvatarClick = () => {
-    if (photos.length > 0) {
-      const primaryIdx = photos.findIndex((ph) => ph.is_primary);
-      setLightboxIndex(primaryIdx >= 0 ? primaryIdx : 0);
-    } else {
-      router.push('/profile/photos');
+  const handleDeletePhoto = async (photoId: string) => {
+    if (!window.confirm('Are you sure you want to delete this photo?')) return;
+    setDeletingId(photoId);
+    try {
+      await deletePhoto(photoId).unwrap();
+      setProfile((prev: any) => ({
+        ...prev,
+        photos: (prev?.photos || []).filter((ph: any) => ph.id !== photoId),
+      }));
+    } catch {
+      alert('Failed to delete photo.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 rounded-full border-4 border-rose-100 border-t-[#e11d48] animate-spin mx-auto" />
+          <p className="text-xs font-semibold text-slate-500">Loading your profile…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !profile) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-8">
+        <div className="bg-white rounded-2xl border border-rose-100 p-8 text-center space-y-4 shadow-sm max-w-sm w-full">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center mx-auto text-[#e11d48]">
+            <X className="w-5 h-5" />
+          </div>
+          <p className="text-sm font-bold text-slate-900">Profile Unavailable</p>
+          <p className="text-xs text-slate-500">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2 rounded-xl bg-[#e11d48] text-white text-xs font-bold hover:bg-rose-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const p = profile || {};
+  const photos: MemberPhoto[] = p.photos || [];
+  const primaryPhoto = photos.find((ph) => ph.is_primary) || photos[0];
+  const displayName = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || user?.full_name || 'Member Account';
+  const profileId = p.profile_id || p.member_id || (user?.id ? `MDP-${user.id.slice(0, 6).toUpperCase()}` : 'MDP-MEMBER');
+  const isPremium = Boolean(user?.is_premium || p.is_premium || (membershipSummary?.has_active_plan && !membershipSummary?.is_free));
+  const planName = membershipSummary?.plan_name || (isPremium ? 'Premium' : 'Free Member');
+  const completion = p.completion_percentage ?? 80;
+  const remainingConnects = membershipSummary?.daily_profile_unlocks_remaining;
+  const totalLimit = membershipSummary?.daily_profile_unlock_limit;
+  const connects = remainingConnects != null
+    ? (totalLimit ? `${remainingConnects} / ${totalLimit} left today` : `${remainingConnects} left today`)
+    : totalLimit != null
+      ? (totalLimit >= 999 ? 'Unlimited' : `${totalLimit} / day`)
+      : (isPremium ? 'Unlimited' : '10 / day');
+
   const tabs = [
-    { id: 'overview', label: 'Overview & About' },
-    { id: 'personal', label: 'Basic Details' },
-    { id: 'religion', label: 'Religion & Horoscope' },
-    { id: 'career', label: 'Education & Career' },
-    { id: 'family', label: 'Family Background' },
-    { id: 'preferences', label: 'Partner Preferences' },
+    { id: 'overview',     label: 'Overview' },
+    { id: 'personal',     label: 'Basic Details & Bio' },
+    { id: 'religion',     label: 'Religion & Horoscope' },
+    { id: 'career',       label: 'Education & Career' },
+    { id: 'family',       label: 'Family Details' },
+    { id: 'preferences',  label: 'Partner Preferences' },
+    { id: 'photos',       label: `Photos (${photos.length})` },
   ];
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#ffe9f0_0,_transparent_28%),linear-gradient(180deg,_#fff8fa_0%,_#f5f7fb_46%,_#fff_100%)] pt-24 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="min-h-full bg-[#fafafa] pb-20">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        {/* Profile Dashboard Banner Card */}
-        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#4a1028] via-[#851c45] to-[#dd3d70] p-6 shadow-[0_28px_70px_-34px_rgba(107,20,57,0.85)] sm:p-9">
-          <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-rose-300/20 blur-3xl" />
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+        {/* ── Breadcrumb Navigation ── */}
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-medium text-slate-500">
+          <Link href="/dashboard" className="inline-flex items-center gap-1.5 transition-colors hover:text-[#e11d48]">
+            <Home className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-semibold text-slate-900">My Profile</span>
+        </nav>
 
-            {/* Circular Avatar Frame - Clickable to open full-size photo */}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={handleAvatarClick}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleAvatarClick();
-                }
-              }}
-              className="relative shrink-0 cursor-pointer group focus:outline-none focus:ring-4 focus:ring-white/40 rounded-full select-none"
-              title={photos.length > 0 ? "Click to view full photo" : "Click to upload photo"}
-            >
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white/80 shadow-2xl overflow-hidden bg-rose-50 relative transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.45)] group-hover:border-white">
-                <ProfileImage
-                  photoId={primaryPhoto?.id}
-                  src={primaryPhoto?.thumbnail_url}
-                  variant="thumbnail"
-                  alt="Profile Avatar"
-                  size="xl"
-                  shape="circle"
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+        {/* ── 1. Profile Snapshot Card ── */}
+        <section className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
+          {/* Top brand accent border */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#e11d48]" />
 
-                {/* Interactive hover overlay with icon & label */}
-                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white gap-1 backdrop-blur-[2px]">
-                  {photos.length > 0 ? (
-                    <>
-                      <Eye className="w-6 h-6 text-white drop-shadow-md" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-white drop-shadow-md">
-                        View Photo
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-6 h-6 text-white drop-shadow-md" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-white drop-shadow-md">
-                        Upload
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {p.is_fully_verified && (
-                <span className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white shadow-xs z-10 pointer-events-none" title="Govt ID Verified">
-                  <ShieldCheck className="w-4 h-4" />
-                </span>
-              )}
-            </div>
-
-            {/* Main Header Info */}
-            <div className="flex-1 text-center md:text-left space-y-3">
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
-                <h1 className="text-2xl sm:text-3xl font-black text-white">{displayName}</h1>
-                {p.is_premium ? (
-                  <span className="px-3 py-0.5 rounded-full bg-amber-300 text-amber-950 border border-amber-200 text-xs font-black flex items-center gap-1">
-                    <Crown className="w-3.5 h-3.5 text-amber-600" /> Premium Member
-                  </span>
-                ) : (
-                  <span className="px-3 py-0.5 rounded-full bg-white/15 text-white border border-white/25 text-xs font-bold">
-                    Free Member
-                  </span>
-                )}
-                {statusBadge(p.profile_status)}
-              </div>
-
-              {profileId && (
-                <div className="flex items-center justify-center md:justify-start gap-2 text-xs font-bold">
-                  <span className="text-white bg-white/15 border border-white/25 px-3 py-1 rounded-full">
-                    Profile ID: MDP-{String(profileId).slice(0, 8).toUpperCase()}
-                  </span>
-                  <span className="text-emerald-50 bg-emerald-500/25 border border-emerald-200/30 px-3 py-1 rounded-full flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5" /> ID Verified
-                  </span>
-                </div>
-              )}
-
-              {/* Quick Info Tags */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs font-bold text-white">
-                {p.age && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{p.age} Yrs</span>}
-                {p.gender && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{p.gender}</span>}
-                {p.marital_status && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{p.marital_status}</span>}
-                {p.height && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{p.height}</span>}
-                {p.religion && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{p.religion}</span>}
-                {profileLocation && <span className="px-3 py-1 rounded-full bg-black/15 border border-white/15">{profileLocation}</span>}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-2.5">
-                <Link
-                  href="/profile/edit"
-                  className="px-5 py-2.5 rounded-2xl bg-white hover:bg-rose-50 text-[#a91d4c] font-extrabold text-xs transition-all shadow-lg inline-flex items-center gap-1.5 cursor-pointer"
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-1">
+            {/* Left: Avatar & Identity Details */}
+            <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+              <div className="relative shrink-0">
+                <div
+                  onClick={() => photos.length > 0 ? setLightboxIndex(0) : router.push('/profile/photos')}
+                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer group transition-transform duration-200 hover:scale-[1.02] border-2 ${
+                    isPremium
+                      ? 'border-[#e11d48]/50 ring-2 ring-rose-100 shadow-sm bg-rose-50/50'
+                      : 'border-rose-100 bg-rose-50'
+                  }`}
+                  title="Click to view photos"
                 >
-                  <Edit className="w-3.5 h-3.5" /> Edit Profile
-                </Link>
+                  {primaryPhoto?.thumbnail_url || user?.photo ? (
+                    <img
+                      src={primaryPhoto?.thumbnail_url || user?.photo}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[#e11d48] text-2xl font-bold">
+                      {displayName[0] || 'M'}
+                    </span>
+                  )}
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Eye className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+
+                {/* Manage Photos Camera Button */}
                 <Link
                   href="/profile/photos"
-                  className="px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/30 text-white font-extrabold text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-[#e11d48] transition-colors"
+                  title="Manage Photos"
                 >
-                  <Camera className="w-3.5 h-3.5 text-[#e11d48]" /> Manage Photos ({photos.length})
-                </Link>
-                <Link
-                  href="/settings/security"
-                  className="px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/30 text-white font-extrabold text-xs transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5 text-gray-500" /> Privacy &amp; Security
+                  <Camera className="w-3.5 h-3.5" />
                 </Link>
               </div>
-            </div>
 
-          </div>
-
-          {/* Profile Completeness Bar */}
-          <div className="relative mt-7 rounded-2xl border border-white/15 bg-black/10 p-4 space-y-2 backdrop-blur-sm">
-            <div className="flex justify-between items-center text-xs font-extrabold">
-              <span className="text-rose-100 uppercase tracking-wider">Profile Completeness Score</span>
-              <span className="text-white">{completion}%</span>
-            </div>
-            <div className="h-2.5 bg-black/20 rounded-full overflow-hidden border border-white/10">
-              <div className="h-full bg-gradient-to-r from-amber-300 to-rose-100 rounded-full transition-all duration-500" style={{ width: `${completion}%` }} />
-            </div>
-            {completion < 100 && (
-              <div className="flex items-center justify-between text-xs font-semibold text-rose-100 pt-1">
-                <span>Add education details, family background &amp; preferences to get 3x higher responses.</span>
-                <Link href="/profile/edit" className="text-white font-black hover:underline shrink-0 ml-2">Complete Now &rarr;</Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation Tabs Bar */}
-        <div className="sticky top-0 z-30 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-md backdrop-blur-md flex gap-2 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-[#a91d4c] text-white shadow-lg shadow-rose-200'
-                  : 'text-slate-600 hover:bg-rose-50 hover:text-[#a91d4c]'
-              }`}
-              onClick={() => setActiveTab(tab.id as any)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Dashboard Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-          {/* Left Column: Account Verifications & Photo Gallery Teaser */}
-          <div className="lg:col-span-4 space-y-6">
-            
-            {/* Verification Widget */}
-            <div className="bg-white rounded-3xl border border-rose-100 p-6 shadow-xs space-y-4">
-              <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2 border-b border-rose-100 pb-2">
-                <ShieldCheck className="w-4 h-4 text-[#e11d48]" /> Account Verifications
-              </h2>
-
-              <div className="space-y-3 text-xs font-bold">
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500 flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /> Email Address</span>
-                  <span className="text-gray-600 font-semibold">{p.email || 'Not provided'}</span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                    {displayName}
+                  </h1>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Verified
+                  </span>
                 </div>
-                <div className="flex justify-between items-center py-1 border-t border-rose-50">
-                  <span className="text-gray-500 flex items-center gap-2"><Smartphone className="w-4 h-4 text-gray-400" /> Mobile Number</span>
-                  {p.is_mobile_verified ? (
-                    <span className="text-emerald-600 font-extrabold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Verified</span>
-                  ) : (
-                    <Link href="/profile/edit" className="text-amber-700 font-extrabold hover:underline">Verify by OTP</Link>
+
+                {/* Meta Chips */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500">
+                  <span className="font-mono font-medium text-slate-600">{profileId}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className={`font-semibold inline-flex items-center gap-1 ${isPremium ? 'text-[#e11d48]' : 'text-slate-700'}`}>
+                    {isPremium && <Crown className="w-3.5 h-3.5 text-[#e11d48]" />}
+                    {planName}
+                  </span>
+                  {(user?.email || p.email) && (
+                    <>
+                      <span className="text-slate-300">•</span>
+                      <span className="inline-flex items-center gap-1 truncate max-w-[200px]">
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        {user?.email || p.email}
+                      </span>
+                    </>
+                  )}
+                  {(user?.mobile_number || p.mobile) && (
+                    <>
+                      <span className="text-slate-300">•</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                        {user?.mobile_number || p.mobile}
+                      </span>
+                    </>
                   )}
                 </div>
-                <div className="flex justify-between items-center py-1 border-t border-rose-50">
-                  <span className="text-gray-500 flex items-center gap-2"><Camera className="w-4 h-4 text-gray-400" /> Photo Moderation</span>
-                  {statusBadge(p.photo_status)}
-                </div>
               </div>
             </div>
 
-            {/* Photos Quick Gallery */}
-            <div className="bg-white rounded-3xl border border-rose-100 p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-[#e11d48]" /> My Photos ({photos.length})
-                </h2>
-                <Link href="/profile/photos" className="text-xs font-bold text-[#e11d48] hover:underline">+ Upload</Link>
+            {/* Right: Quick Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+
+              <Link
+                href="/profile/edit"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#e11d48] hover:bg-rose-700 transition-colors shadow-xs"
+              >
+                <UserRound className="w-3.5 h-3.5 text-white" />
+                <span>Edit Profile</span>
+              </Link>
+              <Link
+                href="/profile/photos"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200/80 transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#e11d48]" />
+                <span>Photos ({photos.length})</span>
+              </Link>
+              <Link
+                href="/membership"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-rose-200 bg-rose-50/80 text-[#e11d48] hover:bg-rose-100/80 transition-colors"
+              >
+                <Crown className="w-3.5 h-3.5 text-[#e11d48]" />
+                <span>{isPremium ? 'Manage Plan' : 'Upgrade Plan'}</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Bottom Strip: 4 Key Account/Profile Status Metrics */}
+          <div className="mt-6 pt-5 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ACCOUNT STATUS</p>
+              <p className="mt-1 text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Active Profile
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">VISIBILITY</p>
+              <p className="mt-1 text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-[#e11d48]" />
+                Visible to Matches
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DAILY CONNECTS</p>
+              <p className="mt-1 text-xs font-bold text-slate-800">{connects}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PROFILE STRENGTH</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-800">{completion}%</span>
+                <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#e11d48] rounded-full transition-all duration-500"
+                    style={{ width: `${completion}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════
+            2. SECTION HEADER & TAB NAV PILLS
+        ══════════════════════════════════════════════════════════════ */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
+              PROFILE DETAILS
+            </h2>
+            <span className="text-xs text-slate-400 font-medium">• 6 sections</span>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="overflow-x-auto no-scrollbar flex items-center gap-1.5 pb-1">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#e11d48] text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════
+            4. DETAILED TAB CONTENT PANELS
+        ══════════════════════════════════════════════════════════════ */}
+        <div className="space-y-6">
+
+          {/* ── Basic Details & Bio ── */}
+          {(activeTab === 'overview' || activeTab === 'personal') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <UserRound className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Basic Details &amp; Bio</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PERSONAL ATTRIBUTES</p>
+                  </div>
+                </div>
+                <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline flex items-center gap-1">
+                  Edit <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Bio snippet */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">About Myself</p>
+                {p.about ? (
+                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50/70 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">
+                    "{p.about}"
+                  </p>
+                ) : (
+                  <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-100 text-center space-y-1">
+                    <p className="text-xs font-medium text-slate-400">No introduction added yet.</p>
+                    <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">+ Write About Yourself</Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Attributes Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Age</span>
+                  <DisplayValue value={p.age ? `${p.age} Yrs` : undefined} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Gender</span>
+                  <DisplayValue value={p.gender} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Marital Status</span>
+                  <DisplayValue value={p.marital_status} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Height</span>
+                  <DisplayValue value={p.height} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Mother Tongue</span>
+                  <DisplayValue value={p.mother_tongue} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Weight</span>
+                  <DisplayValue value={p.weight} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Blood Group</span>
+                  <DisplayValue value={p.blood_group} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Location</span>
+                  <DisplayValue value={p.city || p.work_location || p.location} />
+                </div>
+              </div>
+
+              {p.hobbies && (
+                <div className="pt-3 border-t border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Hobbies &amp; Interests</span>
+                  <p className="text-xs font-semibold text-slate-800">
+                    {Array.isArray(p.hobbies) ? p.hobbies.join(', ') : p.hobbies}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Religion & Horoscope ── */}
+          {(activeTab === 'overview' || activeTab === 'religion') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <Compass className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Religion &amp; Horoscope</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ASTROLOGICAL &amp; COMMUNITY</p>
+                  </div>
+                </div>
+                <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline flex items-center gap-1">
+                  Edit <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Religion</span>
+                  <DisplayValue value={p.religion} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Caste</span>
+                  <DisplayValue value={p.caste} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Sub-Caste</span>
+                  <DisplayValue value={p.sub_caste} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Gothra</span>
+                  <DisplayValue value={p.gothra} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Star / Nakshatra</span>
+                  <DisplayValue value={p.star_nakshatra} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Raasi / Moon Sign</span>
+                  <DisplayValue value={p.raasi} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Manglik / Dosham</span>
+                  <DisplayValue value={p.dosham || p.manglik} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Time of Birth</span>
+                  <DisplayValue value={p.birth_time} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Birth Place</span>
+                  <DisplayValue value={p.birth_city || p.birth_place} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Education & Career ── */}
+          {(activeTab === 'overview' || activeTab === 'career') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <Briefcase className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Education &amp; Career</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PROFESSIONAL DETAILS</p>
+                  </div>
+                </div>
+                <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline flex items-center gap-1">
+                  Edit <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Highest Degree</span>
+                  <DisplayValue value={p.highest_education} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Education Detail</span>
+                  <DisplayValue value={p.education_detail} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Occupation</span>
+                  <DisplayValue value={p.occupation} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Employed In</span>
+                  <DisplayValue value={p.employed_in} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Company / Org</span>
+                  <DisplayValue value={p.company} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Annual Income</span>
+                  <DisplayValue value={p.annual_income ? `₹${p.annual_income}` : undefined} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100 col-span-2 sm:col-span-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Work Location</span>
+                  <DisplayValue value={p.work_location} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Family & Heritage ── */}
+          {(activeTab === 'overview' || activeTab === 'family') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <Users className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Family &amp; Heritage</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FAMILY BACKGROUND</p>
+                  </div>
+                </div>
+                <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline flex items-center gap-1">
+                  Edit <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Father's Occupation</span>
+                  <DisplayValue value={p.father_status} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Mother's Occupation</span>
+                  <DisplayValue value={p.mother_status} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Family Type</span>
+                  <DisplayValue value={p.family_type} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Family Values</span>
+                  <DisplayValue value={p.family_values} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Brothers</span>
+                  <DisplayValue value={p.num_brothers} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Sisters</span>
+                  <DisplayValue value={p.num_sisters} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100 col-span-2 sm:col-span-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Family Location / Native</span>
+                  <DisplayValue value={p.family_location} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Partner Preferences ── */}
+          {(activeTab === 'overview' || activeTab === 'preferences') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <Heart className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Partner Preferences</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">MATCHING CRITERIA</p>
+                  </div>
+                </div>
+                <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline flex items-center gap-1">
+                  Edit <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Age</span>
+                  <DisplayValue
+                    value={p.pref_age_min || p.pref_age_max ? `${p.pref_age_min || 18} - ${p.pref_age_max || 60} Yrs` : undefined}
+                  />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Height</span>
+                  <DisplayValue
+                    value={p.pref_height_min || p.pref_height_max ? `${p.pref_height_min || 'Any'} - ${p.pref_height_max || 'Any'}` : undefined}
+                  />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Religion</span>
+                  <DisplayValue value={p.pref_religion} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Caste</span>
+                  <DisplayValue value={p.pref_caste} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Education</span>
+                  <DisplayValue value={p.pref_education} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Location</span>
+                  <DisplayValue value={p.pref_location} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Preferred Occupation</span>
+                  <DisplayValue value={p.pref_occupation} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Marital Status</span>
+                  <DisplayValue value={p.pref_marital_status} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Dietary Preference</span>
+                  <DisplayValue value={p.pref_diet} />
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100 col-span-2 sm:col-span-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">About Ideal Partner</span>
+                  <DisplayValue value={p.pref_about} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Photo Gallery Section ── */}
+          {(activeTab === 'overview' || activeTab === 'photos') && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#e11d48]">
+                    <Camera className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">My Photos ({photos.length})</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PHOTO GALLERY</p>
+                  </div>
+                </div>
+                <Link
+                  href="/profile/photos"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-50 text-[#e11d48] text-xs font-bold hover:bg-rose-100 transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>+ Upload Photos</span>
+                </Link>
               </div>
 
               {photos.length === 0 ? (
-                <div className="text-center py-4 space-y-2">
-                  <Camera className="w-8 h-8 text-gray-300 mx-auto" />
-                  <p className="text-xs font-semibold text-gray-500">No photos uploaded yet.</p>
-                  <Link href="/profile/photos" className="inline-block px-3 py-1.5 rounded-xl bg-rose-50 text-[#e11d48] text-xs font-bold">Upload Photos</Link>
+                <div className="text-center py-8 space-y-2 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <Camera className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs font-bold text-slate-600">No photos uploaded yet.</p>
+                  <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                    Profiles with verified photos receive up to 5× more interest requests.
+                  </p>
+                  <Link
+                    href="/profile/photos"
+                    className="inline-block mt-2 px-4 py-2 rounded-xl bg-[#e11d48] text-white text-xs font-bold hover:bg-rose-700 transition"
+                  >
+                    Upload Photo Now
+                  </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
                   {photos.map((ph, idx) => (
                     <div
                       key={ph.id}
                       onClick={() => setLightboxIndex(idx)}
-                      className="relative aspect-square rounded-xl overflow-hidden border border-rose-100 bg-gray-100 group cursor-pointer hover:ring-2 hover:ring-[#e11d48] transition-all"
-                      title="Click to view full photo"
+                      className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer hover:ring-2 hover:ring-[#e11d48] transition-all shadow-xs"
+                      title="Click to view"
                     >
                       <ProfileImage
                         photoId={ph.id}
                         src={ph.thumbnail_url}
                         variant="thumbnail"
                         alt=""
-                        size="sm"
+                        size="md"
                         shape="square"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <Eye className="w-4 h-4 text-white drop-shadow-md" />
+
+                      {/* Primary badge */}
+                      {ph.is_primary && (
+                        <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-amber-400 text-amber-950 text-[10px] font-black uppercase tracking-wider shadow-xs">
+                          Primary
+                        </span>
+                      )}
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <Eye className="w-5 h-5 text-white" />
                       </div>
+
+                      {/* Delete Button */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(ph.id);
+                          handleDeletePhoto(ph.id);
                         }}
                         disabled={deletingId === ph.id}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-700 cursor-pointer shadow-sm z-10"
                         title="Delete photo"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -403,270 +798,13 @@ export default function NewMemberProfilePage() {
                 </div>
               )}
             </div>
-
-          </div>
-
-          {/* Right Column: Information Cards */}
-          <div className="lg:col-span-8 space-y-6">
-
-            {/* About Myself Card */}
-            {(activeTab === 'overview' || activeTab === 'personal') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-3">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[#e11d48]" /> About Myself
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-                {p.about ? (
-                  <p className="text-xs font-medium text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    "{p.about}"
-                  </p>
-                ) : (
-                  <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 text-center space-y-1">
-                    <p className="text-xs font-semibold text-gray-500">No introduction added yet.</p>
-                    <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">+ Write About Yourself</Link>
-                  </div>
-                )}
-
-                {p.hobbies && (
-                  <div className="pt-3 border-t border-rose-50">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Hobbies &amp; Interests</span>
-                    <p className="text-xs font-bold text-gray-800">
-                      {Array.isArray(p.hobbies) ? p.hobbies.join(', ') : p.hobbies}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Basic & Personal Details */}
-            {(activeTab === 'overview' || activeTab === 'personal') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#e11d48]" /> Basic Details
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Age</span>
-                    <DisplayValue value={p.age ? `${p.age} Yrs` : undefined} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Gender</span>
-                    <DisplayValue value={p.gender} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Marital Status</span>
-                    <DisplayValue value={p.marital_status} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Height</span>
-                    <DisplayValue value={p.height} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Mother Tongue</span>
-                    <DisplayValue value={p.mother_tongue} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Weight</span>
-                    <DisplayValue value={p.weight} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Blood Group</span>
-                    <DisplayValue value={p.blood_group} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Complexion</span>
-                    <DisplayValue value={p.complexion} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Religion & Horoscope Details */}
-            {(activeTab === 'overview' || activeTab === 'religion') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-[#e11d48]" /> Religion &amp; Horoscope
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Religion</span>
-                    <DisplayValue value={p.religion} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Caste</span>
-                    <DisplayValue value={p.caste} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Sub-Caste</span>
-                    <DisplayValue value={p.sub_caste} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Gothra</span>
-                    <DisplayValue value={p.gothra} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Star / Nakshatra</span>
-                    <DisplayValue value={p.star_nakshatra} />
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {/* Education & Career Details */}
-            {(activeTab === 'overview' || activeTab === 'career') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-[#e11d48]" /> Education &amp; Career
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Highest Qualification</span>
-                    <DisplayValue value={p.highest_education} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Education Details</span>
-                    <DisplayValue value={p.education_detail} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Occupation</span>
-                    <DisplayValue value={p.occupation} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Employed In</span>
-                    <DisplayValue value={p.employed_in} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Company</span>
-                    <DisplayValue value={p.company} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Annual Income</span>
-                    <DisplayValue value={p.annual_income} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Work Location</span>
-                    <DisplayValue value={p.work_location} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Family Background */}
-            {(activeTab === 'overview' || activeTab === 'family') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <Users className="w-4 h-4 text-[#e11d48]" /> Family Background
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Father's Occupation</span>
-                    <DisplayValue value={p.father_status} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Mother's Occupation</span>
-                    <DisplayValue value={p.mother_status} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Family Type</span>
-                    <DisplayValue value={p.family_type} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Family Location</span>
-                    <DisplayValue value={p.family_location} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Family Status</span>
-                    <DisplayValue value={p.family_status} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Brothers</span>
-                    <DisplayValue value={p.num_brothers} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Sisters</span>
-                    <DisplayValue value={p.num_sisters} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Partner Preferences */}
-            {(activeTab === 'overview' || activeTab === 'preferences') && (
-              <div className="bg-white rounded-3xl border border-rose-100 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-rose-100 pb-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-[#e11d48] flex items-center gap-2">
-                    <Heart className="w-4 h-4 text-[#e11d48]" /> Partner Preferences
-                  </h2>
-                  <Link href="/profile/edit" className="text-xs font-bold text-[#e11d48] hover:underline">Edit</Link>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Age Range</span>
-                    <DisplayValue value={p.pref_age_min || p.pref_age_max ? `${p.pref_age_min || 'Any'} - ${p.pref_age_max || 'Any'} Yrs` : undefined} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Height</span>
-                    <DisplayValue value={p.pref_height_min || p.pref_height_max ? `${p.pref_height_min || 'Any'} - ${p.pref_height_max || 'Any'}` : undefined} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Religion</span>
-                    <DisplayValue value={p.pref_religion} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Location</span>
-                    <DisplayValue value={p.pref_location} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Caste</span>
-                    <DisplayValue value={p.pref_caste} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Education</span>
-                    <DisplayValue value={p.pref_education} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Occupation</span>
-                    <DisplayValue value={p.pref_occupation} />
-                  </div>
-                  <div className="p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Marital Status</span>
-                    <DisplayValue value={p.pref_marital_status} />
-                  </div>
-                  <div className="col-span-2 p-3 bg-rose-50/50 rounded-2xl border border-rose-100">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">About Ideal Partner</span>
-                    <DisplayValue value={p.pref_about} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
+          )}
 
         </div>
 
       </div>
 
-      {/* Lightbox Modal */}
+      {/* ── Lightbox Modal ── */}
       {mounted && createPortal(
         <AnimatePresence>
           {lightboxIndex !== null && photos[lightboxIndex] && (
@@ -675,109 +813,78 @@ export default function NewMemberProfilePage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 backdrop-blur-md"
-              style={{ backgroundColor: 'rgba(10, 8, 14, 0.95)' }}
+              style={{ backgroundColor: 'rgba(15, 23, 42, 0.95)' }}
               onClick={() => setLightboxIndex(null)}
             >
-              {/* Header / Top bar in high-contrast dark card */}
+              {/* Top Bar */}
               <div
-                className="w-full max-w-3xl flex items-center justify-between px-5 py-3 rounded-2xl bg-black/80 border border-white/15 shadow-2xl backdrop-blur-md mb-2"
+                className="w-full max-w-3xl flex items-center justify-between px-5 py-3 rounded-2xl bg-slate-900/90 border border-white/10 shadow-2xl backdrop-blur-md mb-3"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3">
-                  <span className="font-black text-base sm:text-lg text-white tracking-tight drop-shadow-sm">
-                    {displayName}
-                  </span>
+                  <span className="font-bold text-sm text-white">{displayName}</span>
                   {photos[lightboxIndex].is_primary && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[11px] font-black uppercase tracking-wider shadow-sm">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[10px] font-black uppercase">
                       Primary
                     </span>
                   )}
-                  {statusBadge(photos[lightboxIndex].status || p.photo_status)}
+                  <StatusBadge status={photos[lightboxIndex].status || p.photo_status} />
                 </div>
 
                 <div className="flex items-center gap-3">
                   {photos.length > 1 && (
-                    <span className="text-xs font-bold text-white bg-white/15 px-3 py-1 rounded-full border border-white/20">
+                    <span className="text-xs font-semibold text-slate-400">
                       {lightboxIndex + 1} / {photos.length}
                     </span>
                   )}
                   <button
                     type="button"
                     onClick={() => setLightboxIndex(null)}
-                    className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/35 border border-white/30 flex items-center justify-center text-white transition-all cursor-pointer shadow-sm"
-                    title="Close (Esc)"
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
                   >
-                    <X className="w-5 h-5 text-white" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Main photo container */}
+              {/* Photo Display */}
               <div
                 className="relative flex items-center justify-center max-w-full my-auto"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Previous button */}
                 {photos.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => setLightboxIndex((lightboxIndex - 1 + photos.length) % photos.length)}
-                    style={{ backgroundColor: 'rgba(20, 15, 25, 0.85)' }}
-                    className="absolute -left-3 sm:-left-14 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-13 sm:h-13 rounded-full hover:scale-110 border border-white/30 text-white flex items-center justify-center transition-all shadow-2xl cursor-pointer z-10"
-                    title="Previous photo (Left arrow)"
+                    onClick={() => setLightboxIndex((prev) => (prev !== null ? (prev - 1 + photos.length) % photos.length : 0))}
+                    className="absolute left-2 sm:-left-12 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition cursor-pointer z-10"
                   >
-                    <ChevronLeft className="w-6 h-6 text-white" />
+                    <ChevronLeft className="w-6 h-6" />
                   </button>
                 )}
 
-                {/* Photo */}
-                <div
-                  style={{ backgroundColor: '#141416' }}
-                  className="relative overflow-hidden rounded-2xl border-2 border-white/20 shadow-2xl"
-                >
-                  <ProfileImage
-                    photoId={photos[lightboxIndex].id}
-                    src={photos[lightboxIndex].image_url || photos[lightboxIndex].thumbnail_url}
-                    variant="image"
-                    alt={`Photo ${lightboxIndex + 1}`}
-                    size="full"
-                    shape="rounded"
-                    className="max-h-[72vh] w-auto max-w-[90vw] md:max-w-2xl object-contain rounded-2xl"
+                <div className="max-h-[75vh] max-w-[90vw] overflow-hidden rounded-2xl shadow-2xl border border-white/10">
+                  <img
+                    src={photos[lightboxIndex].image_url || photos[lightboxIndex].thumbnail_url || ''}
+                    alt=""
+                    className="max-h-[75vh] max-w-[90vw] object-contain"
                   />
                 </div>
 
-                {/* Next button */}
                 {photos.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => setLightboxIndex((lightboxIndex + 1) % photos.length)}
-                    style={{ backgroundColor: 'rgba(20, 15, 25, 0.85)' }}
-                    className="absolute -right-3 sm:-right-14 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-13 sm:h-13 rounded-full hover:scale-110 border border-white/30 text-white flex items-center justify-center transition-all shadow-2xl cursor-pointer z-10"
-                    title="Next photo (Right arrow)"
+                    onClick={() => setLightboxIndex((prev) => (prev !== null ? (prev + 1) % photos.length : 0))}
+                    className="absolute right-2 sm:-right-12 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition cursor-pointer z-10"
                   >
-                    <ChevronRight className="w-6 h-6 text-white" />
+                    <ChevronRight className="w-6 h-6" />
                   </button>
                 )}
-              </div>
-
-              {/* Bottom bar */}
-              <div
-                className="mt-2 flex items-center gap-3"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Link
-                  href="/profile/photos"
-                  className="px-6 py-2.5 rounded-2xl bg-[#a91d4c] hover:bg-[#8e1940] text-white font-extrabold text-xs shadow-xl inline-flex items-center gap-2 border border-white/20 transition-all hover:scale-105 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-white" />
-                  Manage Photos
-                </Link>
               </div>
             </motion.div>
           )}
         </AnimatePresence>,
         document.body
       )}
-    </main>
+    </div>
   );
 }

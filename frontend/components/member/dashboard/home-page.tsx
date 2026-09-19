@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import SmartImage from '@/components/shared/smart-image';
 import { useState, useEffect, useCallback } from 'react';
@@ -13,12 +13,13 @@ import { useAuth } from '@/legacy/contexts/AuthContext';
 import {
   getInterests, getProfiles, getShortlists, updateInterestStatus, toggleShortlist, sendInterest,
 } from '@/legacy/services/dataService';
+import { fetchInterestStats } from '@/lib/interest-stats';
 import { fetchApi } from '@/legacy/services/apiClient';
 import { useToast } from '@/components/ui';
 import { interestFeedback } from '../interest-feedback';
 import { profileHref } from '@/lib/profile-url';
 
-/* ─── helpers ─── */
+/* â”€â”€â”€ helpers â”€â”€â”€ */
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -42,7 +43,7 @@ interface ProfileVisitor {
   profile: { id?: string; user_id?: string; full_name?: string; first_name?: string; age?: number; photo?: string; work_location?: string };
 }
 
-/* ─── Profile strength ring (animated SVG) ─── */
+/* â”€â”€â”€ Profile strength ring (animated SVG) â”€â”€â”€ */
 function StrengthRing({ pct }: { pct: number }) {
   const size = 96;
   const stroke = 9;
@@ -76,7 +77,7 @@ function StrengthRing({ pct }: { pct: number }) {
   );
 }
 
-/* ─── Stat summary card ─── */
+/* â”€â”€â”€ Stat summary card â”€â”€â”€ */
 function StatCard({ icon: Icon, label, value, tone, sub, href }: {
   icon: any; label: string; value: string | number; tone: string; sub?: string; href: string;
 }) {
@@ -96,7 +97,7 @@ function StatCard({ icon: Icon, label, value, tone, sub, href }: {
     </motion.div>
   );
 }
-/* ─── Protection watermark overlay ─── */
+/* â”€â”€â”€ Protection watermark overlay â”€â”€â”€ */
 function ProtectionWatermark() {
   return (
     <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center py-1.5 px-2"
@@ -108,13 +109,13 @@ function ProtectionWatermark() {
         style={{ fontSize: '8px', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}
       >
         <ShieldCheck className="w-2.5 h-2.5 shrink-0" />
-        PROTECTED · MY DEAR PARTNER
+        PROTECTED Â· MY DEAR PARTNER
       </span>
     </div>
   );
 }
 
-/* ─── Profile Match Card — modern ─── */
+/* â”€â”€â”€ Profile Match Card â€” modern â”€â”€â”€ */
 function MatchCard({ profile, onLike, onShortlist, likedIds, shortlistedIds }: {
   profile: any;
   onLike: (id: string) => void;
@@ -209,7 +210,7 @@ function MatchCard({ profile, onLike, onShortlist, likedIds, shortlistedIds }: {
     </motion.div>
   );
 }
-/* ─── Pending Interest Card — modern ─── */
+/* â”€â”€â”€ Pending Interest Card â€” modern â”€â”€â”€ */
 function PendingInterestCard({ interest, onAccept, onDecline }: {
   interest: any; onAccept: () => void; onDecline: () => void;
 }) {
@@ -242,7 +243,7 @@ function PendingInterestCard({ interest, onAccept, onDecline }: {
     </motion.div>
   );
 }
-/* ─── Main Home Page — modern ─── */
+/* â”€â”€â”€ Main Home Page â€” modern â”€â”€â”€ */
 export default function HomePage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -254,6 +255,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [shortlistedIds, setShortlistedIds] = useState<Set<string>>(new Set());
+  const [interestStats, setInterestStats] = useState({ received: 0, accepted: 0, sent: 0 });
 
   const completionPct = user?.completion_percentage ?? 0;
   const firstName = user?.first_name || user?.full_name?.split(' ')[0] || 'there';
@@ -287,6 +289,9 @@ export default function HomePage() {
       setIncomingInterests((interests as any[]).filter((i) => i.status === 'PENDING').slice(0, 3));
       setVisitors(visitorData.results ?? []);
       setCanViewVisitors(visitorData.can_view_visitors);
+
+      // Fetch accurate deduplicated interest stats
+      fetchInterestStats().then(s => setInterestStats(s)).catch(() => {});
     } catch { /* silent fail */ }
     finally { setLoading(false); }
   }, []);
@@ -307,7 +312,7 @@ export default function HomePage() {
   };
 
   const handleShortlist = async (id: string) => {
-    if (shortlistedIds.has(id)) return; // already shortlisted — don't re-add
+    if (shortlistedIds.has(id)) return; // already shortlisted â€” don't re-add
     setShortlistedIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
     try { await toggleShortlist(id); } catch { /* ignore */ }
   };
@@ -342,7 +347,7 @@ export default function HomePage() {
     <div className="min-h-full bg-[#fafafa] px-4 py-6 pb-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
 
-        {/* ── Hero ── */}
+        {/* â”€â”€ Hero â”€â”€ */}
         <section className="relative overflow-hidden rounded-3xl border border-rose-100 bg-gradient-to-br from-rose-50 via-amber-50/40 to-white px-6 py-8 sm:px-10 sm:py-10">
           <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-rose-200/40 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 left-1/3 h-44 w-44 rounded-full bg-amber-200/40 blur-3xl" />
@@ -354,7 +359,7 @@ export default function HomePage() {
                 <Heart className="h-3.5 w-3.5" /> My Partner Dashboard
               </span>
               <h1 className="mt-4 font-display text-3xl font-extrabold leading-tight tracking-tight text-plum-800 sm:text-4xl">
-                {getGreeting()}, <span className="bg-gradient-to-r from-rose-600 to-gold-500 bg-clip-text text-transparent">{firstName}</span> 🌸
+                {getGreeting()}, <span className="bg-gradient-to-r from-rose-600 to-gold-500 bg-clip-text text-transparent">{firstName}</span> ðŸŒ¸
               </h1>
               <p className="mt-2 max-w-md text-[15px] leading-relaxed text-muted">
                 Your life partner may be just one profile away. Discover meaningful, verified matches today.
@@ -382,14 +387,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Stats ── */}
+        {/* â”€â”€ Stats â”€â”€ */}
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={Compass} label="Matches" value={suggestedProfiles.length} tone="bg-rose-50 text-rose-500" sub="For you today" href="/search" />
-          <StatCard icon={Heart} label="Likes" value={incomingInterests.length} tone="bg-rose-50 text-rose-500" sub="Pending requests" href="/interests/received" />
+          <StatCard icon={Heart} label="Likes" value={interestStats.received} tone="bg-rose-50 text-rose-500" sub="Pending requests" href="/interests/received" />
           <StatCard icon={Eye} label="Profile views" value={canViewVisitors ? visitors.length : 'Locked'} tone="bg-gold-100 text-gold-500" sub={canViewVisitors ? 'Recent visitors' : 'Upgrade to view'} href="/visitors" />
           <StatCard icon={TrendingUp} label="Strength" value={`${completionPct}%`} tone="bg-emerald-50 text-emerald-600" sub="Profile completeness" href="/settings" />
         </div>
-        {/* ── Pending Interests ── */}
+        {/* â”€â”€ Pending Interests â”€â”€ */}
         {incomingInterests.length > 0 && (
           <section className="mt-8">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -414,7 +419,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* ── Recommended Matches ── */}
+        {/* â”€â”€ Recommended Matches â”€â”€ */}
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -453,7 +458,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* ── Quick Actions ── */}
+        {/* â”€â”€ Quick Actions â”€â”€ */}
         <section className="mt-8">
           <h2 className="mb-3 font-display text-lg font-extrabold text-plum-800">Shortcuts</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -472,7 +477,7 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-{/* ── Two column: Activity + Widgets ── */}
+{/* â”€â”€ Two column: Activity + Widgets â”€â”€ */}
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_340px]">
           {/* Recent Activity */}
           <section className="rounded-2xl border border-line bg-white p-5 shadow-sm">

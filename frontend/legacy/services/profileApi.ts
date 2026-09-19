@@ -62,6 +62,12 @@ export interface UnlockUsage {
 export interface ProfileDetailResponse {
   profile: MemberProfile;
   usage: UnlockUsage;
+  interest?: {
+    state: 'SENT' | 'RECEIVED' | 'ACCEPTED' | 'DECLINED' | null;
+    id: string | null;
+    interestId: string | null;
+    direction: 'sent' | 'received' | null;
+  } | null;
 }
 
 interface InterestResponse {
@@ -136,6 +142,16 @@ export const profileApi = baseApi.injectEndpoints({
             remaining_today: access.unlocks_remaining_today,
             resets_at: access.resets_at,
           },
+          interest: (() => {
+            const raw = response.interest || access.interest;
+            if (!raw || !raw.state) return null;
+            return {
+              state: raw.state,
+              id: raw.id || raw.interestId || null,
+              interestId: raw.interestId || raw.id || null,
+              direction: raw.direction || null,
+            };
+          })(),
         };
       },
       providesTags: (result, error, profileId) => [
