@@ -296,6 +296,96 @@ def test_verify_payment_details_activates_membership(mock_urlopen, authenticated
 
 @RAZORPAY_PATCH
 @patch.object(rz_module, 'urlopen')
+def test_verify_payment_details_without_internal_order_id(mock_urlopen, authenticated_client, verified_member, plan):
+    mock_urlopen.return_value = _order_ctx()
+    order, _ = RazorpayMembershipService.create_order(member=verified_member, plan=plan)
+    payment_id = 'pay_test_no_internal'
+    mock_urlopen.return_value = _payment_ctx(
+        payment_id=payment_id, order_id=order.razorpay_order_id,
+        amount=int(order.amount * 100))
+    signature = _valid_signature(order.razorpay_order_id, payment_id)
+
+    # Calling verify with only standard Razorpay fields (no internal_order_id)
+    response = authenticated_client(verified_member).post(
+        '/api/v1/payments/verify/',
+        {
+            'razorpay_order_id': order.razorpay_order_id,
+            'razorpay_payment_id': payment_id,
+            'razorpay_signature': signature,
+        },
+        format='json'
+    )
+    assert response.status_code == 200, response.json()
+    res_data = response.json()['data']
+    assert res_data['success'] is True
+    assert res_data['payment_status'] == 'captured'
+    assert res_data['membership_status'] == 'active'
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_verify_payment_details_nested_payload(mock_urlopen, authenticated_client, verified_member, plan):
+    mock_urlopen.return_value = _order_ctx()
+    order, _ = RazorpayMembershipService.create_order(member=verified_member, plan=plan)
+    payment_id = 'pay_test_nested'
+    mock_urlopen.return_value = _payment_ctx(
+        payment_id=payment_id, order_id=order.razorpay_order_id,
+        amount=int(order.amount * 100))
+    signature = _valid_signature(order.razorpay_order_id, payment_id)
+
+    # Calling verify with nested payment_details format
+    response = authenticated_client(verified_member).post(
+        '/api/v1/payments/verify/',
+        {
+            'payment_details': {
+                'razorpay_order_id': order.razorpay_order_id,
+                'razorpay_payment_id': payment_id,
+                'razorpay_signature': signature,
+            }
+        },
+        format='json'
+    )
+    assert response.status_code == 200, response.json()
+    res_data = response.json()['data']
+    assert res_data['success'] is True
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_create_order_by_slug_or_plan_id(mock_urlopen, authenticated_client, verified_member, plan):
+    mock_urlopen.return_value = _order_ctx('order_test_slug')
+    # Using slug 'gold' in membership_plan_id
+    response = authenticated_client(verified_member).post(
+        '/api/v1/payments/orders/',
+        {'membership_plan_id': 'gold'},
+        format='json'
+    )
+    assert response.status_code == 201, response.json()
+    assert response.json()['data']['razorpay_order_id'] == 'order_test_slug'
+
+    # Using plan_slug with a higher-tier plan
+    elite_plan, _ = MembershipPlan.objects.get_or_create(
+        slug='elite',
+        defaults={
+            'name': 'Elite Dummy',
+            'price': Decimal('9999.00'),
+            'currency': 'INR',
+            'duration_days': 30,
+            'is_active': True,
+            'rank': 4,
+        }
+    )
+    mock_urlopen.return_value = _order_ctx('order_test_slug_2')
+    response2 = authenticated_client(verified_member).post(
+        '/api/v1/payments/orders/',
+        {'plan_slug': 'elite'},
+        format='json'
+    )
+    assert response2.status_code == 201, response2.json()
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
 def test_invalid_signature_rejected(mock_urlopen, authenticated_client, verified_member, plan):
     mock_urlopen.return_value = _order_ctx()
     order, _ = RazorpayMembershipService.create_order(member=verified_member, plan=plan)

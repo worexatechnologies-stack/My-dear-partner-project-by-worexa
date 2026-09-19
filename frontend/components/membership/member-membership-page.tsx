@@ -94,6 +94,25 @@ export default function MemberMembershipPage() {
     document.body.appendChild(script);
   }, []);
 
+  // Pre-select plan if passed via URL parameter (e.g. from Android / iOS mobile app)
+  useEffect(() => {
+    if (plans?.length && !selectedPlan && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const planParam = params.get('plan')?.toLowerCase();
+      if (planParam) {
+        const matched = plans.find(
+          (p) =>
+            p.slug?.toLowerCase() === planParam ||
+            p.id?.toLowerCase() === planParam ||
+            p.name?.toLowerCase().includes(planParam),
+        );
+        if (matched) {
+          setSelectedPlan(matched);
+        }
+      }
+    }
+  }, [plans, selectedPlan]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-app-bg">
@@ -170,8 +189,15 @@ export default function MemberMembershipPage() {
             }
             setCheckoutStep('success');
             await refetchSummary();
-            updateUser(await fetchApi<any>('/member-auth/me/'));
-            setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+            try { updateUser(await fetchApi<any>('/member-auth/me/')); } catch {}
+            setTimeout(() => {
+              if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('from') === 'app') {
+                window.location.href = 'mydearpartner://payment-success';
+                setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+              } else {
+                window.location.href = '/dashboard';
+              }
+            }, 1200);
           } catch (error: any) {
             setErrorMsg(error.message || 'We could not verify your payment. Please contact support if you were charged.');
             setCheckoutStep('error');

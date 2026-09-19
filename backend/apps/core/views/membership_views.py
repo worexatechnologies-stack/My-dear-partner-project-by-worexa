@@ -298,7 +298,12 @@ class PaymentOrderCreateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         
-        plan_id = request.data.get('membership_plan_id')
+        plan_id = (
+            request.data.get('membership_plan_id')
+            or request.data.get('plan_id')
+            or request.data.get('plan_slug')
+            or request.data.get('slug')
+        )
         if not plan_id:
             return ApiErrorResponse(
                 code='PLAN_REQUIRED',
@@ -306,7 +311,18 @@ class PaymentOrderCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        plan = MembershipPlan.objects.filter(pk=plan_id, is_active=True).first()
+        plan = None
+        try:
+            val = uuid.UUID(str(plan_id))
+            plan = MembershipPlan.objects.filter(pk=val, is_active=True).first()
+        except (ValueError, TypeError, AttributeError):
+            pass
+
+        if not plan:
+            plan = MembershipPlan.objects.filter(slug__iexact=str(plan_id), is_active=True).first()
+        if not plan:
+            plan = MembershipPlan.objects.filter(name__iexact=str(plan_id), is_active=True).first()
+
         if not plan:
             return ApiErrorResponse(
                 code='PLAN_NOT_FOUND',
@@ -409,20 +425,53 @@ class PaymentVerifyView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def post(self, request):
-        internal_order_id = request.data.get('internal_order_id')
-        payment_id = request.data.get('razorpay_payment_id')
-        order_id = request.data.get('razorpay_order_id')
-        signature = request.data.get('razorpay_signature')
+        data = request.data or {}
+        details = data.get('payment_details') if isinstance(data.get('payment_details'), dict) else {}
 
-        if not internal_order_id or not order_id or not all((payment_id, signature)):
+        internal_order_id = data.get('internal_order_id') or details.get('internal_order_id')
+        order_id = (
+            data.get('razorpay_order_id')
+            or data.get('order_id')
+            or details.get('razorpay_order_id')
+            or details.get('order_id')
+        )
+        payment_id = (
+            data.get('razorpay_payment_id')
+            or data.get('payment_id')
+            or details.get('razorpay_payment_id')
+            or details.get('payment_id')
+        )
+        signature = (
+            data.get('razorpay_signature')
+            or data.get('signature')
+            or details.get('razorpay_signature')
+            or details.get('signature')
+        )
+
+        if not order_id or not payment_id or not signature:
             return ApiErrorResponse(
                 code='PAYMENT_DETAILS_REQUIRED',
-                message='Payment details are required.',
+                message='Payment details (razorpay_order_id, razorpay_payment_id, razorpay_signature) are required.',
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            order = PaymentOrder.objects.get(pk=internal_order_id)
+            order = None
+            if internal_order_id:
+                try:
+                    order = PaymentOrder.objects.filter(pk=internal_order_id).first()
+                except Exception:
+                    order = None
+
+            if not order and order_id:
+                order = PaymentOrder.objects.filter(razorpay_order_id=order_id).first()
+
+            if not order:
+                return ApiErrorResponse(
+                    code='ORDER_NOT_FOUND',
+                    message='The payment order was not found.',
+                    status=status.HTTP_404_NOT_FOUND
+                )
             if order.user != request.user:
                 return ApiErrorResponse(
                     code='UNAUTHORIZED',
