@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   description: 'A privacy-first matrimony platform for verified, meaningful connections.',
   applicationName: 'My Dear Partner',
   alternates: { canonical: '/' },
+  verification: {
+    google: 'mzU3klnjv04qH2EsWuBe6HDZUICaXwF2J7nuJsOWL-g',
+  },
   openGraph: {
     type: 'website',
     siteName: 'My Dear Partner',
@@ -40,7 +43,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#8e3d58' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${dmSans.variable} ${manrope.variable}`}>
-    <body suppressHydrationWarning><Providers>{children}</Providers></body>
-  </html>;
+  return (
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${dmSans.variable} ${manrope.variable}`}>
+      <head>
+        <meta name="google-site-verification" content="mzU3klnjv04qH2EsWuBe6HDZUICaXwF2J7nuJsOWL-g" />
+      </head>
+      <body suppressHydrationWarning>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
 }
