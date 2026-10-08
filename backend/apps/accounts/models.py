@@ -1210,3 +1210,55 @@ class StaffAccessScope(BaseAccessScope):
 
 
 
+
+
+class MemberAccountSettings(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member = models.OneToOneField(
+        'Member',
+        on_delete=models.CASCADE,
+        related_name='account_settings',
+    )
+    # Settings preferences
+    push_notifications = models.BooleanField(default=True)
+    email_notifications = models.BooleanField(default=True)
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Granular notification preferences (e.g. chat, interests, matches, marketing).'
+    )
+    
+    # Privacy settings
+    show_online_status = models.BooleanField(default=True)
+    contact_visibility = models.CharField(
+        max_length=20,
+        default='CONNECTED_ONLY',
+        choices=[
+            ('ALL', 'All Members'),
+            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
+            ('HIDDEN', 'Hidden'),
+        ],
+    )
+    photo_visibility = models.CharField(
+        max_length=20,
+        default='ALL',
+        choices=[
+            ('ALL', 'All Members'),
+            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
+            ('APPROVED_MEMBERS', 'Approved / Verified Members Only'),
+        ],
+    )
+    
+    # Safety / Eligibility
+    eligibility_consent = models.BooleanField(default=False)
+    eligibility_policy_version = models.CharField(max_length=30, default='v1.0')
+    eligibility_consented_at = models.DateTimeField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'member_account_settings'
+
+    def __str__(self):
+        return f'Account Settings for Member {self.member_id}'

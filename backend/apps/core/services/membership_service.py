@@ -422,6 +422,8 @@ class MembershipService:
             delta = (membership.expires_at or membership.end_date) - timezone.now()
             days_remaining = max(0, delta.days)
         
+        from apps.core.entitlements import get_active_entitlements
+        entitlements = get_active_entitlements(member)
         return {
             'has_active_plan': True,
             'plan_name': plan.name,
@@ -430,13 +432,13 @@ class MembershipService:
             'start_date': (membership.started_at or membership.start_date) if membership else None,
             'end_date': (membership.expires_at or membership.end_date) if membership else None,
             'days_remaining': days_remaining,
-            'daily_profile_unlock_limit': effective_daily_limit if effective_daily_limit is not None else plan.daily_profile_unlock_limit,
+            'daily_profile_unlock_limit': entitlements.daily_profile_view_limit,
             'daily_profile_unlocks_used': used_today,
             'daily_profile_unlocks_remaining': remaining_today,
-            'daily_interest_limit': plan.interest_limit,
-            'can_message': bool(plan.can_message),
+            'daily_interest_limit': entitlements.daily_interest_limit,
+            'can_message': entitlements.can_chat,
             'can_use_advanced_search': plan.can_use_advanced_search,
             'contact_access_mode': plan.contact_access_mode,
             'photo_access_mode': plan.photo_access_mode,
-            'messaging_mode': plan.messaging_mode,
+            'messaging_mode': 'ENABLED' if entitlements.can_chat else 'DISABLED',
         }

@@ -37,17 +37,31 @@ const safe = parsed.success
       AUTH_COOKIE_SECURE: "false" as const,
     };
 
+export type AppEnvironment = 'development' | 'staging' | 'production';
+
+export const appEnvironment: AppEnvironment = 
+  (process.env.NEXT_PUBLIC_APP_ENV as AppEnvironment) ||
+  (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+
+export const isStaging = appEnvironment === 'staging';
+export const isLiveProduction = appEnvironment === 'production';
+export const isDevelopment = appEnvironment === 'development';
+
 export const serverEnv = {
   ...safe,
   authCookieSecure: isProduction || safe.AUTH_COOKIE_SECURE === "true",
+  environment: appEnvironment,
 };
 
 export const publicEnv = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "My Dear Partner",
+  appName: process.env.NEXT_PUBLIC_APP_NAME ?? (isStaging ? "My Dear Partner (Staging)" : "My Dear Partner"),
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1",
   wsBaseUrl: process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8000",
   enableAdminPortal: process.env.NEXT_PUBLIC_ENABLE_ADMIN_PORTAL === "true",
+  environment: appEnvironment,
+  isStaging,
+  isLiveProduction,
 };
 
 /**

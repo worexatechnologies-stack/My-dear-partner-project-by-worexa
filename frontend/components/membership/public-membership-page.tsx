@@ -65,7 +65,7 @@ function formatDuration(days: number | null): string {
   if (days === 30) return '1 month';
   if (days === 90) return '3 months';
   if (days === 180) return '6 months';
-  if (days === 365) return '12 months';
+  if (days === 365 || days === 360) return '12 months';
   return `${days} days`;
 }
 

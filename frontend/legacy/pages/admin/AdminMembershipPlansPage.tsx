@@ -26,9 +26,9 @@ interface MembershipPlan {
   is_featured: boolean;
   display_order: number;
   max_photos: number;
-  profile_view_limit_daily: number;
-  interest_limit_daily: number;
-  message_limit_daily: number;
+  profile_view_limit_daily: number | null;
+  interest_limit_daily: number | null;
+  message_limit_daily: number | null;
   profile_visitors_limit?: number | null;
   can_message: boolean;
   can_view_profile_visitors: boolean;
@@ -40,6 +40,7 @@ interface MembershipPlan {
   photo_access_mode: 'PRIMARY_ONLY' | 'ALL_APPROVED';
   can_use_advanced_search: boolean;
   can_use_horoscope: boolean;
+  can_view_full_profile?: boolean;
   profile_boost_level: string;
   support_priority: string;
   price_3m?: string;
@@ -80,6 +81,7 @@ type PlanFormState = {
   photo_access_mode: 'PRIMARY_ONLY' | 'ALL_APPROVED';
   can_use_advanced_search: boolean;
   can_use_horoscope: boolean;
+  can_view_full_profile: boolean;
   profile_boost_level: string;
   support_priority: string;
   price_3m: string;
@@ -126,6 +128,7 @@ const emptyPlanForm: PlanFormState = {
   photo_access_mode: 'PRIMARY_ONLY',
   can_use_advanced_search: false,
   can_use_horoscope: false,
+  can_view_full_profile: true,
   profile_boost_level: 'NONE',
   support_priority: 'STANDARD',
   price_3m: '',
@@ -188,8 +191,8 @@ export default function AdminMembershipPlansPage() {
       is_active: plan.is_active ?? true,
       is_featured: plan.is_featured ?? false,
       display_order: String(plan.display_order ?? 0),
-      profile_view_limit_daily: String(plan.profile_view_limit_daily ?? 10),
-      interest_limit_daily: String(plan.interest_limit_daily ?? 3),
+      profile_view_limit_daily: plan.profile_view_limit_daily === null || plan.profile_view_limit_daily === undefined ? '' : String(plan.profile_view_limit_daily),
+      interest_limit_daily: plan.interest_limit_daily === null || plan.interest_limit_daily === undefined ? '' : String(plan.interest_limit_daily),
       message_limit_daily: plan.message_limit_daily === null || plan.message_limit_daily === undefined ? '' : String(plan.message_limit_daily),
       profile_visitors_limit: plan.profile_visitors_limit === null || plan.profile_visitors_limit === undefined ? '' : String(plan.profile_visitors_limit),
       max_photos: String(plan.max_photos ?? 6),
@@ -203,6 +206,7 @@ export default function AdminMembershipPlansPage() {
       photo_access_mode: plan.photo_access_mode || 'PRIMARY_ONLY',
       can_use_advanced_search: plan.can_use_advanced_search ?? false,
       can_use_horoscope: plan.can_use_horoscope ?? false,
+      can_view_full_profile: plan.can_view_full_profile ?? true,
       profile_boost_level: plan.profile_boost_level || 'NONE',
       support_priority: plan.support_priority || 'STANDARD',
       price_3m: String((plan as any).price_3m ?? ''),
@@ -238,12 +242,12 @@ export default function AdminMembershipPlansPage() {
         is_featured: planForm.is_featured,
         display_order: parseInt(planForm.display_order) || 0,
         max_photos: Math.max(1, parseInt(planForm.max_photos) || 6),
-        profile_view_limit_daily: parseInt(planForm.profile_view_limit_daily) || 10,
-        interest_limit_daily: parseInt(planForm.interest_limit_daily) || 3,
+        profile_view_limit_daily: planForm.profile_view_limit_daily === '' ? null : parseInt(planForm.profile_view_limit_daily) || 0,
+        interest_limit_daily: planForm.interest_limit_daily === '' ? null : parseInt(planForm.interest_limit_daily) || 0,
         message_limit_daily: planForm.message_limit_daily === '' ? null : parseInt(planForm.message_limit_daily) || 0,
         profile_visitors_limit: planForm.profile_visitors_limit === '' ? null : parseInt(planForm.profile_visitors_limit) || 0,
-        can_message: planForm.can_message,
-        can_view_profile_visitors: planForm.can_view_profile_visitors,
+        can_message: planForm.message_limit_daily === '' || (parseInt(planForm.message_limit_daily) || 0) > 0 || planForm.can_message,
+        can_view_profile_visitors: planForm.profile_visitors_limit === '' || (parseInt(planForm.profile_visitors_limit) || 0) > 0 || planForm.can_view_profile_visitors,
         can_view_private_photos: planForm.can_view_private_photos,
         can_get_priority_listing: planForm.can_get_priority_listing,
         can_use_profile_boost: planForm.can_use_profile_boost,
@@ -252,6 +256,7 @@ export default function AdminMembershipPlansPage() {
         photo_access_mode: planForm.photo_access_mode,
         can_use_advanced_search: planForm.can_use_advanced_search,
         can_use_horoscope: planForm.can_use_horoscope,
+        can_view_full_profile: planForm.can_view_full_profile,
         profile_boost_level: planForm.profile_boost_level,
         support_priority: planForm.support_priority,
         price_3m: planForm.price_3m ? parseFloat(planForm.price_3m) : null,
@@ -655,21 +660,49 @@ export default function AdminMembershipPlansPage() {
             <div className="admin-form-grid admin-form-grid--3">
               <label className="admin-form-field">
                 <span>Daily Profile Views</span>
-                <input
-                  type="number"
-                  value={planForm.profile_view_limit_daily}
-                  onChange={(e) => setPlanForm((f) => ({ ...f, profile_view_limit_daily: e.target.value }))}
-                  disabled={!canEdit}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={planForm.profile_view_limit_daily}
+                    onChange={(e) => setPlanForm((f) => ({ ...f, profile_view_limit_daily: e.target.value }))}
+                    disabled={!canEdit || planForm.profile_view_limit_daily === ''}
+                    className={planForm.profile_view_limit_daily === '' ? '!opacity-50 !bg-slate-100 font-semibold' : ''}
+                    placeholder={planForm.profile_view_limit_daily === '' ? 'Unlimited' : 'e.g. 50'}
+                  />
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap select-none shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={planForm.profile_view_limit_daily === ''}
+                      onChange={(e) => setPlanForm((f) => ({ ...f, profile_view_limit_daily: e.target.checked ? '' : '50' }))}
+                      disabled={!canEdit}
+                      className="!w-4 !h-4 !min-h-0 accent-rose-600 cursor-pointer"
+                    />
+                    <span>Unlimited</span>
+                  </label>
+                </div>
               </label>
               <label className="admin-form-field">
                 <span>Daily Interests</span>
-                <input
-                  type="number"
-                  value={planForm.interest_limit_daily}
-                  onChange={(e) => setPlanForm((f) => ({ ...f, interest_limit_daily: e.target.value }))}
-                  disabled={!canEdit}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={planForm.interest_limit_daily}
+                    onChange={(e) => setPlanForm((f) => ({ ...f, interest_limit_daily: e.target.value }))}
+                    disabled={!canEdit || planForm.interest_limit_daily === ''}
+                    className={planForm.interest_limit_daily === '' ? '!opacity-50 !bg-slate-100 font-semibold' : ''}
+                    placeholder={planForm.interest_limit_daily === '' ? 'Unlimited' : 'e.g. 20'}
+                  />
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap select-none shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={planForm.interest_limit_daily === ''}
+                      onChange={(e) => setPlanForm((f) => ({ ...f, interest_limit_daily: e.target.checked ? '' : '20' }))}
+                      disabled={!canEdit}
+                      className="!w-4 !h-4 !min-h-0 accent-rose-600 cursor-pointer"
+                    />
+                    <span>Unlimited</span>
+                  </label>
+                </div>
               </label>
               <label className="admin-form-field">
                 <span>Daily Messages</span>
@@ -679,16 +712,18 @@ export default function AdminMembershipPlansPage() {
                     value={planForm.message_limit_daily}
                     onChange={(e) => setPlanForm((f) => ({ ...f, message_limit_daily: e.target.value }))}
                     disabled={!canEdit || planForm.message_limit_daily === ''}
-                    className={planForm.message_limit_daily === '' ? 'opacity-40' : ''}
+                    className={planForm.message_limit_daily === '' ? '!opacity-50 !bg-slate-100 font-semibold' : ''}
+                    placeholder={planForm.message_limit_daily === '' ? 'Unlimited' : 'e.g. 10'}
                   />
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer whitespace-nowrap">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap select-none shrink-0">
                     <input
                       type="checkbox"
                       checked={planForm.message_limit_daily === ''}
-                      onChange={(e) => setPlanForm((f) => ({ ...f, message_limit_daily: e.target.checked ? '' : '0' }))}
+                      onChange={(e) => setPlanForm((f) => ({ ...f, message_limit_daily: e.target.checked ? '' : '10' }))}
                       disabled={!canEdit}
+                      className="!w-4 !h-4 !min-h-0 accent-rose-600 cursor-pointer"
                     />
-                    Unlimited
+                    <span>Unlimited</span>
                   </label>
                 </div>
               </label>
@@ -699,21 +734,22 @@ export default function AdminMembershipPlansPage() {
                     type="number"
                     value={planForm.profile_visitors_limit}
                     onChange={(e) => setPlanForm((f) => ({ ...f, profile_visitors_limit: e.target.value }))}
-                    placeholder="e.g. 4"
+                    placeholder={planForm.profile_visitors_limit === '' ? 'Unlimited' : 'e.g. 4'}
                     disabled={!canEdit || planForm.profile_visitors_limit === ''}
-                    className={planForm.profile_visitors_limit === '' ? 'opacity-40' : ''}
+                    className={planForm.profile_visitors_limit === '' ? '!opacity-50 !bg-slate-100 font-semibold' : ''}
                   />
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer whitespace-nowrap">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap select-none shrink-0">
                     <input
                       type="checkbox"
                       checked={planForm.profile_visitors_limit === ''}
                       onChange={(e) => setPlanForm((f) => ({ ...f, profile_visitors_limit: e.target.checked ? '' : '4' }))}
                       disabled={!canEdit}
+                      className="!w-4 !h-4 !min-h-0 accent-rose-600 cursor-pointer"
                     />
-                    Unlimited
+                    <span>Unlimited</span>
                   </label>
                 </div>
-                <small className="text-[10px] text-slate-500">LinkedIn style: show first X visitors (e.g. 4), rest locked behind upgrade.</small>
+                <small className="text-[10px] text-slate-500">LinkedIn style: show first X visitors (e.g. 4), or check Unlimited to view all.</small>
               </label>
               <label className="admin-form-field">
                 <span>Profile Boost Level</span>
@@ -738,11 +774,35 @@ export default function AdminMembershipPlansPage() {
                   <option value="HIGH">High</option>
                 </select>
               </label>
+              <label className="admin-form-field">
+                <span>Contact Access Mode</span>
+                <select
+                  value={planForm.contact_access_mode}
+                  onChange={(e) => setPlanForm((f) => ({ ...f, contact_access_mode: e.target.value as any }))}
+                  disabled={!canEdit}
+                >
+                  <option value="NONE">None</option>
+                  <option value="MUTUAL_ONLY">Mutual Only</option>
+                  <option value="FULL">Full Access</option>
+                </select>
+              </label>
+              <label className="admin-form-field">
+                <span>Photo Access Mode</span>
+                <select
+                  value={planForm.photo_access_mode}
+                  onChange={(e) => setPlanForm((f) => ({ ...f, photo_access_mode: e.target.value as any }))}
+                  disabled={!canEdit}
+                >
+                  <option value="PRIMARY_ONLY">Primary Only</option>
+                  <option value="ALL_APPROVED">All Approved Photos</option>
+                </select>
+              </label>
             </div>
 
             <div className="admin-form-toggles">
               {[
                 ['can-message', 'Allow messaging', 'can_message'],
+                ['can-view-full-profile', 'Show full bio & detailed profile', 'can_view_full_profile'],
                 ['can-use-advanced-search', 'Advanced search', 'can_use_advanced_search'],
                 ['can-use-horoscope', 'Horoscope compatibility', 'can_use_horoscope'],
                 ['can-view-profile-visitors', 'Show profile visitors', 'can_view_profile_visitors'],

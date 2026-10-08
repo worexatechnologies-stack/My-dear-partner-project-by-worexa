@@ -21,6 +21,7 @@ import {
   AdminPageHeader, AdminPagination, AdminPanel, AdminStatusBadge, AdminToast,
   formatAdminDate,
 } from '../../components/admin/AdminUI';
+import { SelectWithOther } from '@/components/shared/select-with-other';
 
 function ClientPortal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -593,6 +594,24 @@ export default function AdminMemberDetailPage({
               label="Terms & Privacy Agreed"
               colorClass="bg-emerald-100 text-emerald-800 font-bold"
             />
+            {(() => {
+              const am = m.active_membership as any;
+              if (am?.is_paid && !am?.is_free) {
+                const slug = (am.plan_slug || am.plan_name || '').toLowerCase();
+                const planName = am.plan_name || 'Paid';
+                if (slug.includes('gold')) {
+                  return <Badge label="Plan: Gold (👑)" colorClass="bg-amber-100 text-amber-900 border border-amber-300 font-bold" />;
+                }
+                if (slug.includes('premium')) {
+                  return <Badge label="Plan: Premium" colorClass="bg-purple-100 text-purple-900 border border-purple-300 font-bold" />;
+                }
+                if (slug.includes('elite')) {
+                  return <Badge label="Plan: Elite (💎)" colorClass="bg-slate-900 text-amber-300 border border-slate-700 font-bold" />;
+                }
+                return <Badge label={`Plan: ${planName}`} colorClass="bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold" />;
+              }
+              return <Badge label="Plan: Free" colorClass="bg-slate-100 text-slate-700 font-medium" />;
+            })()}
             <Badge
               label={`Profile: ${m.profile_status as string}`}
               colorClass={VERIFICATION_COLORS[m.profile_status as string] || 'bg-slate-100 text-slate-600'}
@@ -640,9 +659,17 @@ export default function AdminMemberDetailPage({
                 <InfoField label="Mobile" value={m.mobile_number as string} verified={m.is_mobile_verified as boolean} />
                 <InfoField label="Profile Created By" value={(m.profile_created_by as string) || 'Self'} />
                 <InfoField label="Account Type" value="Member" />
-                <InfoField label="Account Status" value={(m.account_status as string) || ((m.is_active as boolean) ? 'Active' : 'Inactive')} />
-                <InfoField label="Membership Plan" value={((m.active_membership as any)?.plan?.name as string) || ((m.is_premium as boolean) ? 'Premium' : 'Free')} />
-                <InfoField label="Terms & Privacy" value={m.terms_accepted_at ? `Agreed (${formatAdminDate(m.terms_accepted_at as string)})` : 'Agreed'} />
+                <InfoField
+                  label="Membership Plan"
+                  value={(() => {
+                    const am = m.active_membership as any;
+                    if (!am || am.is_free || !am.is_paid) return 'Free Plan';
+                    const name = am.plan_name || am.plan?.name || 'Paid Plan';
+                    const days = am.days_remaining;
+                    const status = am.is_active ? `Active${days !== null && days !== undefined ? ` (${days}d left)` : ''}` : 'Expired';
+                    return `${name} · ${status}`;
+                  })()}
+                />
                 <InfoField label="Joined" value={formatAdminDate(m.created_at as string)} />
                 <InfoField label="Last Login" value={formatAdminDate(m.last_login as string)} />
                 <InfoField label="Last Profile Update" value={formatAdminDate(m.updated_at as string)} />
@@ -2166,25 +2193,45 @@ function EditField({
   options?: Array<{ value: string; label: string }> | string[];
   onChange: (v: string) => void;
 }) {
+  // Detect if "Other" is one of the option values
+  const hasOtherOption = options?.some(opt =>
+    (typeof opt === 'string' ? opt : opt.value) === 'Other'
+  );
+  // Normalise options to string[] for SelectWithOther
+  const optionStrings = options?.map(opt =>
+    typeof opt === 'string' ? opt : opt.value
+  ) ?? [];
+
   return (
     <div>
       <label htmlFor={`edit-${name}`} className="mb-1 block text-xs font-semibold text-slate-600">{label}</label>
       {type === 'textarea' ? (
         <textarea id={`edit-${name}`} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-rose-400 outline-none" rows={3} />
       ) : type === 'select' && options ? (
-        <select
-          id={`edit-${name}`}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white focus:border-rose-400 outline-none"
-        >
-          <option value="">Select {label}</option>
-          {options.map(opt => {
-            const val = typeof opt === 'string' ? opt : opt.value;
-            const lbl = typeof opt === 'string' ? opt : opt.label;
-            return <option key={val} value={val}>{lbl}</option>;
-          })}
-        </select>
+        hasOtherOption ? (
+          <SelectWithOther
+            id={`edit-${name}`}
+            value={value}
+            options={optionStrings}
+            onChange={onChange}
+            placeholder={`Select ${label}`}
+            inputClassName="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white focus:border-rose-400 outline-none"
+          />
+        ) : (
+          <select
+            id={`edit-${name}`}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 p-2 text-sm bg-white focus:border-rose-400 outline-none"
+          >
+            <option value="">Select {label}</option>
+            {options.map(opt => {
+              const val = typeof opt === 'string' ? opt : opt.value;
+              const lbl = typeof opt === 'string' ? opt : opt.label;
+              return <option key={val} value={val}>{lbl}</option>;
+            })}
+          </select>
+        )
       ) : (
         <input id={`edit-${name}`} type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 outline-none" />
       )}

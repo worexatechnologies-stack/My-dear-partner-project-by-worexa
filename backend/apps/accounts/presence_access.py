@@ -16,6 +16,7 @@ def authorized_presence_member_ids(viewer, requested_ids) -> list[str]:
     Presence is relationship metadata. A client may ask about many IDs, but it
     must never use either the HTTP endpoint or a WebSocket subscription to
     discover whether an unrelated member is online.
+    Respects member privacy settings (show_online_status=False).
     """
     if (
         not viewer
@@ -47,6 +48,8 @@ def authorized_presence_member_ids(viewer, requested_ids) -> list[str]:
             deleted_at__isnull=True,
             account_status=Member.AccountStatus.ACTIVE,
             is_hidden=False,
+        ).exclude(
+            account_settings__show_online_status=False
         ).values_list("pk", flat=True)
     )
     if not candidate_ids:

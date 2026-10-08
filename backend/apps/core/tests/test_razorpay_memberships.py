@@ -170,6 +170,73 @@ def test_alternative_duration_uses_its_configured_price(mock_urlopen, verified_m
     assert order.duration_days_snapshot == 90
 
 
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_one_month_order_yields_thirty_days_snapshot(mock_urlopen, verified_member, plan):
+    plan.duration_days = 30
+    plan.price = Decimal('999.00')
+    plan.price_3m = Decimal('2499.00')
+    plan.save(update_fields=('duration_days', 'price', 'price_3m'))
+    mock_urlopen.return_value = _order_ctx('order_test_one_month')
+
+    order, missing = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=30,
+    )
+
+    assert missing == []
+    assert order.amount == Decimal('999.00')
+    assert order.duration_days_snapshot == 30
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_one_month_requested_on_legacy_ninety_day_plan_yields_thirty_days(mock_urlopen, verified_member, plan):
+    plan.duration_days = 90
+    plan.price = Decimal('2999.00')
+    plan.price_3m = Decimal('2999.00')
+    plan.save(update_fields=('duration_days', 'price', 'price_3m'))
+    mock_urlopen.return_value = _order_ctx('order_test_one_month_on_90d')
+
+    order, missing = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=30,
+    )
+
+    assert missing == []
+    assert order.duration_days_snapshot == 30
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_six_and_twelve_months_orders(mock_urlopen, verified_member, plan):
+    plan.duration_days = 30
+    plan.price = Decimal('999.00')
+    plan.price_6m = Decimal('4999.00')
+    plan.price_1y = Decimal('7999.00')
+    plan.save(update_fields=('duration_days', 'price', 'price_6m', 'price_1y'))
+    mock_urlopen.return_value = _order_ctx('order_test_6m_12m')
+
+    order_6m, _ = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=180,
+    )
+    assert order_6m.amount == Decimal('4999.00')
+    assert order_6m.duration_days_snapshot == 180
+
+    order_12m, _ = RazorpayMembershipService.create_order(
+        member=verified_member,
+        plan=plan,
+        duration_days=365,
+    )
+    assert order_12m.amount == Decimal('7999.00')
+    assert order_12m.duration_days_snapshot == 365
+
+
+
 @patch.object(rz_module, 'urlopen')
 def test_unverified_member_order_forbidden(mock_urlopen, authenticated_client, member, plan):
     member.is_email_verified = False

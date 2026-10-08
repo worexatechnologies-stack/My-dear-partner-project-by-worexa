@@ -32,6 +32,7 @@ class EntitlementSet:
     contact_access_mode: str = 'NONE'
     photo_access_mode: str = 'PRIMARY_ONLY'
     can_use_advanced_search: bool = False
+    can_view_full_profile: bool = True
     is_trial: bool = False
     trial_expires_at: str | None = None
     trial_days_remaining: int | None = None
@@ -59,46 +60,78 @@ FREE_DEFAULTS = {
     'contact_access_mode': 'NONE',
     'photo_access_mode': 'PRIMARY_ONLY',
     'can_use_advanced_search': False,
+    'can_view_full_profile': False,
     'is_trial': False,
     'trial_expires_at': None,
     'trial_days_remaining': 0,
 }
 
 
-def _limit(value, fallback):
-    if value is None or value == '':
-        return fallback
-    try:
-        val = int(value)
-        if val < 0:
+def _resolve_limit(raw_dict, key, model_fallback):
+    """
+    Resolve limit from plan entitlements JSON or model fallback.
+    None or negative integer represents Unlimited.
+    """
+    # Explicit None on model column means Unlimited
+    if model_fallback is None or model_fallback == '':
+        return None
+
+    # If raw_dict explicitly specifies limit, check it
+    if key in raw_dict:
+        val = raw_dict[key]
+        if val is None or val == '':
             return None
-        return val
+        try:
+            num = int(val)
+            return None if num < 0 else num
+        except (ValueError, TypeError):
+            return None
+
+    try:
+        num = int(model_fallback)
+        return None if num < 0 else num
     except (ValueError, TypeError):
-        return fallback
+        return None
 
 
 def _plan_values(plan):
     """Normalise both formal JSON and legacy plan columns during rollout."""
     raw = plan.entitlements or {}
-    can_chat_flag = bool(
-        raw.get('can_chat') if 'can_chat' in raw
-        else (plan.can_message or plan.messaging_mode != 'DISABLED')
-    )
-    daily_message_limit_value = _limit(
-        raw.get('daily_message_limit'),
+    daily_message_limit_value = _resolve_limit(
+        raw,
+        'daily_message_limit',
         plan.message_limit_daily,
+    )
+    can_chat_flag = bool(
+        plan.can_message
+        or plan.messaging_mode != 'DISABLED'
+        or daily_message_limit_value is None
+        or (isinstance(daily_message_limit_value, int) and daily_message_limit_value > 0)
+        or (raw.get('can_chat') if 'can_chat' in raw else False)
+    )
+    profile_visitors_limit_value = _resolve_limit(
+        raw,
+        'profile_visitors_limit',
+        getattr(plan, 'profile_visitors_limit', None)
+    )
+    can_see_visitors_flag = bool(
+        plan.can_view_profile_visitors
+        or profile_visitors_limit_value is None
+        or (isinstance(profile_visitors_limit_value, int) and profile_visitors_limit_value > 0)
+        or (raw.get('can_see_who_viewed_profile') if 'can_see_who_viewed_profile' in raw else False)
     )
 
     return {
-        'daily_profile_view_limit': _limit(
-            raw.get('daily_profile_view_limit'),
-            plan.daily_profile_unlock_limit
-            if plan.daily_profile_unlock_limit is not None else plan.profile_view_limit_daily,
+        'daily_profile_view_limit': _resolve_limit(
+            raw,
+            'daily_profile_view_limit',
+            getattr(plan, 'profile_view_limit_daily', None),
         ),
         'can_send_interest': bool(raw.get('can_send_interest') if 'can_send_interest' in raw else plan.can_send_interest),
-        'daily_interest_limit': _limit(
-            raw.get('daily_interest_limit'),
-            plan.interest_limit if plan.interest_limit is not None else plan.interest_limit_daily,
+        'daily_interest_limit': _resolve_limit(
+            raw,
+            'daily_interest_limit',
+            getattr(plan, 'interest_limit_daily', None),
         ),
         'can_chat': can_chat_flag,
         'daily_message_limit': daily_message_limit_value,
@@ -110,14 +143,8 @@ def _plan_values(plan):
             raw.get('profile_visibility_boost') if 'profile_visibility_boost' in raw
             else (plan.can_use_profile_boost or plan.profile_boost_level != 'NONE')
         ),
-        'can_see_who_viewed_profile': bool(
-            raw.get('can_see_who_viewed_profile') if 'can_see_who_viewed_profile' in raw
-            else plan.can_view_profile_visitors
-        ),
-        'profile_visitors_limit': _limit(
-            raw.get('profile_visitors_limit'),
-            getattr(plan, 'profile_visitors_limit', 4)
-        ),
+        'can_see_who_viewed_profile': can_see_visitors_flag,
+        'profile_visitors_limit': profile_visitors_limit_value,
         'can_view_received_interests': bool(
             raw.get('can_view_received_interests') if 'can_view_received_interests' in raw
             else plan.can_view_received_interests
@@ -129,6 +156,10 @@ def _plan_values(plan):
         'can_use_advanced_search': bool(
             raw.get('can_use_advanced_search') if 'can_use_advanced_search' in raw
             else plan.can_use_advanced_search
+        ),
+        'can_view_full_profile': bool(
+            raw.get('can_view_full_profile') if 'can_view_full_profile' in raw
+            else getattr(plan, 'can_view_full_profile', True)
         ),
     }
 
@@ -228,6 +259,7 @@ def get_active_entitlements(member) -> EntitlementSet:
                 contact_access_mode='ALL',
                 photo_access_mode='ALL_APPROVED',
                 can_use_advanced_search=True,
+                can_view_full_profile=True,
                 is_trial=True,
                 trial_expires_at=trial_expires_at.isoformat(),
                 trial_days_remaining=trial_days_left,

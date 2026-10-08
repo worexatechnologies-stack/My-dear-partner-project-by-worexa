@@ -28,18 +28,50 @@ export interface MemberProfile {
     country: string;
   };
   education: string;
+  education_detail?: string;
   occupation: string;
+  employed_in?: string;
+  company?: string;
   annual_income: string;
+  income?: string;
   religion: string;
   caste: string;
-  complexion: string;
-  blood_group: string;
+  sub_caste?: string;
+  gothra?: string;
+  star_nakshatra?: string;
+  manglik_status?: string;
+  family_status?: string;
+  father_status?: string;
+  mother_status?: string;
+  num_brothers?: number;
+  num_sisters?: number;
+  family_location?: string;
+  mother_tongue?: string;
+  weight?: string | number;
+  complexion?: string;
+  blood_group?: string;
+  profile_created_by?: string;
   hobbies: string[];
   about: string;
   compatibility_score?: number;
   contact_visible?: boolean;
   can_message?: boolean;
   can_view_contact?: boolean;
+  can_view_full_profile?: boolean;
+  full_bio_locked?: boolean;
+  partner_preferences?: {
+    preferred_age_min?: number;
+    preferred_age_max?: number;
+    preferred_height_min?: string;
+    preferred_height_max?: string;
+    preferred_religion?: string;
+    preferred_caste?: string;
+    preferred_location?: string;
+    preferred_education?: string;
+    preferred_occupation?: string;
+    preferred_marital_status?: string;
+    additional_expectations?: string;
+  } | null;
   photos?: MemberPhoto[];
 }
 
@@ -135,6 +167,8 @@ export const profileApi = baseApi.injectEndpoints({
             photos,
             can_message: Boolean(access.can_message),
             can_view_contact: access.contact_access_mode !== 'none',
+            can_view_full_profile: member.can_view_full_profile !== undefined ? Boolean(member.can_view_full_profile) : Boolean(access.can_view_full_profile ?? true),
+            full_bio_locked: Boolean(member.full_bio_locked),
           } as MemberProfile,
           usage: {
             daily_limit: access.daily_unlock_limit,

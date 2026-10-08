@@ -156,7 +156,7 @@ export async function deriveFallbackKey(conversationId: string): Promise<CryptoK
     false,
     ['deriveKey']
   );
-  
+
   const salt = encoder.encode('mdp_fallback_e2ee_salt_2026');
   return window.crypto.subtle.deriveKey(
     {

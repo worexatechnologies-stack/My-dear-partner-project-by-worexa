@@ -93,9 +93,12 @@ function isProtectedResourcePath(path: string) {
   if (path.startsWith("notifications") || path.startsWith("v1/notifications")) return true;
   if (path.startsWith("shortlists") || path.startsWith("v1/shortlists")) return true;
   if (path.startsWith("profile-visitors") || path.startsWith("v1/profile-visitors")) return true;
+  if (path.startsWith("visitors") || path.startsWith("v1/visitors")) return true;
   if (path.startsWith("profile-unlocks") || path.startsWith("v1/profile-unlocks")) return true;
   if (path.startsWith("presence") || path.startsWith("v1/presence")) return true;
   if (path.startsWith("users/") || path.startsWith("v1/users/")) return true;
+  if (path.startsWith("conversations") || path.startsWith("v1/conversations")) return true;
+  if (path.startsWith("blocks") || path.startsWith("v1/blocks")) return true;
   return false;
 }
 

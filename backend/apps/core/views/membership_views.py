@@ -409,7 +409,7 @@ class PaymentOrderCreateView(APIView):
                 'plan': {
                     'id': str(plan.pk),
                     'name': plan.name,
-                    'duration_days': plan.duration_days
+                    'duration_days': order.duration_days_snapshot or plan.duration_days
                 },
                 'prefill': {
                     'name': request.user.get_full_name() or request.user.email,

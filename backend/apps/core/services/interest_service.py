@@ -225,13 +225,14 @@ class InterestService:
         Returns:
             tuple: (allowed: bool, reason: str)
         """
-        plan = MembershipService.get_effective_plan(sender)
+        from apps.core.entitlements import get_active_entitlements
+        entitlements = get_active_entitlements(sender)
         
         # Require a paid plan to send interests/likes
-        if not plan or not getattr(sender, 'is_premium', False) or getattr(plan, 'slug', '') == 'free':
+        if not entitlements.can_send_interest:
             return False, 'A paid membership plan is required to send likes and interests. Please upgrade your plan to connect with members.'
 
-        daily_limit = plan.interest_limit
+        daily_limit = entitlements.daily_interest_limit
         
         # Get today's date
         today = ProfileUnlockService.get_today_date()
@@ -259,8 +260,9 @@ class InterestService:
         Returns:
             dict: Usage statistics
         """
-        plan = MembershipService.get_effective_plan(sender)
-        daily_limit = plan.interest_limit if plan else 3
+        from apps.core.entitlements import get_active_entitlements
+        entitlements = get_active_entitlements(sender)
+        daily_limit = entitlements.daily_interest_limit
         
         today = ProfileUnlockService.get_today_date()
         resets_at = ProfileUnlockService.get_next_reset_time()

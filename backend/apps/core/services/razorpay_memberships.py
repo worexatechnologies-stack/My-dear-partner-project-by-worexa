@@ -122,24 +122,27 @@ class RazorpayMembershipService:
         if missing:
             return None, missing
 
-        # ``price`` is always the price of the plan's own configured
-        # duration.  The *_3m/*_6m/*_1y fields are optional prices for an
-        # *alternative* billing period.  In particular, a 90-day plan can
-        # retain an old ``price_3m`` value after an admin edits its base price;
-        # it must still charge the newly saved ``price`` for its normal 90-day
-        # checkout.
-        requested_duration = duration_days or plan.duration_days
-        if requested_duration == plan.duration_days:
+        # Resolve duration and price for supported billing cycles:
+        # 1 Month (30 days), 3 Months (90 days), 6 Months (180 days), 12 Months (365/360 days)
+        requested_duration = duration_days or plan.duration_days or 30
+        target_days = 365 if requested_duration in (360, 365) else requested_duration
+
+        if target_days == plan.duration_days:
             resolved_price = plan.price
             duration_days = plan.duration_days
         else:
-            price_map = {90: plan.price_3m, 180: plan.price_6m, 365: plan.price_1y}
-            resolved_price = price_map.get(requested_duration)
+            price_map = {
+                30: plan.price if plan.duration_days == 30 else (plan.price if not plan.price_3m else (plan.price / Decimal('3.0')).quantize(Decimal('0.01'))),
+                90: plan.price_3m or (plan.price if plan.duration_days == 90 else (plan.price * Decimal('3.0')).quantize(Decimal('0.01'))),
+                180: plan.price_6m or (plan.price if plan.duration_days == 180 else (plan.price * Decimal('6.0')).quantize(Decimal('0.01'))),
+                365: plan.price_1y or (plan.price if plan.duration_days in (360, 365) else (plan.price * Decimal('12.0')).quantize(Decimal('0.01'))),
+            }
+            resolved_price = price_map.get(target_days)
             if resolved_price is None or resolved_price <= 0:
                 resolved_price = plan.price
-                duration_days = plan.duration_days
+                duration_days = target_days if target_days in (30, 90, 180, 365) else plan.duration_days
             else:
-                duration_days = requested_duration
+                duration_days = target_days
 
         # Deduct prorated credit from active plan if upgrading
         from apps.core.services.membership_lifecycle_service import MembershipLifecycleService

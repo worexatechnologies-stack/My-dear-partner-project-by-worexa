@@ -412,7 +412,7 @@ export default function ComparePage() {
                                 : 'bg-rose-50/60 text-[#e11d48] border-rose-100'
                             }`}
                           >
-                            {isShared && '✨ '} {h}
+                            {h}
                           </span>
                         );
                       })}

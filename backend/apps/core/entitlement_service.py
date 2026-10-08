@@ -166,8 +166,10 @@ class MembershipEntitlementService:
 
         # Enforce mutual interest requirement for Gold (MUTUAL_ONLY)
         plan = cls.get_effective_plan(user)
-        default_mode = 'DISABLED'
+        default_mode = 'ENABLED' if entitlements.can_chat else 'DISABLED'
         messaging_mode = getattr(plan, 'messaging_mode', default_mode) if plan else default_mode
+        if messaging_mode == 'DISABLED' and entitlements.can_chat:
+            messaging_mode = 'ENABLED'
         if messaging_mode == 'MUTUAL_ONLY':
             # Check if there is mutual accepted interest
             has_mutual = Interest.objects.filter(
@@ -213,8 +215,10 @@ class MembershipEntitlementService:
             return False, "match_removed"
 
         plan = cls.get_effective_plan(user)
-        default_mode = 'DISABLED'
+        default_mode = 'ENABLED' if entitlements.can_chat else 'DISABLED'
         messaging_mode = getattr(plan, 'messaging_mode', default_mode) if plan else default_mode
+        if messaging_mode == 'DISABLED' and entitlements.can_chat:
+            messaging_mode = 'ENABLED'
         if messaging_mode == 'MUTUAL_ONLY':
             has_mutual = Interest.objects.filter(
                 Q(sender=user, receiver=target_user, status=Interest.Status.ACCEPTED) |

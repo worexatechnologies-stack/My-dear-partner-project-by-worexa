@@ -15,7 +15,7 @@ import SmartImage from '@/components/shared/smart-image';
 import { useToast } from '@/components/ui';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import { fetchApi } from '@/legacy/services/apiClient';
-import { getProfiles, getInterests, getShortlists, sendInterest, toggleShortlist } from '@/legacy/services/dataService';
+import { getProfiles, getInterests, getShortlists, sendInterest, toggleShortlist, getCachedSentInterestIds, cacheSentInterestId, getConversations } from '@/legacy/services/dataService';
 import type { Profile } from '@/legacy/types/domain';
 import {
   savePassedProfile,
@@ -1407,8 +1407,10 @@ export function PremiumDiscover() {
   const [isDragging, setIsDragging] = useState(false);
   const [flingDir, setFlingDir] = useState<'left' | 'right' | null>(null);
   const isAnimatingOutRef = useRef(false);
-  const [hintGone, setHintGone] = useState(false);
+  const hintGone = useState(false)[0];
+  const setHintGone = useState(false)[1];
   const interested = useRef(new Set<string>());
+  const matched = useRef(new Set<string>());
   const shortlisted = useRef(new Set<string>());
   const hidden = useRef(loadDismissedIds());
   const [dismissedVersion, setDismissedVersion] = useState(0);
@@ -1416,6 +1418,9 @@ export function PremiumDiscover() {
 
   const resetDismissed = useCallback(async () => {
     hidden.current.clear();
+    // Keep sent interests, likes, and accepted matches excluded even when deck is refreshed
+    for (const id of interested.current) hidden.current.add(id);
+    for (const id of matched.current) hidden.current.add(id);
     saveDismissedIds(hidden.current);
     setSwipedHistory([]);
     if (typeof window !== 'undefined') {
@@ -1439,7 +1444,7 @@ export function PremiumDiscover() {
     // Refresh deck profiles
     try {
       setLoading(true);
-      const d = await getProfiles({ page_size: '12', ordering: '-created_at' });
+      const d = await getProfiles({ purpose: 'discover', exclude_interacted: 'true', page_size: '12', ordering: '-created_at' });
       setProfiles(dedupeProfiles(d.results));
       setPage(1);
       setHasMore(d.next !== null);
@@ -1476,7 +1481,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
       try {
         setLoading(true);
         setError('');
-        const d = await getProfiles({ page_size: '12', ordering: '-created_at' });
+        const d = await getProfiles({ purpose: 'discover', exclude_interacted: 'true', page_size: '12', ordering: '-created_at' });
         if (!live) return;
         setProfiles(dedupeProfiles(d.results));
         setPage(1);
@@ -1511,13 +1516,14 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     let live = true;
     (async () => {
       try {
-        const [vd, incoming, outgoing, shortlists, passedList, entitlementsData] = await Promise.all([
+        const [vd, incoming, outgoing, shortlists, passedList, entitlementsData, convos] = await Promise.all([
           fetchApi<unknown>('/profile-visitors/').catch(() => null),
           fetchApi<unknown>('/interests/?type=incoming').catch(() => null),
           getInterests('outgoing').catch(() => []),
           getShortlists().catch(() => ({ count: 0, results: [] })),
           fetchPassedProfilesFromBackend().catch(() => getLocalPassedProfiles()),
           fetchApi<{ data?: { usage?: { interests_remaining_today?: number | null } }; usage?: { interests_remaining_today?: number | null } }>('/member/entitlements/').catch(() => null),
+          getConversations().catch(() => []),
         ]);
         if (!live) return;
 
@@ -1554,19 +1560,76 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           photos: matchItems.map((m) => m.photo),
         });
 
-        const outgoingList = Array.isArray(outgoing) ? outgoing : [];
+        // Initialize interested set from session cache (profiles liked on profile page or search)
+        for (const cachedId of getCachedSentInterestIds()) {
+          if (cachedId) {
+            const sCached = String(cachedId);
+            interested.current.add(sCached);
+            hidden.current.add(sCached);
+          }
+        }
 
-        // Build set of liked profile IDs (mutually exclusive with passed)
+        const outgoingList = Array.isArray(outgoing) ? outgoing : [];
+        const incomingList = rs;
+
+        // Build set of liked profile IDs and matched profile IDs
         const likedIds = new Set<string>();
         for (const interest of outgoingList) {
-          const receiverId = interest?.receiver?.id || interest?.receiver?.user_id || interest?.receiver_id || interest?.receiver?.pk;
+          const receiver = interest?.receiver;
+          const receiverId = receiver?.id || receiver?.user_id || interest?.receiver_id || receiver?.pk;
+          const receiverSlug = receiver?.profile_slug || receiver?.slug;
           if (receiverId) {
             const sId = String(receiverId);
             interested.current.add(sId);
+            hidden.current.add(sId);
             likedIds.add(sId);
+          }
+          if (receiverSlug) {
+            const sSlug = String(receiverSlug);
+            interested.current.add(sSlug);
+            hidden.current.add(sSlug);
+          }
+          if (interest?.status === 'ACCEPTED') {
+            if (receiverId) matched.current.add(String(receiverId));
+            if (receiverSlug) matched.current.add(String(receiverSlug));
           }
         }
         setSentLikesCount(likedIds.size);
+
+        // Track incoming accepted matches
+        for (const interest of incomingList) {
+          if (interest?.status === 'ACCEPTED') {
+            const sender = interest?.sender;
+            const senderId = sender?.id || sender?.user_id || interest?.sender_id || sender?.pk;
+            const senderSlug = sender?.profile_slug || sender?.slug;
+            if (senderId) {
+              const strId = String(senderId);
+              matched.current.add(strId);
+              hidden.current.add(strId);
+            }
+            if (senderSlug) {
+              const strSlug = String(senderSlug);
+              matched.current.add(strSlug);
+              hidden.current.add(strSlug);
+            }
+          }
+        }
+
+        // Active conversation partners are accepted matches
+        for (const convo of (Array.isArray(convos) ? convos : [])) {
+          const cId = convo?.id || convo?.profile?.id || (convo as unknown as Record<string, unknown>)?.user_id;
+          const cSlug = convo?.profile?.slug || (convo as unknown as Record<string, unknown>)?.profile_slug;
+          if (cId) {
+            const strId = String(cId);
+            matched.current.add(strId);
+            hidden.current.add(strId);
+          }
+          if (cSlug) {
+            const strSlug = String(cSlug);
+            matched.current.add(strSlug);
+            hidden.current.add(strSlug);
+          }
+        }
 
         // Sanitize local passed storage so liked profiles are never kept as passed
         cleanPassedAgainstLikes(likedIds);
@@ -1581,6 +1644,12 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
         for (const item of truePassedList) {
           if (item?.id) hidden.current.add(String(item.id));
         }
+
+        // Ensure all sent likes and matches stay hidden
+        for (const id of interested.current) hidden.current.add(id);
+        for (const id of matched.current) hidden.current.add(id);
+        saveDismissedIds(hidden.current);
+
         setPassedCount(truePassedList.length);
         setDismissedVersion((v) => v + 1);
       } catch {
@@ -1606,15 +1675,27 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
 
   const deck = useMemo(() => {
     return matchingProfiles.filter((p) => {
-      const id = String(p.id);
+      const id = String(p.id || '');
       const userId = (p as unknown as Record<string, string>).user_id ? String((p as unknown as Record<string, string>).user_id) : '';
       const memberId = (p as unknown as Record<string, string>).member_id ? String((p as unknown as Record<string, string>).member_id) : '';
+      const slug = (p as unknown as Record<string, string>).slug ? String((p as unknown as Record<string, string>).slug) : '';
 
-      // Exclude if already sent interest
+      // Exclude if already sent interest or liked
       if (
         (id && interested.current.has(id)) ||
         (userId && interested.current.has(userId)) ||
-        (memberId && interested.current.has(memberId))
+        (memberId && interested.current.has(memberId)) ||
+        (slug && interested.current.has(slug))
+      ) {
+        return false;
+      }
+
+      // Exclude if profile has been matched
+      if (
+        (id && matched.current.has(id)) ||
+        (userId && matched.current.has(userId)) ||
+        (memberId && matched.current.has(memberId)) ||
+        (slug && matched.current.has(slug))
       ) {
         return false;
       }
@@ -1623,7 +1704,8 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
       if (
         (id && hidden.current.has(id)) ||
         (userId && hidden.current.has(userId)) ||
-        (memberId && hidden.current.has(memberId))
+        (memberId && hidden.current.has(memberId)) ||
+        (slug && hidden.current.has(slug))
       ) {
         return false;
       }
@@ -1637,7 +1719,7 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
     setLoading(true);
     try {
       const np = page + 1;
-      const d = await getProfiles({ page: String(np), page_size: '12', ordering: '-created_at' });
+      const d = await getProfiles({ purpose: 'discover', exclude_interacted: 'true', page: String(np), page_size: '12', ordering: '-created_at' });
       setPage(np);
       setProfiles((cur) => dedupeProfiles([...cur, ...d.results]));
       setHasMore(d.next !== null);
@@ -1692,8 +1774,20 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           removePassedProfile(cardId);
           setPassedCount((prev) => Math.max(0, prev - 1));
         }
+        const cardUserId = (currentCard as unknown as Record<string, string>).user_id ? String((currentCard as unknown as Record<string, string>).user_id) : '';
+        const cardSlug = (currentCard as unknown as Record<string, string>).slug ? String((currentCard as unknown as Record<string, string>).slug) : '';
+
         interested.current.add(cardId);
         hidden.current.add(cardId);
+        if (cardUserId) {
+          interested.current.add(cardUserId);
+          hidden.current.add(cardUserId);
+        }
+        if (cardSlug) {
+          interested.current.add(cardSlug);
+          hidden.current.add(cardSlug);
+        }
+        cacheSentInterestId(cardId);
         saveDismissedIds(hidden.current);
         setSentLikesCount((prev) => prev + 1);
         // Optimistically show success, then roll back cleanly on limit/plan errors
@@ -1714,6 +1808,14 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           // Roll back optimistic update cleanly
           interested.current.delete(cardId);
           hidden.current.delete(cardId);
+          if (cardUserId) {
+            interested.current.delete(cardUserId);
+            hidden.current.delete(cardUserId);
+          }
+          if (cardSlug) {
+            interested.current.delete(cardSlug);
+            hidden.current.delete(cardSlug);
+          }
           saveDismissedIds(hidden.current);
           setSentLikesCount((prev) => Math.max(0, prev - 1));
           setDismissedVersion((v) => v + 1);
@@ -1725,9 +1827,14 @@ const dedupeProfiles = (list: Profile[]): Profile[] => {
           interested.current.delete(cardId);
           setSentLikesCount((prev) => Math.max(0, prev - 1));
         }
+        const cardUserId = (currentCard as unknown as Record<string, string>).user_id ? String((currentCard as unknown as Record<string, string>).user_id) : '';
+        const cardSlug = (currentCard as unknown as Record<string, string>).slug ? String((currentCard as unknown as Record<string, string>).slug) : '';
+
         savePassedProfile(currentCard);
         setPassedCount((prev) => (wasAlreadyLiked ? prev : prev + 1));
         hidden.current.add(cardId);
+        if (cardUserId) hidden.current.add(cardUserId);
+        if (cardSlug) hidden.current.add(cardSlug);
         saveDismissedIds(hidden.current);
       }
 

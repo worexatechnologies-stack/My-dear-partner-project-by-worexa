@@ -3111,21 +3111,13 @@
   color: #2b0d1b;
 }
 
-.su-success-sparkles i {
-  position: absolute;
-  z-index: 1;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #edcf8e;
-  box-shadow: 0 0 12px rgba(237, 207, 142, .8);
+.su-success-sparkles {
+  display: none !important;
 }
 
-.su-success-sparkles i:nth-child(1) { top: 35px; left: 29%; }
-.su-success-sparkles i:nth-child(2) { top: 58px; right: 25%; width: 4px; height: 4px; }
-.su-success-sparkles i:nth-child(3) { bottom: 25px; left: 23%; width: 3px; height: 3px; }
-.su-success-sparkles i:nth-child(4) { top: 27px; right: 36%; width: 3px; height: 3px; }
-.su-success-sparkles i:nth-child(5) { right: 31%; bottom: 29px; }
+.su-success-sparkles i {
+  display: none !important;
+}
 
 .su-success-body {
   padding: 32px 38px 30px;

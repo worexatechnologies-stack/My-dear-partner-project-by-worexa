@@ -13,6 +13,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if MembershipPlan.objects.exists() and not options['reset']:
+            self.stdout.write(self.style.SUCCESS('Membership plans already exist. Keeping Super Admin configuration intact without seeding.'))
+            return
         plans_data = [
             {
                 'slug': 'free',
@@ -48,9 +51,9 @@ class Command(BaseCommand):
             {
                 'slug': 'gold',
                 'name': 'Gold',
-                'price': 2999.00,
-                'duration': '3 Months',
-                'duration_days': 90,
+                'price': 1199.00,
+                'duration': '30 Days',
+                'duration_days': 30,
                 'is_active': True,
                 'is_featured': False,
                 'display_order': 2,
@@ -77,17 +80,17 @@ class Command(BaseCommand):
                 'price_3m': 2999.00,
                 'price_6m': 4999.00,
                 'price_1y': 7999.00,
-                'discount_3m': '',
-                'discount_6m': '17% OFF',
-                'discount_1y': '33% OFF',
+                'discount_3m': '17% OFF',
+                'discount_6m': '31% OFF',
+                'discount_1y': '44% OFF',
                 'entitlements': {'daily_profile_view_limit': 50, 'can_send_interest': True, 'daily_interest_limit': 15, 'can_chat': True, 'can_view_contact_details': True, 'profile_visibility_boost': False, 'can_see_who_viewed_profile': True, 'can_view_received_interests': True, 'priority_support': False, 'max_photos': 6, 'contact_access_mode': 'MUTUAL_ONLY', 'photo_access_mode': 'ALL_APPROVED', 'can_use_advanced_search': True},
             },
             {
                 'slug': 'elite',
                 'name': 'Elite',
-                'price': 5999.00,
-                'duration': '6 Months',
-                'duration_days': 180,
+                'price': 1499.00,
+                'duration': '30 Days',
+                'duration_days': 30,
                 'is_active': True,
                 'is_featured': True,
                 'display_order': 3,
@@ -114,18 +117,18 @@ class Command(BaseCommand):
                 'price_3m': 3499.00,
                 'price_6m': 5999.00,
                 'price_1y': 9999.00,
-                'discount_3m': '',
-                'discount_6m': '',
-                'discount_1y': '17% OFF',
+                'discount_3m': '22% OFF',
+                'discount_6m': '33% OFF',
+                'discount_1y': '44% OFF',
                 'entitlements': {'daily_profile_view_limit': 200, 'can_send_interest': True, 'daily_interest_limit': 50, 'can_chat': True, 'can_view_contact_details': True, 'profile_visibility_boost': True, 'can_see_who_viewed_profile': True, 'can_view_received_interests': True, 'priority_support': False, 'max_photos': 6, 'contact_access_mode': 'FULL', 'photo_access_mode': 'ALL_APPROVED', 'can_use_advanced_search': True},
             },
             {
                 'slug': 'premium',
                 'name': 'Premium',
                 'display_name': 'Platinum',
-                'price': 14999.00,
-                'duration': '12 Months',
-                'duration_days': 360,
+                'price': 1999.00,
+                'duration': '30 Days',
+                'duration_days': 30,
                 'is_active': True,
                 'is_featured': False,
                 'display_order': 4,
@@ -152,9 +155,9 @@ class Command(BaseCommand):
                 'price_3m': 4999.00,
                 'price_6m': 8999.00,
                 'price_1y': 14999.00,
-                'discount_3m': '',
-                'discount_6m': '',
-                'discount_1y': '',
+                'discount_3m': '17% OFF',
+                'discount_6m': '25% OFF',
+                'discount_1y': '37% OFF',
                 'entitlements': {'daily_profile_view_limit': None, 'can_send_interest': True, 'daily_interest_limit': None, 'can_chat': True, 'can_view_contact_details': True, 'profile_visibility_boost': True, 'can_see_who_viewed_profile': True, 'can_view_received_interests': True, 'priority_support': True, 'max_photos': 6, 'contact_access_mode': 'FULL', 'photo_access_mode': 'ALL_APPROVED', 'can_use_advanced_search': True},
             },
         ]

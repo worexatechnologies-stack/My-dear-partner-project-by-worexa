@@ -9,7 +9,7 @@ import { useMembership } from './membership-provider';
 import { useGetMembershipPlansQuery, type MembershipPlan } from '@/legacy/services/membershipApi';
 
 interface UpgradeModalProps {
-  feature: 'messaging' | 'advanced_search' | 'contact_details' | 'all_photos' | 'unlimited_views';
+  feature: 'messaging' | 'advanced_search' | 'contact_details' | 'all_photos' | 'unlimited_views' | 'full_bio';
   onClose: () => void;
   isOpen?: boolean;
 }
@@ -76,6 +76,18 @@ const featureConfig = {
     ],
     planCheck: (plan: MembershipPlan) =>
       (plan as any).daily_profile_view_limit === null || ((plan as any).daily_profile_view_limit ?? 0) > 20 || (plan as any).is_premium === true,
+  },
+  full_bio: {
+    icon: '📋',
+    title: 'Full Bio & In-Depth Details',
+    description: 'View complete background, family, career, and partner preferences',
+    benefits: [
+      'View detailed family background & status',
+      'See complete career & organization info',
+      'Horoscope & Nakshatra details',
+      'Complete partner preferences & expectations',
+    ],
+    planCheck: (plan: MembershipPlan) => (plan as any).can_view_full_profile !== false,
   },
 };
 

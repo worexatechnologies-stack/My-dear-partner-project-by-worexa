@@ -12,6 +12,8 @@ SUPPORT_CATEGORIES = {
 
 
 def seed_membership_plans():
+    if MembershipPlan.objects.exists():
+        return
     plans = [
         {
             'name': 'Free',

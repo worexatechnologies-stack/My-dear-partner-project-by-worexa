@@ -376,7 +376,14 @@ class ProfileVisitorListView(APIView):
                 "photo": photo,
             }
 
-        if effective_limit == 0:
+        if plan_limit is None:
+            # Unlimited profile visitors: show requested page/items without artificial paywall blur
+            effective_limit = requested_limit
+            visits_qs = all_visits_qs[:effective_limit]
+            visits = list(visits_qs)
+            locked_count = 0
+            blurred_visitors = []
+        elif effective_limit == 0:
             blurred_visitors = [_build_blurred_visitor(v) for v in all_visits_qs[:20]]
             return ApiResponse(data={
                 "can_view_visitors": False,
@@ -386,17 +393,13 @@ class ProfileVisitorListView(APIView):
                 "blurred_visitors": blurred_visitors,
                 "results": [],
             })
-
-        visits_qs = all_visits_qs
-        if effective_limit > 0:
-            visits_qs = visits_qs[:effective_limit]
-
-        visits = list(visits_qs)
-        locked_count = max(0, total_unique_visitors - len(visits))
-
-        blurred_visitors = []
-        if locked_count > 0:
-            blurred_visitors = [_build_blurred_visitor(v) for v in all_visits_qs[effective_limit:effective_limit + 20]]
+        else:
+            visits_qs = all_visits_qs[:effective_limit]
+            visits = list(visits_qs)
+            locked_count = max(0, total_unique_visitors - len(visits))
+            blurred_visitors = []
+            if locked_count > 0:
+                blurred_visitors = [_build_blurred_visitor(v) for v in all_visits_qs[effective_limit:effective_limit + 20]]
 
         return ApiResponse(data={
             "can_view_visitors": True,
@@ -430,6 +433,9 @@ class InterestListCreateView(APIView):
                 return Response(entitlement_denial(entitlements, 'can_view_received_interests'), status=403)
         queryset = Interest.objects.select_related(
             'sender', 'receiver', 'sender__profile', 'receiver__profile'
+        ).prefetch_related(
+            Prefetch('sender__profile_photos', queryset=ProfilePhoto.objects.active().without_binary()),
+            Prefetch('receiver__profile_photos', queryset=ProfilePhoto.objects.active().without_binary()),
         )
         queryset = (
             queryset.filter(sender=request.user)

@@ -118,27 +118,100 @@ class MembershipPlanSerializer(serializers.ModelSerializer):
                 return validated_data[field]
             return getattr(self.instance, field, default)
 
+        # 1. Profile view limit synchronization (None or <0 = Unlimited)
+        if 'profile_view_limit_daily' in validated_data:
+            pv_limit = validated_data['profile_view_limit_daily']
+            if pv_limit is not None and pv_limit < 0:
+                pv_limit = None
+            validated_data['profile_view_limit_daily'] = pv_limit
+            validated_data['daily_profile_unlock_limit'] = pv_limit
+        elif 'daily_profile_unlock_limit' in validated_data:
+            pv_limit = validated_data['daily_profile_unlock_limit']
+            if pv_limit is not None and pv_limit < 0:
+                pv_limit = None
+            validated_data['daily_profile_unlock_limit'] = pv_limit
+            validated_data['profile_view_limit_daily'] = pv_limit
+        else:
+            pv_limit = getattr(self.instance, 'profile_view_limit_daily', getattr(self.instance, 'daily_profile_unlock_limit', 10))
+
+        # 2. Interest limit synchronization (None or <0 = Unlimited)
+        if 'interest_limit_daily' in validated_data:
+            int_limit = validated_data['interest_limit_daily']
+            if int_limit is not None and int_limit < 0:
+                int_limit = None
+            validated_data['interest_limit_daily'] = int_limit
+            validated_data['interest_limit'] = int_limit
+        elif 'interest_limit' in validated_data:
+            int_limit = validated_data['interest_limit']
+            if int_limit is not None and int_limit < 0:
+                int_limit = None
+            validated_data['interest_limit'] = int_limit
+            validated_data['interest_limit_daily'] = int_limit
+        else:
+            int_limit = getattr(self.instance, 'interest_limit_daily', getattr(self.instance, 'interest_limit', 3))
+
+        # 3. Message limit synchronization (None or <0 = Unlimited)
+        msg_limit = value('message_limit_daily')
+        if msg_limit is not None and msg_limit < 0:
+            msg_limit = None
+        if 'message_limit_daily' in validated_data:
+            validated_data['message_limit_daily'] = msg_limit
+
+        # 4. Messaging switches and mode synchronization
+        can_msg = bool(value('can_message', False))
+        if msg_limit is None or (isinstance(msg_limit, int) and msg_limit > 0):
+            can_msg = True
+            validated_data['can_message'] = True
+            validated_data['messaging_mode'] = 'ENABLED'
+            msg_mode = 'ENABLED'
+        elif 'messaging_mode' in validated_data:
+            msg_mode = validated_data['messaging_mode']
+            if msg_mode != 'DISABLED':
+                can_msg = True
+                validated_data['can_message'] = True
+        else:
+            msg_mode = 'ENABLED' if can_msg else 'DISABLED'
+            validated_data['messaging_mode'] = msg_mode
+
+        # 5. Contact and photo modes
+        contact_mode = value('contact_access_mode', 'NONE')
+        can_contact = bool(value('can_view_contact', False) or contact_mode != 'NONE')
+        validated_data['can_view_contact'] = can_contact
+        validated_data['contact_access_mode'] = contact_mode
+
         photo_mode = value('photo_access_mode', 'PRIMARY_ONLY')
         if value('can_view_private_photos', False):
             photo_mode = 'ALL_APPROVED'
+        validated_data['photo_access_mode'] = photo_mode
+
+        # 6. Profile visitors limit (None or <0 = Unlimited)
+        visitors_limit = value('profile_visitors_limit', 4)
+        if visitors_limit is not None and visitors_limit < 0:
+            visitors_limit = None
+        if 'profile_visitors_limit' in validated_data:
+            validated_data['profile_visitors_limit'] = visitors_limit
+        if visitors_limit is None or (isinstance(visitors_limit, int) and visitors_limit > 0):
+            validated_data['can_view_profile_visitors'] = True
 
         entitlements.update({
-            'daily_profile_view_limit': value('daily_profile_unlock_limit') if value('daily_profile_unlock_limit') is not None else value('profile_view_limit_daily', 10),
+            'daily_profile_view_limit': pv_limit,
             'can_send_interest': bool(value('can_send_interest', True)),
-            'daily_interest_limit': value('interest_limit') if value('interest_limit') is not None else value('interest_limit_daily', 3),
-            'daily_message_limit': value('message_limit_daily'),
-            'can_chat': bool(value('can_message', False)),
-            'can_view_contact_details': bool(value('can_view_contact', False) or value('contact_access_mode', 'NONE') != 'NONE'),
-            'profile_visibility_boost': bool(value('can_use_profile_boost', False)),
+            'daily_interest_limit': int_limit,
+            'daily_message_limit': msg_limit,
+            'can_chat': can_msg,
+            'can_view_contact_details': can_contact,
+            'profile_visibility_boost': bool(value('can_use_profile_boost', False) or value('profile_boost_level', 'NONE') != 'NONE'),
             'can_see_who_viewed_profile': bool(value('can_view_profile_visitors', False)),
-            'profile_visitors_limit': value('profile_visitors_limit', 4),
+            'profile_visitors_limit': visitors_limit,
             'can_view_received_interests': bool(value('can_view_received_interests', False)),
             'priority_support': value('support_priority', 'STANDARD') == 'HIGH',
             'max_photos': max(1, int((supplied.get('max_photos') if 'max_photos' in supplied else existing.get('max_photos', 6)) or 6)),
-            'contact_access_mode': value('contact_access_mode', 'NONE'),
+            'contact_access_mode': contact_mode,
             'photo_access_mode': photo_mode,
             'can_use_advanced_search': bool(value('can_use_advanced_search', False)),
+            'can_view_full_profile': bool(value('can_view_full_profile', True)),
         })
+        validated_data['can_view_full_profile'] = bool(value('can_view_full_profile', True))
         validated_data['entitlements'] = entitlements
         return validated_data
 
@@ -200,6 +273,24 @@ class MemberPublicSerializer(serializers.ModelSerializer):
     hobbies = serializers.SerializerMethodField()
     compatibility = serializers.SerializerMethodField()
     pref_about = serializers.SerializerMethodField()
+    sub_caste = serializers.SerializerMethodField()
+    gothra = serializers.SerializerMethodField()
+    star_nakshatra = serializers.SerializerMethodField()
+    manglik_status = serializers.SerializerMethodField()
+    education_detail = serializers.SerializerMethodField()
+    employed_in = serializers.SerializerMethodField()
+    company = serializers.SerializerMethodField()
+    father_status = serializers.SerializerMethodField()
+    mother_status = serializers.SerializerMethodField()
+    num_brothers = serializers.SerializerMethodField()
+    num_sisters = serializers.SerializerMethodField()
+    family_status = serializers.SerializerMethodField()
+    family_location = serializers.SerializerMethodField()
+    weight = serializers.SerializerMethodField()
+    complexion = serializers.SerializerMethodField()
+    blood_group = serializers.SerializerMethodField()
+    profile_created_by = serializers.CharField(read_only=True)
+    partner_preferences = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -208,6 +299,10 @@ class MemberPublicSerializer(serializers.ModelSerializer):
             'height', 'religion', 'mother_tongue', 'caste', 'highest_education',
             'occupation', 'annual_income', 'work_location', 'about', 'family_type',
             'marital_status', 'hobbies', 'compatibility', 'pref_about',
+            'sub_caste', 'gothra', 'star_nakshatra', 'manglik_status', 'education_detail',
+            'employed_in', 'company', 'father_status', 'mother_status', 'num_brothers',
+            'num_sisters', 'family_status', 'family_location', 'weight', 'complexion',
+            'blood_group', 'profile_created_by', 'partner_preferences',
             'chat_public_key',
         )
 
@@ -317,6 +412,44 @@ class MemberPublicSerializer(serializers.ModelSerializer):
         except MemberPreference.DoesNotExist:
             return ''
 
+    def get_sub_caste(self, obj): return self._profile_value(obj, 'sub_caste')
+    def get_gothra(self, obj): return self._profile_value(obj, 'gothra')
+    def get_star_nakshatra(self, obj): return self._profile_value(obj, 'star_nakshatra')
+    def get_manglik_status(self, obj): return self._profile_value(obj, 'manglik_status')
+    def get_education_detail(self, obj): return self._profile_value(obj, 'education_detail')
+    def get_employed_in(self, obj): return self._profile_value(obj, 'employed_in')
+    def get_company(self, obj): return self._profile_value(obj, 'company')
+    def get_father_status(self, obj): return self._profile_value(obj, 'father_status')
+    def get_mother_status(self, obj): return self._profile_value(obj, 'mother_status')
+    def get_num_brothers(self, obj): return self._profile_value(obj, 'num_brothers', 0)
+    def get_num_sisters(self, obj): return self._profile_value(obj, 'num_sisters', 0)
+    def get_family_status(self, obj): return self._profile_value(obj, 'family_status')
+    def get_family_location(self, obj): return self._profile_value(obj, 'family_location')
+    def get_weight(self, obj): return self._profile_value(obj, 'weight')
+    def get_complexion(self, obj): return self._profile_value(obj, 'complexion')
+    def get_blood_group(self, obj): return self._profile_value(obj, 'blood_group')
+
+    def get_partner_preferences(self, obj):
+        try:
+            p = getattr(obj, 'preferences', None)
+            if not p:
+                return None
+            return {
+                'preferred_age_min': p.preferred_age_min,
+                'preferred_age_max': p.preferred_age_max,
+                'preferred_height_min': p.preferred_height_min,
+                'preferred_height_max': p.preferred_height_max,
+                'preferred_religion': p.preferred_religion,
+                'preferred_caste': p.preferred_caste,
+                'preferred_location': p.preferred_location,
+                'preferred_education': p.preferred_education,
+                'preferred_occupation': p.preferred_occupation,
+                'preferred_marital_status': p.preferred_marital_status,
+                'additional_expectations': p.additional_expectations,
+            }
+        except Exception:
+            return None
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         viewer = self._get_viewer()
@@ -325,6 +458,7 @@ class MemberPublicSerializer(serializers.ModelSerializer):
 
         from apps.core.models import ProfileUnlock
         from apps.core.entitlement_service import MembershipEntitlementService
+        from apps.core.entitlements import get_active_entitlements
         import zoneinfo
         kolkata_tz = zoneinfo.ZoneInfo("Asia/Kolkata")
         today = timezone.now().astimezone(kolkata_tz).date()
@@ -334,6 +468,31 @@ class MemberPublicSerializer(serializers.ModelSerializer):
             profile=instance,
             usage_date=today
         ).exists()
+
+        entitlements = get_active_entitlements(viewer)
+        can_view_full = getattr(entitlements, 'can_view_full_profile', True)
+        is_self = str(viewer.pk) == str(instance.pk)
+
+        data['can_view_full_profile'] = can_view_full or is_self
+
+        if not can_view_full and not is_self:
+            # Plan has full bio disabled: mask in-depth background/preference details
+            data['full_bio_locked'] = True
+            data['sub_caste'] = None
+            data['gothra'] = None
+            data['star_nakshatra'] = None
+            data['manglik_status'] = None
+            data['education_detail'] = None
+            data['company'] = None
+            data['father_status'] = None
+            data['mother_status'] = None
+            data['num_brothers'] = None
+            data['num_sisters'] = None
+            data['family_status'] = None
+            data['family_location'] = None
+            data['partner_preferences'] = None
+        else:
+            data['full_bio_locked'] = False
 
         allowed, contact_mode = MembershipEntitlementService.can_view_contact(viewer, instance)
         if allowed:
@@ -348,6 +507,125 @@ class MemberPublicSerializer(serializers.ModelSerializer):
         return data
 
 
+class InterestMemberSerializer(serializers.ModelSerializer):
+    """Fast, lightweight member serializer for interest feeds that avoids heavy N+1 checks."""
+    id = serializers.UUIDField(read_only=True)
+    user_id = serializers.UUIDField(source='pk', read_only=True)
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+    first_name = serializers.CharField(read_only=True)
+    last_name = serializers.CharField(read_only=True)
+    is_demo = serializers.BooleanField(source='is_seed_data', read_only=True)
+    age = serializers.SerializerMethodField()
+    photo = serializers.SerializerMethodField()
+    photo_visibility = serializers.SerializerMethodField()
+    photos = serializers.SerializerMethodField()
+    primary_photo = serializers.SerializerMethodField()
+    is_verified = serializers.SerializerMethodField()
+    is_premium = serializers.SerializerMethodField()
+    height = serializers.SerializerMethodField()
+    religion = serializers.SerializerMethodField()
+    mother_tongue = serializers.SerializerMethodField()
+    caste = serializers.SerializerMethodField()
+    highest_education = serializers.SerializerMethodField()
+    occupation = serializers.SerializerMethodField()
+    annual_income = serializers.SerializerMethodField()
+    work_location = serializers.SerializerMethodField()
+    about = serializers.SerializerMethodField()
+    family_type = serializers.SerializerMethodField()
+    marital_status = serializers.SerializerMethodField()
+    hobbies = serializers.SerializerMethodField()
+    compatibility = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Member
+        fields = (
+            'id', 'user_id', 'profile_slug', 'full_name', 'first_name', 'last_name',
+            'age', 'gender', 'is_demo', 'photo', 'photo_visibility', 'photos',
+            'primary_photo', 'is_verified', 'is_premium', 'height', 'religion',
+            'mother_tongue', 'caste', 'highest_education', 'occupation',
+            'annual_income', 'work_location', 'about', 'family_type',
+            'marital_status', 'hobbies', 'compatibility',
+        )
+
+    def _profile_value(self, obj, field, default=''):
+        try:
+            return getattr(obj.profile, field, default)
+        except Exception:
+            return default
+
+    def get_age(self, obj):
+        if not obj.date_of_birth:
+            return None
+        today = timezone.localdate()
+        born = obj.date_of_birth
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+    @staticmethod
+    def _approved_photos(obj):
+        prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('profile_photos')
+        if prefetched is not None:
+            return sorted(
+                (p for p in prefetched if p.status == ProfilePhoto.Status.APPROVED and not p.is_deleted),
+                key=lambda p: (p.display_order, p.created_at),
+            )
+        return list(
+            ProfilePhoto.objects.active().without_binary()
+            .filter(user=obj, status=ProfilePhoto.Status.APPROVED)
+            .order_by('display_order', 'created_at')
+        )
+
+    def get_photo(self, obj):
+        photos = self._approved_photos(obj)
+        p = next((x for x in photos if x.is_primary), None) or (photos[0] if photos else None)
+        return photo_endpoint_urls(p)['image_url'] if p else None
+
+    def get_primary_photo(self, obj):
+        photos = self._approved_photos(obj)
+        p = next((x for x in photos if x.is_primary), None) or (photos[0] if photos else None)
+        if not p:
+            return None
+        urls = photo_endpoint_urls(p)
+        return {'id': str(p.pk), 'image_url': urls['image_url'], 'thumbnail_url': urls['thumbnail_url']}
+
+    def get_photos(self, obj):
+        photos = self._approved_photos(obj)
+        return [
+            {
+                'id': str(p.pk),
+                'image_url': photo_endpoint_urls(p)['image_url'],
+                'thumbnail_url': photo_endpoint_urls(p)['thumbnail_url'],
+                'url': photo_endpoint_urls(p)['image_url'],
+                'is_primary': p.is_primary,
+                'display_order': p.display_order,
+            }
+            for p in photos
+        ]
+
+    def get_photo_visibility(self, obj):
+        photos = self._approved_photos(obj)
+        return 'visible' if photos else 'unavailable'
+
+    def get_is_verified(self, obj):
+        return bool(getattr(obj, 'is_verified', False) or getattr(obj, 'is_mobile_verified', False))
+
+    def get_is_premium(self, obj):
+        return bool(getattr(obj, 'is_premium', False))
+
+    def get_height(self, obj): return self._profile_value(obj, 'height')
+    def get_religion(self, obj): return self._profile_value(obj, 'religion')
+    def get_mother_tongue(self, obj): return self._profile_value(obj, 'mother_tongue')
+    def get_caste(self, obj): return self._profile_value(obj, 'caste')
+    def get_highest_education(self, obj): return self._profile_value(obj, 'highest_education')
+    def get_occupation(self, obj): return self._profile_value(obj, 'occupation')
+    def get_annual_income(self, obj): return self._profile_value(obj, 'annual_income')
+    def get_work_location(self, obj): return self._profile_value(obj, 'work_location')
+    def get_about(self, obj): return self._profile_value(obj, 'about')
+    def get_family_type(self, obj): return self._profile_value(obj, 'family_type')
+    def get_marital_status(self, obj): return self._profile_value(obj, 'marital_status')
+    def get_hobbies(self, obj): return self._profile_value(obj, 'hobbies', [])
+    def get_compatibility(self, obj): return self._profile_value(obj, 'compatibility', 0)
+
+
 class InterestSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
     receiver = serializers.SerializerMethodField()
@@ -357,10 +635,10 @@ class InterestSerializer(serializers.ModelSerializer):
         fields = ('id', 'sender', 'receiver', 'status', 'created_at', 'updated_at')
 
     def get_sender(self, obj):
-        return MemberPublicSerializer(obj.sender, context=self.context).data
+        return InterestMemberSerializer(obj.sender, context=self.context).data
 
     def get_receiver(self, obj):
-        return MemberPublicSerializer(obj.receiver, context=self.context).data
+        return InterestMemberSerializer(obj.receiver, context=self.context).data
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

@@ -1218,6 +1218,18 @@ class AdminUserListView(ScopedAPIView):
             queryset = queryset.filter(created_at__date=today)
         elif period == 'month':
             queryset = queryset.filter(created_at__year=today.year, created_at__month=today.month)
+        plan_param = request.query_params.get('plan') or request.query_params.get('membership')
+        if plan_param and str(plan_param).strip():
+            plan_key = str(plan_param).strip().lower()
+            if plan_key == 'free':
+                queryset = queryset.filter(
+                    ~Q(memberships__is_active=True) | Q(memberships__plan__slug='free') | Q(memberships__isnull=True)
+                ).distinct()
+            else:
+                queryset = queryset.filter(
+                    memberships__plan__slug=plan_key,
+                    memberships__is_active=True
+                ).distinct()
         ordering = request.query_params.get('ordering', '-date_joined')
         order_field = self.ORDERING_FIELDS.get(ordering)
         if order_field:

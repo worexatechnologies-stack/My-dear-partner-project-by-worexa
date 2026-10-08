@@ -188,6 +188,7 @@ urlpatterns = [
     path('profiles/', ProfileListView.as_view(), name='profiles_list'),
     path('profiles/<str:pk>/', ProfileDetailView.as_view(), name='profile_detail'),
     path('profile-visitors/', ProfileVisitorListView.as_view(), name='profile_visitors'),
+    path('visitors/', ProfileVisitorListView.as_view(), name='visitors_alias'),
     path('interests/', InterestListCreateView.as_view(), name='interests_list'),
     path('interests/<uuid:pk>/', InterestDetailView.as_view(), name='interest_detail'),
     path('matchmaking/compatibility/', CompatibilityCheckView.as_view(), name='compatibility_check'),

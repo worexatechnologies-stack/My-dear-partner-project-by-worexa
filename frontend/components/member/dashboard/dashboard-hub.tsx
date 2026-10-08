@@ -375,7 +375,7 @@ function OverviewZone({ user, visitors, canViewVisitors, visitorCount }: any) {
             </div>
             <div className="space-y-3">
               <h1 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight" style={{ fontFamily: '"Manrope", Georgia, serif' }}>
-                Welcome back, {user?.first_name || 'Member'} ✨
+                Welcome back, {user?.first_name || 'Member'}
               </h1>
               <p className="text-slate-500 text-sm max-w-md leading-relaxed">Discover new matches, view your profile visitors, and continue your journey to find your perfect partner.</p>
               <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2">

@@ -86,9 +86,20 @@ export interface AdminUser {
   annual_income?: string;
   active_membership?: {
     plan_name: string;
+    plan_slug?: string;
     is_active: boolean;
-    start_date?: string;
-    end_date?: string;
+    is_paid?: boolean;
+    is_free?: boolean;
+    days_remaining?: number | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    plan?: {
+      id?: string | null;
+      name?: string;
+      slug?: string;
+      badge?: string;
+      color?: string;
+    } | null;
   };
 }
 
@@ -526,6 +537,20 @@ export function updateAdminUser(
   return fetchApi<AdminUser>(`/admin/users/${userId}/`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  });
+}
+
+export function grantAdminUserMembership(
+  userId: string,
+  planSlug: string,
+  durationMonths: number = 12
+): Promise<{ success: boolean; message: string; data: any }> {
+  return fetchApi<{ success: boolean; message: string; data: any }>(`/admin/users/${userId}/grant-membership/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      plan_slug: planSlug,
+      duration_months: durationMonths,
+    }),
   });
 }
 

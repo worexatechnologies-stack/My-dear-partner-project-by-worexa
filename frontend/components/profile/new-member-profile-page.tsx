@@ -108,7 +108,7 @@ export default function NewMemberProfilePage() {
       })
       .catch(() => {});
 
-    fetchApi<any>('/visitors/')
+    fetchApi<any>('/profile-visitors/')
       .then((res) => {
         if (!active) return;
         const count = res?.total_unique_visitors ?? (Array.isArray(res?.results) ? res.results.length : 0);

@@ -59,11 +59,10 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
       {/* Header Navigation */}
       <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6">
         <div
-          className={`mx-auto flex h-16 max-w-7xl items-center justify-between px-3 transition-all duration-300 sm:px-5 ${
-            scrolled
+          className={`mx-auto flex h-16 max-w-7xl items-center justify-between px-3 transition-all duration-300 sm:px-5 ${scrolled
               ? 'rounded-2xl border border-[#3b1425]/10 bg-[#fffaf7]/95 text-[#20111a] shadow-[0_12px_34px_rgba(43,16,29,.10)] backdrop-blur-xl'
               : 'rounded-2xl border border-white/80 bg-white/75 text-[#20111a] shadow-[0_10px_28px_rgba(43,16,29,.06)] backdrop-blur-xl'
-          }`}
+            }`}
         >
           <Link href="/" className="flex items-center gap-2.5" aria-label="MyDearPartner home">
             <SiteLogo alt="MyDearPartner" className="h-9 w-9 object-contain" />
@@ -77,11 +76,10 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
-                  pathname === link.href
+                className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition ${pathname === link.href
                     ? 'bg-[#f8e9ee] text-[#8e3d58]'
                     : 'text-slate-600 hover:bg-white hover:text-[#8e3d58]'
-                }`}
+                  }`}
               >
                 {link.label}
               </Link>
@@ -131,9 +129,8 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`block rounded-xl px-4 py-3 text-sm font-bold ${
-                    pathname === link.href ? 'bg-[#f8e9ee] text-[#8e3d58]' : 'text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className={`block rounded-xl px-4 py-3 text-sm font-bold ${pathname === link.href ? 'bg-[#f8e9ee] text-[#8e3d58]' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
                 >
                   {link.label}
                 </Link>

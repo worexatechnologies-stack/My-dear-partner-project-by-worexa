@@ -6,6 +6,14 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 from django.shortcuts import redirect
 from django.http import HttpResponseNotFound, JsonResponse
 
+from apps.accounts.settings_views import (
+    UserSettingsView,
+    UserPrivacySettingsView,
+    SafetyEligibilityView,
+    SafetyAccountDeletionAliasView,
+)
+from apps.core.old_views import MemberProfileReportCreateView
+
 def custom_page_not_found(request, exception=None):
     if request.path.startswith('/api/'):
         return JsonResponse({
@@ -49,6 +57,12 @@ urlpatterns = [
     # bytes from PostgreSQL BYTEA columns.
     path('api/', include(('apps.profiles.urls', 'profiles'), namespace='profiles-api')),
     
+    # Safety & Settings features (Item 2 of production contract)
+    path('api/v1/settings/', UserSettingsView.as_view(), name='user_settings'),
+    path('api/v1/safety/eligibility/', SafetyEligibilityView.as_view(), name='safety_eligibility'),
+    path('api/v1/safety/reports/', MemberProfileReportCreateView.as_view(), name='safety_reports_alias'),
+    path('api/v1/safety/account-deletion/', SafetyAccountDeletionAliasView.as_view(), name='safety_account_deletion_alias'),
+
     # API Endpoints version 1
     path('api/v1/', include(('apps.profiles.urls', 'profiles'), namespace='profiles-v1')),
     path('api/v1/auth/', include(('apps.accounts.urls', 'accounts'), namespace='auth-v1')),

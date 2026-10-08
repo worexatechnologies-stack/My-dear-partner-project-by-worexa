@@ -12,6 +12,7 @@ import {
   Bookmark,
   BookmarkCheck,
   BriefcaseBusiness,
+  Building2,
   CalendarDays,
   Camera,
   Check,
@@ -33,6 +34,7 @@ import {
   Ruler,
   Scale,
   ShieldCheck,
+  Star,
   UserRound,
   UsersRound,
   X,
@@ -150,7 +152,7 @@ export default function ProfilePage() {
     }
   }, [profileData?.interest, memberId, profileId]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | 'unlimited_views' | null>(null);
+  const [upgradeFeature, setUpgradeFeature] = useState<'messaging' | 'all_photos' | 'unlimited_views' | 'full_bio' | null>(null);
   const [showMessageTerms, setShowMessageTerms] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('Fake profile');
@@ -570,6 +572,25 @@ export default function ProfilePage() {
     gothra?: string;
     weight?: string | number;
     income?: string;
+    gender?: string;
+    education_detail?: string;
+    employed_in?: string;
+    company?: string;
+    father_status?: string;
+    mother_status?: string;
+    num_brothers?: number;
+    num_sisters?: number;
+    family_status?: string;
+    family_location?: string;
+    complexion?: string;
+    blood_group?: string;
+    profile_created_by?: string;
+    star_nakshatra?: string;
+    manglik_status?: string;
+    full_bio_locked?: boolean;
+    can_view_full_profile?: boolean;
+    partner_preferences?: any;
+    pref_about?: string;
   };
   const profileUser = profile.user as typeof profile.user & { is_verified?: boolean; is_premium?: boolean; work_location?: string };
   const safeSelectedIdx = selectedPhotoIndex < photos.length ? selectedPhotoIndex : 0;
@@ -579,6 +600,8 @@ export default function ProfilePage() {
   const matchScore = profile.compatibility_score;
   const currentLightboxPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
   const isMatched = interestState === 'ACCEPTED';
+  const canViewFullBio = profile.can_view_full_profile !== false && !profile.full_bio_locked;
+  const partnerPrefs = profile.partner_preferences;
   const interestLabel = isMatched
     ? 'Matched'
     : interestState === 'SENT'
@@ -1027,52 +1050,215 @@ export default function ProfilePage() {
                 ))}
               </div>
 
-              <nav className="mt-5 flex gap-1 overflow-x-auto" aria-label="Profile sections">
-                {[['about', 'About'], ['career', 'Career'], ['background', 'Background'], ['personal', 'Personal']].map(([target, label]) => (
-                  <a key={target} href={`#${target}`} className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-[#17232d]">{label}</a>
+              <nav className="mt-5 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin" aria-label="Profile sections">
+                {[
+                  ['about', 'About'],
+                  ['career', 'Career & Education'],
+                  ['background', 'Family & Background'],
+                  ['horoscope', 'Horoscope & Astro'],
+                  ['personal', 'Personal Info'],
+                  ['preferences', 'Partner Preferences'],
+                ].map(([target, label]) => (
+                  <a key={target} href={`#${target}`} className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-[#17232d] transition-colors">{label}</a>
                 ))}
               </nav>
             </header>
+
+            {!canViewFullBio && !isOwnProfile && (
+              <div className="border-b border-amber-200/80 bg-gradient-to-r from-amber-50 via-rose-50/60 to-pink-50/50 px-5 py-4 sm:px-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white shrink-0 shadow-2xs">
+                    <Crown className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-extrabold text-amber-950">Full Bio Preview Mode</p>
+                    <p className="text-[11px] sm:text-xs text-amber-800 font-medium">
+                      In-depth background, horoscope, and partner expectations are locked on your current plan.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUpgradeFeature('full_bio')}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 via-rose-600 to-pink-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+                >
+                  <Crown className="h-3.5 w-3.5" /> Upgrade Plan
+                </button>
+              </div>
+            )}
 
             <Section id="about" title="About" description="A personal introduction shared by this member.">
               <p className="max-w-3xl whitespace-pre-wrap text-[15px] leading-7 text-slate-600">
                 {profile.about || 'This member has chosen to share more about themselves after connecting.'}
               </p>
-              {profile.hobbies?.length > 0 && (
+              {profile.hobbies && profile.hobbies.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-2">
                   {profile.hobbies.map((hobby) => <span key={hobby} className="rounded-full border border-slate-200 bg-[#f7f8f8] px-3 py-1.5 text-xs font-bold text-slate-600">{hobby}</span>)}
                 </div>
               )}
             </Section>
 
-            <Section id="career" title="Career and education">
+            <Section id="career" title="Career and education" description="Educational qualifications, professional role, and workplace information.">
               <div className="grid gap-x-8 md:grid-cols-2">
                 <DetailRow label="Highest education" value={profile.education} icon={GraduationCap} />
+                {canViewFullBio && <DetailRow label="Education detail / Degree" value={profile.education_detail} icon={GraduationCap} />}
                 <DetailRow label="Occupation" value={profile.occupation} icon={BriefcaseBusiness} />
+                {canViewFullBio && <DetailRow label="Employed in" value={profile.employed_in} icon={BriefcaseBusiness} />}
+                {canViewFullBio && <DetailRow label="Company / Organization" value={profile.company} icon={Building2} />}
                 <DetailRow label="Annual income" value={profile.income || profile.annual_income} icon={CircleDollarSign} />
                 <DetailRow label="Work location" value={location} icon={MapPin} />
               </div>
             </Section>
 
-            <Section id="background" title="Family and background">
+            <Section id="background" title="Family and background" description="Cultural roots, family structure, and community background.">
               <div className="grid gap-x-8 md:grid-cols-2">
                 <DetailRow label="Religion" value={profile.religion} icon={Heart} />
                 <DetailRow label="Caste" value={profile.caste} icon={UsersRound} />
-                <DetailRow label="Sub-caste" value={profile.sub_caste} icon={UsersRound} />
-                <DetailRow label="Gothra" value={profile.gothra} icon={Home} />
-                <DetailRow label="Family type" value={profile.family_type} icon={Home} />
+                {canViewFullBio ? (
+                  <>
+                    <DetailRow label="Sub-caste" value={profile.sub_caste} icon={UsersRound} />
+                    <DetailRow label="Gothra" value={profile.gothra} icon={Home} />
+                    <DetailRow label="Family type" value={profile.family_type} icon={Home} />
+                    <DetailRow label="Family status / Values" value={profile.family_status} icon={Home} />
+                    <DetailRow label="Father's occupation / status" value={profile.father_status} icon={UserRound} />
+                    <DetailRow label="Mother's occupation / status" value={profile.mother_status} icon={UserRound} />
+                    <DetailRow label="Brothers" value={profile.num_brothers !== undefined && profile.num_brothers !== null ? `${profile.num_brothers} brother${profile.num_brothers === 1 ? '' : 's'}` : null} icon={UsersRound} />
+                    <DetailRow label="Sisters" value={profile.num_sisters !== undefined && profile.num_sisters !== null ? `${profile.num_sisters} sister${profile.num_sisters === 1 ? '' : 's'}` : null} icon={UsersRound} />
+                    <DetailRow label="Family native / location" value={profile.family_location} icon={MapPin} />
+                  </>
+                ) : (
+                  <DetailRow label="Family type" value={profile.family_type} icon={Home} />
+                )}
                 <DetailRow label="Mother tongue" value={profile.mother_tongue} icon={Languages} />
               </div>
+              {!canViewFullBio && !isOwnProfile && (
+                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shrink-0">
+                      <Lock className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-amber-950">Detailed Family & Sub-caste Locked</p>
+                      <p className="text-[11px] text-amber-800">Upgrade your membership plan to view complete family background and gothra.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeFeature('full_bio')}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 transition-colors shadow-2xs"
+                  >
+                    <Crown className="h-3.5 w-3.5" /> Unlock
+                  </button>
+                </div>
+              )}
             </Section>
 
-            <Section id="personal" title="Personal details">
+            <Section id="horoscope" title="Horoscope & Astrology" description="Astrological compatibility and nakshatra details.">
+              {canViewFullBio || isOwnProfile ? (
+                <div className="grid gap-x-8 md:grid-cols-2">
+                  <DetailRow label="Star / Nakshatra" value={profile.star_nakshatra} icon={Star} />
+                  <DetailRow label="Manglik status" value={profile.manglik_status} icon={Star} />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                      <Star className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-amber-950">Astro & Nakshatra Details Locked</p>
+                      <p className="text-xs text-amber-800">Horoscope and Manglik status are exclusive to upgraded membership plans.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeFeature('full_bio')}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+                  >
+                    <Crown className="h-3.5 w-3.5" /> Unlock Horoscope
+                  </button>
+                </div>
+              )}
+            </Section>
+
+            <Section id="personal" title="Personal details" description="Physical attributes and personal background.">
               <div className="grid gap-x-8 md:grid-cols-2">
                 <DetailRow label="Marital status" value={profile.marital_status} icon={Heart} />
+                <DetailRow label="Age" value={profile.age ? `${profile.age} years` : null} icon={CalendarDays} />
+                <DetailRow label="Gender" value={profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1).toLowerCase() : null} icon={UserRound} />
                 <DetailRow label="Height" value={profile.height} icon={Ruler} />
                 <DetailRow label="Weight" value={profile.weight ? `${profile.weight} kg` : null} icon={Scale} />
                 <DetailRow label="Complexion" value={profile.complexion} icon={UserRound} />
                 <DetailRow label="Blood group" value={profile.blood_group} icon={ShieldCheck} />
+                <DetailRow label="Profile created by" value={profile.profile_created_by} icon={UserRound} />
               </div>
+            </Section>
+
+            <Section id="preferences" title="Partner Preferences" description="Criteria and expectations for a life partner.">
+              {canViewFullBio || isOwnProfile ? (
+                <>
+                  <div className="grid gap-x-8 md:grid-cols-2">
+                    <DetailRow
+                      label="Preferred age"
+                      value={
+                        partnerPrefs?.preferred_age_min && partnerPrefs?.preferred_age_max
+                          ? `${partnerPrefs.preferred_age_min} to ${partnerPrefs.preferred_age_max} years`
+                          : partnerPrefs?.preferred_age_min
+                            ? `From ${partnerPrefs.preferred_age_min} years`
+                            : partnerPrefs?.preferred_age_max
+                              ? `Up to ${partnerPrefs.preferred_age_max} years`
+                              : null
+                      }
+                      icon={CalendarDays}
+                    />
+                    <DetailRow
+                      label="Preferred height"
+                      value={
+                        partnerPrefs?.preferred_height_min && partnerPrefs?.preferred_height_max
+                          ? `${partnerPrefs.preferred_height_min} to ${partnerPrefs.preferred_height_max}`
+                          : partnerPrefs?.preferred_height_min || partnerPrefs?.preferred_height_max
+                      }
+                      icon={Ruler}
+                    />
+                    <DetailRow label="Preferred marital status" value={partnerPrefs?.preferred_marital_status} icon={Heart} />
+                    <DetailRow label="Preferred religion" value={partnerPrefs?.preferred_religion} icon={Heart} />
+                    <DetailRow label="Preferred caste" value={partnerPrefs?.preferred_caste} icon={UsersRound} />
+                    <DetailRow label="Preferred education" value={partnerPrefs?.preferred_education} icon={GraduationCap} />
+                    <DetailRow label="Preferred occupation" value={partnerPrefs?.preferred_occupation} icon={BriefcaseBusiness} />
+                    <DetailRow label="Preferred location" value={partnerPrefs?.preferred_location} icon={MapPin} />
+                  </div>
+                  {(partnerPrefs?.additional_expectations || (profile as any).pref_about) && (
+                    <div className="mt-4 rounded-xl bg-slate-50 border border-slate-100 p-4">
+                      <p className="text-[11px] font-bold uppercase text-slate-400">Additional expectations</p>
+                      <p className="mt-1 text-sm text-slate-700 leading-relaxed">
+                        {partnerPrefs?.additional_expectations || (profile as any).pref_about}
+                      </p>
+                    </div>
+                  )}
+                  {!partnerPrefs && !(profile as any).pref_about && (
+                    <p className="text-xs text-slate-500 italic">No specific partner preferences listed yet.</p>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                      <Lock className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-amber-950">Partner Preferences Locked</p>
+                      <p className="text-xs text-amber-800">See what this member is looking for in an ideal partner by upgrading your plan.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeFeature('full_bio')}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all"
+                  >
+                    <Crown className="h-3.5 w-3.5" /> Unlock Preferences
+                  </button>
+                </div>
+              )}
             </Section>
           </main>
         </div>
@@ -1217,7 +1403,7 @@ export default function ProfilePage() {
               <button type="button" onClick={() => setShowMessageTerms(false)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
             </div>
             <h2 id="message-terms-title" className="mt-5 text-xl font-extrabold text-[#17232d]">Start a respectful conversation</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Keep personal details private until you are comfortable. Never share payments, passwords, or verification codes in chat.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Keep personal details private until you are comfortable. My Dear Partner is not responsible for personal communications, offline meetings, or financial transactions. Never send money, passwords, or banking details in chat.</p>
             <div className="mt-5 flex gap-2">
               <button type="button" onClick={() => setShowMessageTerms(false)} className="flex-1 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
               <button type="button" onClick={() => router.push(`/messages?user=${memberId || profileId}`)} className="flex-1 rounded-lg bg-[#267255] px-4 py-2.5 text-sm font-bold text-white">Continue to chat</button>

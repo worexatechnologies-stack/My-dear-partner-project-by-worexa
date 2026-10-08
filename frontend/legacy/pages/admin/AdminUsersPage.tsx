@@ -7,11 +7,12 @@ import { useSearchParams, useMatch, useNavigate } from '@/lib/router-compat';
 import {
   CheckCircle2, Filter, LoaderCircle, MoreHorizontal, RefreshCw, Search, ShieldOff,
   Trash2, UserCheck, UserX, X, ShieldAlert, BadgeInfo, CreditCard, Clock, Check, AlertTriangle,
-  Users, Camera, FileText, Shield, Ban, ChevronDown, ShieldCheck, RotateCcw
+  Users, Camera, FileText, Shield, Ban, ChevronDown, ShieldCheck, RotateCcw,
+  Crown, Gem, Award
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  getAdminUsers, updateAdminUser, type AdminUser, type AdminUserAction,
+  getAdminUsers, updateAdminUser, grantAdminUserMembership, type AdminUser, type AdminUserAction,
 } from '../../services/adminService';
 import {
   AdminConfirmDialog, AdminEmptyState, AdminErrorState, AdminLoading,
@@ -38,6 +39,14 @@ const STATUS_OPTIONS = [
   { value: 'deleted', label: 'Soft Deleted (Trash)' },
 ];
 
+const MEMBERSHIP_FILTER_OPTIONS = [
+  { value: '', label: 'All Memberships' },
+  { value: 'gold', label: 'Gold' },
+  { value: 'premium', label: 'Premium' },
+  { value: 'elite', label: 'Elite' },
+  { value: 'free', label: 'Free' },
+];
+
 export default function AdminUsersPage() {
   const { user: currentUser, hasAdminPermission } = useAuth();
   const [searchParams] = useSearchParams();
@@ -51,6 +60,7 @@ export default function AdminUsersPage() {
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [membershipFilter, setMembershipFilter] = useState(searchParams.get('plan') || searchParams.get('membership') || '');
   const [gender, setGender] = useState(searchParams.get('gender') || '');
   const [verified, setVerified] = useState(searchParams.get('verified') || '');
   const [period, setPeriod] = useState(searchParams.get('period') || '');
@@ -62,9 +72,16 @@ export default function AdminUsersPage() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Grant Membership modal state
+  const [grantUser, setGrantUser] = useState<AdminUser | null>(null);
+  const [grantPlanSlug, setGrantPlanSlug] = useState('gold');
+  const [grantMonths, setGrantMonths] = useState(12);
+  const [grantBusy, setGrantBusy] = useState(false);
+
   // Sync state when URL search params change
   useEffect(() => {
     const paramStatus = searchParams.get('status') || '';
+    const paramPlan = searchParams.get('plan') || searchParams.get('membership') || '';
     const paramSearch = searchParams.get('search') || '';
     const paramPage = Number(searchParams.get('page')) || 1;
     const paramOrdering = searchParams.get('ordering') || '-date_joined';
@@ -73,6 +90,7 @@ export default function AdminUsersPage() {
     const paramPeriod = searchParams.get('period') || '';
 
     setStatus(paramStatus);
+    setMembershipFilter(paramPlan);
     setSearch(paramSearch);
     setSearchInput(paramSearch);
     setPage(paramPage);
@@ -100,6 +118,7 @@ export default function AdminUsersPage() {
         gender: gender || undefined,
         is_verified: verified || undefined,
         period: period || undefined,
+        plan: membershipFilter || undefined,
         pageSize: PAGE_SIZE,
       });
       setUsers(data.results || []);
@@ -109,7 +128,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, status, ordering, gender, verified, period]);
+  }, [page, search, status, ordering, gender, verified, period, membershipFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -143,6 +162,25 @@ export default function AdminUsersPage() {
       setToast({ message, tone: 'error' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleGrantMembership = async () => {
+    if (!grantUser) return;
+    setGrantBusy(true);
+    try {
+      await grantAdminUserMembership(grantUser.id, grantPlanSlug, grantMonths);
+      setToast({
+        message: `Successfully updated membership for ${grantUser.first_name} to ${grantPlanSlug.toUpperCase()} (${grantMonths} months).`,
+        tone: 'success',
+      });
+      setGrantUser(null);
+      load();
+    } catch (err: any) {
+      const msg = err instanceof Error && err.message ? err.message : 'Failed to grant membership.';
+      setToast({ message: msg, tone: 'error' });
+    } finally {
+      setGrantBusy(false);
     }
   };
 
@@ -241,6 +279,15 @@ export default function AdminUsersPage() {
           ))}
         </select>
         <select
+          value={membershipFilter}
+          onChange={e => { setMembershipFilter(e.target.value); setPage(1); }}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400 font-medium text-slate-700"
+        >
+          {MEMBERSHIP_FILTER_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <select
           value={ordering}
           onChange={e => setOrdering(e.target.value)}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
@@ -256,13 +303,19 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Active Filter Chips */}
-      {(status || gender || verified || period || search) && (
+      {(status || membershipFilter || gender || verified || period || search) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-rose-50/60 border border-rose-100 px-3 py-2 text-xs">
           <span className="font-semibold text-rose-900">Active filters:</span>
           {status && (
             <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-rose-800 shadow-sm border border-rose-200">
               Status: {status.replace(/_/g, ' ')}
               <button type="button" onClick={() => { setStatus(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
+            </span>
+          )}
+          {membershipFilter && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-rose-800 shadow-sm border border-rose-200">
+              Membership: {membershipFilter.charAt(0).toUpperCase() + membershipFilter.slice(1)}
+              <button type="button" onClick={() => { setMembershipFilter(''); setPage(1); }} className="hover:text-red-500 font-bold">&times;</button>
             </span>
           )}
           {gender && (
@@ -293,6 +346,7 @@ export default function AdminUsersPage() {
             type="button"
             onClick={() => {
               setStatus('');
+              setMembershipFilter('');
               setGender('');
               setVerified('');
               setPeriod('');
@@ -403,17 +457,7 @@ export default function AdminUsersPage() {
 
                   {/* Membership */}
                   <td className="py-3 pr-4">
-                    {user.active_membership ? (
-                      <div>
-                        <p className="text-xs font-medium text-slate-800">{user.active_membership.plan_name || 'Plan'}</p>
-                        <BadgeLight
-                          label={user.active_membership.is_active ? 'Active' : 'Expired'}
-                          color={user.active_membership.is_active ? 'emerald' : 'slate'}
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">Free</span>
-                    )}
+                    <MembershipBadge membership={user.active_membership} />
                   </td>
 
                   {/* Account Status */}
@@ -449,11 +493,21 @@ export default function AdminUsersPage() {
                           <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
-                          <div className="absolute right-0 top-full z-20 mt-1 hidden min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg group-hover/actions:block">
+                          <div className="absolute right-0 top-full z-20 mt-1 hidden min-w-[190px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg group-hover/actions:block">
                             {user.profile_status !== 'approved' && (
                               <MenuBtn icon={CheckCircle2} label="Approve Profile" onClick={() => void doAction(user, 'approve_profile')} />
                             )}
                             <MenuBtn icon={UserCheck} label={user.is_active ? 'Suspend' : 'Activate'} onClick={() => setPendingAction({ user, action: user.is_active ? 'deactivate' : 'activate', label: user.is_active ? 'Suspend Member' : 'Activate Member', description: `${user.is_active ? 'Deactivate' : 'Reactivate'} ${user.first_name}'s account?`, dangerous: user.is_active })} />
+                            <MenuBtn
+                              icon={Crown}
+                              label="Grant / Upgrade Plan"
+                              onClick={() => {
+                                setGrantUser(user);
+                                const currentSlug = user.active_membership?.plan_slug || 'gold';
+                                setGrantPlanSlug(currentSlug === 'free' ? 'gold' : currentSlug);
+                                setGrantMonths(12);
+                              }}
+                            />
                             {hasAdminPermission('members.delete') && (
                               (user as any).is_deleted || (user as any).deleted_at ? (
                                 <MenuBtn icon={RotateCcw} label="Recover Account" onClick={() => setPendingAction({ user, action: 'restore', label: 'Recover Member Account', description: `Recover ${user.first_name} within the 30-day recovery window?`, dangerous: false })} />
@@ -511,6 +565,20 @@ export default function AdminUsersPage() {
           busy={busy}
           onConfirm={() => doAction(pendingAction.user, pendingAction.action)}
           onCancel={() => setPendingAction(null)}
+        />
+      )}
+
+      {/* Grant Membership modal */}
+      {grantUser && (
+        <GrantMembershipModal
+          user={grantUser}
+          planSlug={grantPlanSlug}
+          setPlanSlug={setGrantPlanSlug}
+          months={grantMonths}
+          setMonths={setGrantMonths}
+          busy={grantBusy}
+          onConfirm={handleGrantMembership}
+          onClose={() => setGrantUser(null)}
         />
       )}
     </div>
@@ -592,5 +660,231 @@ function MenuBtn({ icon: Icon, label, onClick }: { icon: any; label: string; onC
       <Icon className="h-4 w-4 text-slate-400" />
       {label}
     </button>
+  );
+}
+
+function MembershipBadge({ membership }: { membership?: AdminUser['active_membership'] }) {
+  if (!membership || membership.is_free || !membership.is_paid) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Free
+        </span>
+        <span className="text-[10px] text-slate-400 font-medium pl-0.5">Standard Tier</span>
+      </div>
+    );
+  }
+
+  const slug = (membership.plan_slug || membership.plan_name || '').toLowerCase();
+  const planName = membership.plan_name || (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : 'Paid');
+  const daysLeft = membership.days_remaining;
+  const isExpired = !membership.is_active || (daysLeft !== null && daysLeft !== undefined && daysLeft <= 0);
+
+  if (isExpired) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+          <Clock className="h-3 w-3 text-rose-500" />
+          {planName}
+        </span>
+        <span className="text-[10px] font-medium text-rose-600 pl-0.5">Expired</span>
+      </div>
+    );
+  }
+
+  if (slug.includes('gold')) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-amber-50 to-yellow-100 border border-amber-300 px-2.5 py-0.5 text-xs font-bold text-amber-900 shadow-xs">
+          <Crown className="h-3.5 w-3.5 text-amber-600 fill-amber-400/40" />
+          Gold
+        </span>
+        <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1 pl-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Active {daysLeft !== null && daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  if (slug.includes('premium')) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center rounded-md bg-purple-50 border border-purple-300 px-2.5 py-0.5 text-xs font-bold text-purple-950 shadow-xs">
+          Premium
+        </span>
+        <span className="text-[10px] font-semibold text-purple-700 flex items-center gap-1 pl-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Active {daysLeft !== null && daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  if (slug.includes('elite')) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 border border-slate-700 px-2.5 py-0.5 text-xs font-bold text-amber-300 shadow-xs">
+          <Gem className="h-3.5 w-3.5 text-amber-300" />
+          Elite
+        </span>
+        <span className="text-[10px] font-semibold text-slate-700 flex items-center gap-1 pl-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Active {daysLeft !== null && daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-xs">
+        <Award className="h-3.5 w-3.5 text-emerald-600" />
+        {planName}
+      </span>
+      <span className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1 pl-0.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Active {daysLeft !== null && daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
+      </span>
+    </div>
+  );
+}
+
+function GrantMembershipModal({
+  user,
+  planSlug,
+  setPlanSlug,
+  months,
+  setMonths,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  user: AdminUser;
+  planSlug: string;
+  setPlanSlug: (slug: string) => void;
+  months: number;
+  setMonths: (m: number) => void;
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const plans = [
+    {
+      slug: 'gold',
+      name: 'Gold',
+      icon: Crown,
+      price: '₹1,199',
+      color: 'border-amber-300 bg-amber-50/50 hover:border-amber-400 text-amber-900',
+      activeColor: 'border-amber-500 bg-amber-100 ring-2 ring-amber-400 text-amber-950 font-bold',
+    },
+    {
+      slug: 'premium',
+      name: 'Premium',
+      icon: ShieldCheck,
+      price: '₹2,499',
+      color: 'border-purple-300 bg-purple-50/50 hover:border-purple-400 text-purple-900',
+      activeColor: 'border-purple-500 bg-purple-100 ring-2 ring-purple-400 text-purple-950 font-bold',
+    },
+    {
+      slug: 'elite',
+      name: 'Elite',
+      icon: Gem,
+      price: '₹1,499',
+      color: 'border-slate-300 bg-slate-50 hover:border-slate-500 text-slate-800',
+      activeColor: 'border-slate-800 bg-slate-900 text-amber-300 ring-2 ring-slate-800 font-bold',
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+              <Crown className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Grant / Upgrade Membership</h3>
+              <p className="text-xs text-slate-500">For {user.first_name} {user.last_name || ''} ({user.email})</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-2">Select Tier</label>
+            <div className="grid grid-cols-3 gap-2.5">
+              {plans.map(p => {
+                const Icon = p.icon;
+                const isSelected = planSlug === p.slug;
+                return (
+                  <button
+                    key={p.slug}
+                    type="button"
+                    onClick={() => setPlanSlug(p.slug)}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                      isSelected ? p.activeColor : p.color
+                    }`}
+                  >
+                    <Icon className="w-5 h-5 mb-1" />
+                    <span className="text-xs font-bold">{p.name}</span>
+                    <span className="text-[10px] opacity-75">{p.price}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-2">Duration</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 3, 6, 12].map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMonths(m)}
+                  className={`py-2 px-3 rounded-lg border text-xs font-semibold text-center transition-all ${
+                    months === m
+                      ? 'border-rose-500 bg-rose-50 text-rose-700 ring-1 ring-rose-500'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {m} {m === 1 ? 'Month' : 'Months'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-amber-50/70 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+            <BadgeInfo className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>This will immediately activate the <strong>{planSlug.toUpperCase()}</strong> plan for <strong>{months} months</strong> and grant all tier features and daily limits.</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200 transition flex items-center gap-1.5"
+          >
+            {busy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+            Confirm & Grant
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -28,6 +28,10 @@ from .views import (
     MemberVerificationStatusView,
     UserSessionsView,
 )
+from .settings_views import (
+    UserPrivacySettingsView,
+    UserSettingsView,
+)
 from .verification_views import (
     MemberDocumentDownloadView,
     MemberDocumentPreviewView,
@@ -67,6 +71,8 @@ app_name = 'member_auth'
 urlpatterns = [
     path('register/', MemberRegisterView.as_view(), name='register'),
     path('login/', MemberLoginView.as_view(), name='login'),
+    path('privacy-settings/', UserPrivacySettingsView.as_view(), name='privacy_settings'),
+    path('settings/', UserSettingsView.as_view(), name='settings'),
     path('account/delete/', MemberAccountDeletionView.as_view(), name='account_delete'),
     path('account/pause/', MemberAccountPauseView.as_view(), name='account_pause'),
     path('account/recovery/verify/', MemberAccountRecoveryVerifyView.as_view(), name='account_recovery_verify'),

@@ -1,4 +1,4 @@
-'use client';
+    'use client';
 
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { useEffect, useRef, type ReactNode } from 'react';

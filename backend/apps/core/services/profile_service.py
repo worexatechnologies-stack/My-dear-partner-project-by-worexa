@@ -54,6 +54,34 @@ class ProfileService:
 
         filters = filters or {}
         
+        # Discover feed exclusions: when browsing Discover, hide members already interacted with
+        # (interests sent, likes, accepted matches in either direction, and passed profiles).
+        purpose = str(filters.get('purpose', '')).strip().lower()
+        exclude_interacted = (
+            str(filters.get('exclude_interacted', '')).strip().lower() in ('true', '1')
+            or purpose == 'discover'
+        )
+        if viewer and getattr(viewer, 'is_authenticated', False) and exclude_interacted:
+            from apps.core.models import Interest
+            from apps.matching.models import MemberPass
+
+            # 1. Hide members viewer sent an interest or like to
+            sent_receivers = Interest.objects.filter(sender=viewer).values_list('receiver_id', flat=True)
+            queryset = queryset.exclude(pk__in=sent_receivers)
+
+            # 2. Hide accepted matches (in either direction)
+            accepted_match_senders = Interest.objects.filter(
+                receiver=viewer,
+                status=Interest.Status.ACCEPTED
+            ).values_list('sender_id', flat=True)
+            queryset = queryset.exclude(pk__in=accepted_match_senders)
+
+            # 3. Hide members the viewer passed in Discover
+            passed_members = MemberPass.objects.filter(
+                user=viewer
+            ).values_list('profile__member_id', flat=True)
+            queryset = queryset.exclude(pk__in=passed_members)
+
         # Basic text search (allowed for all plans)
         search = filters.get('search', '').strip()
         if search:
@@ -441,6 +469,7 @@ class ProfileService:
                     'can_send_interest': interest_usage['remaining_today'] is None or interest_usage['remaining_today'] > 0,
                     'interests_remaining_today': interest_usage['remaining_today'],
                     'can_message': can_message,
+                    'can_view_full_profile': getattr(plan, 'can_view_full_profile', True) if plan else True,
                     'contact_access_mode': contact_mode.lower(),
                     'photo_access_mode': photo_mode.lower(),
                     'resets_at': access_data.get('resets_at'),
@@ -500,6 +529,21 @@ class ProfileService:
 
         if MatchClosureService.has_closed_match(viewer, target):
             return False, 'NONE'
+        
+        # Check target member privacy settings
+        target_settings = getattr(target, 'account_settings', None)
+        if target_settings is None:
+            try:
+                from apps.accounts.models import MemberAccountSettings
+                target_settings = MemberAccountSettings.objects.filter(member=target).first()
+            except Exception:
+                target_settings = None
+        if target_settings:
+            if target_settings.contact_visibility == 'HIDDEN':
+                return False, 'NONE'
+            if target_settings.contact_visibility == 'CONNECTED_ONLY':
+                if not InterestService.has_mutual_interest(viewer, target):
+                    return False, 'MUTUAL_ONLY'
         
         plan = MembershipService.get_effective_plan(viewer)
         contact_mode = getattr(plan, 'contact_access_mode', 'NONE') if plan else 'NONE'

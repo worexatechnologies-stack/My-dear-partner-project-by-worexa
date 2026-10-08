@@ -31,8 +31,8 @@ class MembershipPlan(models.Model):
     rank = models.IntegerField(default=99, help_text='Numeric rank for upgrade ordering (1=Free, 2=Gold, 3=Platinum, 4=Elite)')
     
     # Entitlement parameters (compat and detailed)
-    profile_view_limit_daily = models.IntegerField(default=10)
-    interest_limit_daily = models.IntegerField(default=3)
+    profile_view_limit_daily = models.IntegerField(null=True, blank=True, default=10, help_text='Null = unlimited')
+    interest_limit_daily = models.IntegerField(null=True, blank=True, default=3, help_text='Null = unlimited')
     message_limit_daily = models.IntegerField(null=True, blank=True, default=0, help_text='Null = unlimited')
     
     daily_profile_unlock_limit = models.IntegerField(null=True, blank=True)
@@ -73,6 +73,7 @@ class MembershipPlan(models.Model):
     # Flags & Priorities
     can_use_advanced_search = models.BooleanField(default=False)
     can_use_horoscope = models.BooleanField(default=False)
+    can_view_full_profile = models.BooleanField(default=True, help_text='Whether subscribers of this plan can view full bio and complete in-depth profile details')
     profile_boost_level = models.CharField(max_length=20, default='NONE') # e.g. NONE, MEDIUM, STRONG
     support_priority = models.CharField(max_length=20, default='STANDARD') # e.g. STANDARD, HIGH
     

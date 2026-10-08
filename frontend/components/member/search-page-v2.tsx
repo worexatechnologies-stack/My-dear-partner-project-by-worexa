@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { SelectWithOther } from '@/components/shared/select-with-other';
 import {
   AlertCircle,
   BadgeCheck,
@@ -174,20 +175,13 @@ function FilterPanel({
         <div>
           <label className="block">
             <span className={labelStyle}>Religion</span>
-            <div className="relative">
-              <Building2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-              <select
-                value={filters.religion}
-                onChange={(event) => onChange('religion', event.target.value)}
-                className={`${selectStyle} pl-8.5`}
-              >
-                <option value="">Any Religion</option>
-                {['Hindu', 'Muslim', 'Christian', 'Sikh', 'Jain', 'Buddhist', 'Jewish', 'Parsi', 'Other'].map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-            </div>
+            <SelectWithOther
+              value={filters.religion}
+              options={['Hindu', 'Muslim', 'Christian', 'Sikh', 'Jain', 'Buddhist', 'Jewish', 'Parsi', 'Other']}
+              onChange={(v) => onChange('religion', v)}
+              placeholder="Any Religion"
+              inputClassName={selectStyle}
+            />
           </label>
         </div>
 
@@ -212,20 +206,13 @@ function FilterPanel({
         <div>
           <label className="block">
             <span className={labelStyle}>Education</span>
-            <div className="relative">
-              <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-              <select
-                value={filters.education}
-                onChange={(event) => onChange('education', event.target.value)}
-                className={`${selectStyle} pl-8.5`}
-              >
-                <option value="">Any Education</option>
-                {['High School', 'Diploma', 'B.Tech', 'B.Com', 'B.Sc', 'BA', 'BE', 'BBA', 'MBA', 'MCA', 'M.Tech', 'MBBS', 'MD', 'PhD', 'Other'].map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-            </div>
+            <SelectWithOther
+              value={filters.education}
+              options={['High School', 'Diploma', 'B.Tech', 'B.Com', 'B.Sc', 'BA', 'BE', 'BBA', 'MBA', 'MCA', 'M.Tech', 'MBBS', 'MD', 'PhD', 'Other']}
+              onChange={(v) => onChange('education', v)}
+              placeholder="Any Education"
+              inputClassName={selectStyle}
+            />
           </label>
         </div>
 
@@ -282,20 +269,13 @@ function FilterPanel({
             <div>
               <label className="block">
                 <span className={labelStyle}>Mother tongue</span>
-                <div className="relative">
-                  <Languages className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-                  <select
-                    value={filters.mother_tongue}
-                    onChange={(event) => onChange('mother_tongue', event.target.value)}
-                    className={`${selectStyle} pl-8.5`}
-                  >
-                    <option value="">Any Language</option>
-                    {['Hindi', 'English', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi', 'Urdu', 'Odia', 'Other'].map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8c7a82]" />
-                </div>
+                <SelectWithOther
+                  value={filters.mother_tongue}
+                  options={['Hindi', 'English', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi', 'Urdu', 'Odia', 'Other']}
+                  onChange={(v) => onChange('mother_tongue', v)}
+                  placeholder="Any Language"
+                  inputClassName={selectStyle}
+                />
               </label>
             </div>
           </div>

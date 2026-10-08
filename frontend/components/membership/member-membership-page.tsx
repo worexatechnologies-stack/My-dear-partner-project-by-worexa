@@ -253,7 +253,7 @@ export default function MemberMembershipPage() {
     if (days === 30) return '1 Month';
     if (days === 90) return '3 Months';
     if (days === 180) return '6 Months';
-    if (days === 365) return '12 Months';
+    if (days === 365 || days === 360) return '12 Months';
     return `${days} Days`;
   };
 
@@ -865,19 +865,19 @@ export default function MemberMembershipPage() {
                       </div>
                     )}
                     <div className="space-y-3">
-                      {/* Base / 1 Month */}
+                      {/* 1 Month */}
                       {(() => {
                         const rawPrice = parseFloat(selectedPlan.price);
                         const netPayable = Math.max(0, rawPrice - activeCredit);
                         const creditApplied = Math.min(rawPrice, activeCredit);
                         return (
                           <button
-                            onClick={() => handleProceedToPayment(selectedPlan.duration_days)}
+                            onClick={() => handleProceedToPayment(30)}
                             className="w-full flex items-center justify-between px-5 py-4 rounded-xl border-2 border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 transition-all text-left"
                           >
                             <div>
-                              <div className="font-bold text-ink">{formatDuration(selectedPlan.duration_days)}</div>
-                              <div className="text-xs text-muted">About {'\u20B9'}{Math.round(netPayable / ((selectedPlan.duration_days || 30) / 30)).toLocaleString('en-IN')} / month</div>
+                              <div className="font-bold text-ink">1 Month</div>
+                              <div className="text-xs text-muted">About {'\u20B9'}{Math.round(netPayable).toLocaleString('en-IN')} / month</div>
                             </div>
                             <div className="text-right">
                               {activeCredit > 0 && rawPrice > 0 ? (
@@ -899,7 +899,7 @@ export default function MemberMembershipPage() {
                       })()}
 
                       {/* 3 Months */}
-                      {selectedPlan.price_3m && Number(selectedPlan.price_3m) > 0 && (!selectedPlan.duration_days || selectedPlan.duration_days !== 90) && (() => {
+                      {selectedPlan.price_3m && Number(selectedPlan.price_3m) > 0 && (() => {
                         const rawPrice = parseFloat(selectedPlan.price_3m);
                         const netPayable = Math.max(0, rawPrice - activeCredit);
                         const creditApplied = Math.min(rawPrice, activeCredit);
@@ -935,7 +935,7 @@ export default function MemberMembershipPage() {
                       })()}
 
                       {/* 6 Months */}
-                      {selectedPlan.price_6m && Number(selectedPlan.price_6m) > 0 && (!selectedPlan.duration_days || selectedPlan.duration_days !== 180) && (() => {
+                      {selectedPlan.price_6m && Number(selectedPlan.price_6m) > 0 && (() => {
                         const rawPrice = parseFloat(selectedPlan.price_6m);
                         const netPayable = Math.max(0, rawPrice - activeCredit);
                         const creditApplied = Math.min(rawPrice, activeCredit);
@@ -971,7 +971,7 @@ export default function MemberMembershipPage() {
                       })()}
 
                       {/* 12 Months */}
-                      {selectedPlan.price_1y && Number(selectedPlan.price_1y) > 0 && (!selectedPlan.duration_days || (selectedPlan.duration_days !== 365 && selectedPlan.duration_days !== 360)) && (() => {
+                      {selectedPlan.price_1y && Number(selectedPlan.price_1y) > 0 && (() => {
                         const rawPrice = parseFloat(selectedPlan.price_1y);
                         const netPayable = Math.max(0, rawPrice - activeCredit);
                         const creditApplied = Math.min(rawPrice, activeCredit);

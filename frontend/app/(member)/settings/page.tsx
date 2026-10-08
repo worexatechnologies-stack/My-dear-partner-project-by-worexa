@@ -234,11 +234,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'security'
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${activeTab === 'security'
               ? 'bg-[#e11d48] text-white shadow-sm shadow-rose-500/20'
               : 'text-slate-600 hover:bg-[#f7f4f5] hover:text-[#0f0f10]'
-          }`}
+            }`}
         >
           <Lock className="w-3.5 h-3.5" strokeWidth={activeTab === 'security' ? 2.2 : 1.85} />
           <span>Security & Password</span>
@@ -247,11 +246,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab('membership')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'membership'
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${activeTab === 'membership'
               ? 'bg-[#e11d48] text-white shadow-sm shadow-rose-500/20'
               : 'text-slate-600 hover:bg-[#f7f4f5] hover:text-[#0f0f10]'
-          }`}
+            }`}
         >
           <CreditCard className="w-3.5 h-3.5" strokeWidth={activeTab === 'membership' ? 2.2 : 1.85} />
           <span>Membership</span>
@@ -260,11 +258,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab('actions')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            activeTab === 'actions'
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${activeTab === 'actions'
               ? 'bg-[#e11d48] text-white shadow-sm shadow-rose-500/20'
               : 'text-slate-600 hover:bg-[#f7f4f5] hover:text-[#0f0f10]'
-          }`}
+            }`}
         >
           <ShieldAlert className="w-3.5 h-3.5" strokeWidth={activeTab === 'actions' ? 2.2 : 1.85} />
           <span>Account Actions</span>
@@ -290,11 +287,10 @@ export default function SettingsPage() {
 
             {pwNotice && (
               <div
-                className={`mt-4 rounded-xl px-4 py-3 text-xs font-medium flex items-center gap-2 ${
-                  pwNotice.error
+                className={`mt-4 rounded-xl px-4 py-3 text-xs font-medium flex items-center gap-2 ${pwNotice.error
                     ? 'bg-rose-50 border border-rose-200 text-rose-800'
                     : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                }`}
+                  }`}
               >
                 {pwNotice.error ? (
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -520,11 +516,10 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                  profilePaused
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${profilePaused
                     ? 'bg-amber-100 text-amber-800 border-amber-300'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }`}>
+                  }`}>
                   {profilePaused ? <Play className="w-5 h-5" strokeWidth={1.85} /> : <Pause className="w-5 h-5" strokeWidth={1.85} />}
                 </div>
                 <div>
@@ -550,11 +545,10 @@ export default function SettingsPage() {
                 type="button"
                 disabled={pauseBusy}
                 onClick={handleTogglePause}
-                className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 ${
-                  profilePaused
+                className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 ${profilePaused
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/20'
                     : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                }`}
+                  }`}
               >
                 {pauseBusy ? (
                   <>

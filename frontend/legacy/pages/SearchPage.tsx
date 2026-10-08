@@ -440,7 +440,7 @@ export default function SearchPage() {
                   <p className="flex gap-2"><Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-600" strokeWidth={2.5} />Be kind and communicate with respect.</p>
                   <p className="flex gap-2"><Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-600" strokeWidth={2.5} />Protect your personal contact and financial details.</p>
                 </div>
-                <p className="mb-4 text-[10.5px] leading-relaxed text-[#9b7385]">My Dear Partner is not responsible for information shared outside the platform.</p>
+                <p className="mb-4 text-[10.5px] leading-relaxed text-[#9b7385]">My Dear Partner is not responsible for personal communications, off-platform meetings, or financial transactions. Never send money to anyone.</p>
                 <div className="flex gap-2.5">
                   <button type="button" onClick={() => setMsgProfile(null)}
                     className="flex-1 rounded-xl border border-[#e8d8e0] py-2.5 text-[12.5px] font-bold text-[#7a6070] hover:bg-[#fdf7f9] transition-colors">Cancel</button>

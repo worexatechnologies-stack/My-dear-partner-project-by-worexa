@@ -236,6 +236,7 @@ class MemberSerializer(serializers.ModelSerializer):
             active_membership = MemberMembership.objects.filter(member=instance, is_active=True).first()
         if active_membership:
             plan = active_membership.plan
+            is_paid_plan = bool(plan and getattr(plan, 'price', 0) and float(plan.price) > 0)
             days_remaining = None
             if active_membership.end_date:
                 delta = active_membership.end_date - timezone.now()
@@ -253,19 +254,35 @@ class MemberSerializer(serializers.ModelSerializer):
             else:
                 interests_today = Interest.objects.filter(sender=instance, created_at__date=today).count()
             
+            pv_limit = getattr(plan, 'profile_view_limit_daily', None) if (plan and is_paid_plan) else getattr(plan, 'profile_view_limit_daily', 5)
+            int_limit = getattr(plan, 'interest_limit_daily', None) if (plan and is_paid_plan) else getattr(plan, 'interest_limit_daily', 5)
+            msg_limit = getattr(plan, 'message_limit_daily', None) if is_paid_plan else 0
+            vis_limit = getattr(plan, 'profile_visitors_limit', None) if is_paid_plan else 4
+
             data['active_membership'] = {
                 'plan_name': plan.name if plan else 'Free',
                 'plan_slug': plan.slug if plan else 'free',
+                'plan': {
+                    'id': str(plan.id),
+                    'name': plan.name,
+                    'slug': plan.slug,
+                    'badge': getattr(plan, 'badge', ''),
+                    'color': getattr(plan, 'color', ''),
+                } if plan else None,
+                'is_paid': is_paid_plan,
+                'is_free': not is_paid_plan,
                 'start_date': active_membership.start_date,
                 'end_date': active_membership.end_date,
                 'days_remaining': days_remaining,
                 'is_active': active_membership.is_active,
                 'features': plan.features if plan else [],
                 'limits': {
-                    'daily_views_limit': plan.daily_profile_unlock_limit if (plan and plan.daily_profile_unlock_limit is not None) else 5,
+                    'daily_views_limit': pv_limit,
                     'daily_views_used': views_today,
-                    'daily_interests_limit': plan.interest_limit_daily if plan else 5,
+                    'daily_interests_limit': int_limit,
                     'daily_interests_used': interests_today,
+                    'daily_messages_limit': msg_limit,
+                    'profile_visitors_limit': vis_limit,
                 }
             }
         else:
@@ -283,10 +300,19 @@ class MemberSerializer(serializers.ModelSerializer):
             data['active_membership'] = {
                 'plan_name': 'Free',
                 'plan_slug': 'free',
+                'plan': {
+                    'id': None,
+                    'name': 'Free',
+                    'slug': 'free',
+                    'badge': 'Free',
+                    'color': 'gray',
+                },
+                'is_paid': False,
+                'is_free': True,
                 'start_date': None,
                 'end_date': None,
                 'days_remaining': None,
-                'is_active': True,
+                'is_active': False,
                 'features': [
                     'Create your profile',
                     'Browse profiles',
