@@ -2718,7 +2718,7 @@ class AdminPaymentDetailView(ScopedAPIView):
                 'id': str(order.membership_plan.pk) if order.membership_plan else None,
                 'name': order.membership_plan.name if order.membership_plan else 'No plan',
                 'price': str(order.membership_plan.price) if order.membership_plan else '0.00',
-                'duration_days': order.membership_plan.duration_days if order.membership_plan else 0
+                'duration_days': order.duration_days_snapshot or (order.membership_plan.duration_days if order.membership_plan else 0)
             },
             'transactions': txs_serialized,
             'refunds': refunds_serialized

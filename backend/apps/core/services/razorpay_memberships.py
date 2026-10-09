@@ -129,10 +129,10 @@ class RazorpayMembershipService:
 
         if target_days == plan.duration_days:
             resolved_price = plan.price
-            duration_days = plan.duration_days
+            duration_days = target_days if target_days in (30, 90, 180, 365) else plan.duration_days
         else:
             price_map = {
-                30: plan.price if plan.duration_days == 30 else (plan.price if not plan.price_3m else (plan.price / Decimal('3.0')).quantize(Decimal('0.01'))),
+                30: plan.price if (plan.duration_days == 30 or (plan.price_3m and plan.price <= plan.price_3m)) else (plan.price if not plan.price_3m else (plan.price / Decimal('3.0')).quantize(Decimal('0.01'))),
                 90: plan.price_3m or (plan.price if plan.duration_days == 90 else (plan.price * Decimal('3.0')).quantize(Decimal('0.01'))),
                 180: plan.price_6m or (plan.price if plan.duration_days == 180 else (plan.price * Decimal('6.0')).quantize(Decimal('0.01'))),
                 365: plan.price_1y or (plan.price if plan.duration_days in (360, 365) else (plan.price * Decimal('12.0')).quantize(Decimal('0.01'))),

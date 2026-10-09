@@ -53,15 +53,30 @@ def normalize_durations(apps, schema_editor):
                 plan.price_1y = t['price_1y']
                 plan.discount_1y = t['discount_1y']
                 updated_fields.extend(['price_1y', 'discount_1y'])
-            if float(plan.price) in (2999.0, 5999.0, 14999.0, 0.0) and plan.slug != 'free':
-                plan.price = t['price']
-                updated_fields.append('price')
+            # Do not overwrite manually configured production prices without an explicit migration rule.
+            # Only unconfigured baseline rows with missing multi-month pricing and exact legacy seed values
+            # are adjusted to default 1-month tier prices.
+            if not plan.price_3m and not plan.price_6m and not plan.price_1y:
+                if float(plan.price) in (2999.0, 5999.0, 14999.0, 0.0) and plan.slug != 'free':
+                    plan.price = t['price']
+                    updated_fields.append('price')
         if updated_fields:
             plan.save(update_fields=list(set(updated_fields)))
 
 
 def reverse_normalize(apps, schema_editor):
-    pass
+    MembershipPlan = apps.get_model('core', 'MembershipPlan')
+    legacy_durations = {
+        'gold': (90, '3 Months'),
+        'elite': (180, '6 Months'),
+        'premium': (360, '12 Months'),
+    }
+    for plan in MembershipPlan.objects.all():
+        if plan.slug in legacy_durations:
+            days, label = legacy_durations[plan.slug]
+            plan.duration_days = days
+            plan.duration = label
+            plan.save(update_fields=['duration_days', 'duration'])
 
 
 class Migration(migrations.Migration):

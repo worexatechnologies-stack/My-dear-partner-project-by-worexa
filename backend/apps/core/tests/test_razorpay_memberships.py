@@ -217,7 +217,7 @@ def test_six_and_twelve_months_orders(mock_urlopen, verified_member, plan):
     plan.price_6m = Decimal('4999.00')
     plan.price_1y = Decimal('7999.00')
     plan.save(update_fields=('duration_days', 'price', 'price_6m', 'price_1y'))
-    mock_urlopen.return_value = _order_ctx('order_test_6m_12m')
+    mock_urlopen.side_effect = [_order_ctx('order_test_6m'), _order_ctx('order_test_12m')]
 
     order_6m, _ = RazorpayMembershipService.create_order(
         member=verified_member,
@@ -640,3 +640,280 @@ def test_reconciliation_management_command(mock_urlopen, verified_member, plan):
     order.refresh_from_db()
     assert order.status in ('expired', 'created')
     assert 'Reconciliation' in out.getvalue()
+
+
+@pytest.fixture
+def production_plans():
+    """Create plans mimicking production database state."""
+    gold, _ = MembershipPlan.objects.update_or_create(
+        slug='gold',
+        defaults={
+            'name': 'Gold',
+            'price': Decimal('99.00'),
+            'duration_days': 30,
+            'duration': '30 Days',
+            'price_3m': Decimal('199.00'),
+            'price_6m': Decimal('399.00'),
+            'price_1y': Decimal('999.00'),
+            'currency': 'INR',
+            'is_active': True,
+            'rank': 2,
+        }
+    )
+    elite, _ = MembershipPlan.objects.update_or_create(
+        slug='elite',
+        defaults={
+            'name': 'Elite',
+            'price': Decimal('1999.00'),
+            'duration_days': 30,
+            'duration': '30 Days',
+            'price_3m': Decimal('3499.00'),
+            'price_6m': Decimal('5999.00'),
+            'price_1y': Decimal('9999.00'),
+            'currency': 'INR',
+            'is_active': True,
+            'rank': 3,
+        }
+    )
+    premium, _ = MembershipPlan.objects.update_or_create(
+        slug='premium',
+        defaults={
+            'name': 'Premium',
+            'price': Decimal('199.00'),
+            'duration_days': 30,
+            'duration': '30 Days',
+            'price_3m': Decimal('4999.00'),
+            'price_6m': Decimal('8999.00'),
+            'price_1y': Decimal('14999.00'),
+            'currency': 'INR',
+            'is_active': True,
+            'rank': 4,
+        }
+    )
+    return {'gold': gold, 'elite': elite, 'premium': premium}
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_production_plans_billing_durations_pricing(mock_urlopen, verified_member, production_plans):
+    """Test 30d, 90d, 180d, 365d pricing for all production tiers."""
+    cases = [
+        # Gold: duration 90 days, price 99, price_3m 199, price_6m 399, price_1y 999
+        ('gold', 30, Decimal('99.00'), 30),
+        ('gold', 90, Decimal('199.00'), 90),
+        ('gold', 180, Decimal('399.00'), 180),
+        ('gold', 365, Decimal('999.00'), 365),
+        ('gold', 360, Decimal('999.00'), 365),
+        # Elite: duration 180 days, price 1999, price_3m 3499, price_6m 5999, price_1y 9999
+        ('elite', 30, Decimal('1999.00'), 30),
+        ('elite', 90, Decimal('3499.00'), 90),
+        ('elite', 180, Decimal('5999.00'), 180),
+        ('elite', 365, Decimal('9999.00'), 365),
+        # Premium: duration 360 days, price 199, price_3m 4999, price_6m 8999, price_1y 14999
+        ('premium', 30, Decimal('199.00'), 30),
+        ('premium', 90, Decimal('4999.00'), 90),
+        ('premium', 180, Decimal('8999.00'), 180),
+        ('premium', 365, Decimal('14999.00'), 365),
+    ]
+    for i, (slug, req_duration, expected_price, expected_duration) in enumerate(cases):
+        plan_obj = production_plans[slug]
+        mock_urlopen.return_value = _order_ctx(f'order_prod_test_{slug}_{req_duration}_{i}')
+        order, missing = RazorpayMembershipService.create_order(
+            member=verified_member,
+            plan=plan_obj,
+            duration_days=req_duration,
+        )
+        assert missing == []
+        assert order.amount == expected_price, f"{slug} for {req_duration}d expected {expected_price}, got {order.amount}"
+        assert order.duration_days_snapshot == expected_duration
+        assert order.amount_subunits == int(expected_price * 100)
+
+
+@RAZORPAY_PATCH
+@patch.object(rz_module, 'urlopen')
+def test_production_plans_activation_and_expiry_lifecycle(mock_urlopen, verified_member, production_plans):
+    """Test payment verification, activation, and expiration calculation."""
+    for duration in [30, 90, 180, 365]:
+        plan_obj = production_plans['gold']
+        order_id = f'order_act_{duration}'
+        payment_id = f'pay_act_{duration}'
+        mock_urlopen.return_value = _order_ctx(order_id)
+
+        order, _ = RazorpayMembershipService.create_order(
+            member=verified_member,
+            plan=plan_obj,
+            duration_days=duration,
+        )
+        assert order.duration_days_snapshot == duration
+
+        mock_urlopen.return_value = _payment_ctx(
+            payment_id=payment_id,
+            order_id=order.razorpay_order_id,
+            amount=int(order.amount * 100),
+        )
+        sig = _valid_signature(order.razorpay_order_id, payment_id)
+
+        purchase = RazorpayMembershipService.verify_payment_details(
+            order_id=order.razorpay_order_id,
+            payment_id=payment_id,
+            signature=sig,
+            member=verified_member,
+        )
+
+        assert purchase.duration_days_snapshot == duration
+        assert purchase.status == 'active'
+        delta = (purchase.expires_at - purchase.starts_at).total_seconds()
+        assert abs(delta - (duration * 86400)) < 10
+
+        mem = MemberMembership.objects.get(member=verified_member, is_active=True)
+        assert mem.plan == plan_obj
+        mem_delta = (mem.expires_at - mem.started_at).total_seconds()
+        assert abs(mem_delta - (duration * 86400)) < 10
+
+
+def test_existing_active_memberships_independent_of_plan_duration_days_change(verified_member):
+    """Verify existing active memberships do not rely dynamically on plan.duration_days."""
+    from django.utils import timezone
+    from datetime import timedelta
+    plan_obj = MembershipPlan.objects.create(
+        slug='test_legacy_plan',
+        name='Legacy Plan',
+        price=Decimal('99.00'),
+        duration_days=90,
+        is_active=True,
+    )
+    now = timezone.now()
+    original_expiry = now + timedelta(days=90)
+    membership = MemberMembership.objects.create(
+        member=verified_member,
+        plan=plan_obj,
+        start_date=now,
+        end_date=original_expiry,
+        started_at=now,
+        expires_at=original_expiry,
+        is_active=True,
+        status=MemberMembership.MembershipStatus.ACTIVE,
+    )
+    MembershipPurchase.objects.create(
+        user=verified_member,
+        membership_plan=plan_obj,
+        price_snapshot=Decimal('99.00'),
+        currency='INR',
+        duration_days_snapshot=90,
+        starts_at=now,
+        expires_at=original_expiry,
+        status='active',
+    )
+
+    # Change plan.duration_days from 90 to 30 (simulating migration 0051)
+    plan_obj.duration_days = 30
+    plan_obj.save(update_fields=['duration_days'])
+
+    membership.refresh_from_db()
+    # Expiry dates must NOT change
+    assert membership.expires_at == original_expiry
+    assert membership.end_date == original_expiry
+    assert membership.is_active is True
+
+    # Expiry service must not prematurely expire the membership
+    from apps.core.services.membership_service import MembershipService
+    has_expired = MembershipService.check_membership_expiry(verified_member)
+    assert has_expired is False
+    membership.refresh_from_db()
+    assert membership.is_active is True
+    assert MembershipService.get_effective_plan(verified_member) == plan_obj
+
+
+def test_migration_0051_preserves_manually_configured_production_prices():
+    """Verify migration 0051 normalizes duration without overwriting production prices."""
+    import importlib
+    mig_0051 = importlib.import_module('apps.core.migrations.0051_normalize_membership_durations')
+    normalize_durations = mig_0051.normalize_durations
+    reverse_normalize = mig_0051.reverse_normalize
+    from django.apps import apps
+
+    # Setup production plans in pre-migration state
+    gold, _ = MembershipPlan.objects.update_or_create(
+        slug='gold',
+        defaults={
+            'name': 'Gold',
+            'price': Decimal('99.00'),
+            'duration_days': 90,
+            'duration': '3 Months',
+            'price_3m': Decimal('199.00'),
+            'price_6m': Decimal('399.00'),
+            'price_1y': Decimal('999.00'),
+            'is_active': True,
+        }
+    )
+    elite, _ = MembershipPlan.objects.update_or_create(
+        slug='elite',
+        defaults={
+            'name': 'Elite',
+            'price': Decimal('1999.00'),
+            'duration_days': 180,
+            'duration': '6 Months',
+            'price_3m': Decimal('3499.00'),
+            'price_6m': Decimal('5999.00'),
+            'price_1y': Decimal('9999.00'),
+            'is_active': True,
+        }
+    )
+    premium, _ = MembershipPlan.objects.update_or_create(
+        slug='premium',
+        defaults={
+            'name': 'Premium',
+            'price': Decimal('199.00'),
+            'duration_days': 360,
+            'duration': '12 Months',
+            'price_3m': Decimal('4999.00'),
+            'price_6m': Decimal('8999.00'),
+            'price_1y': Decimal('14999.00'),
+            'is_active': True,
+        }
+    )
+
+    # Run forward migration
+    normalize_durations(apps, None)
+
+    gold.refresh_from_db()
+    elite.refresh_from_db()
+    premium.refresh_from_db()
+
+    # Durations are normalized to 30 days
+    assert gold.duration_days == 30
+    assert gold.duration == '30 Days'
+    assert elite.duration_days == 30
+    assert elite.duration == '30 Days'
+    assert premium.duration_days == 30
+    assert premium.duration == '30 Days'
+
+    # Production prices must remain strictly intact
+    assert gold.price == Decimal('99.00')
+    assert gold.price_3m == Decimal('199.00')
+    assert gold.price_6m == Decimal('399.00')
+    assert gold.price_1y == Decimal('999.00')
+
+    assert elite.price == Decimal('1999.00')
+    assert elite.price_3m == Decimal('3499.00')
+    assert elite.price_6m == Decimal('5999.00')
+    assert elite.price_1y == Decimal('9999.00')
+
+    assert premium.price == Decimal('199.00')
+    assert premium.price_3m == Decimal('4999.00')
+    assert premium.price_6m == Decimal('8999.00')
+    assert premium.price_1y == Decimal('14999.00')
+
+    # Run reverse migration
+    reverse_normalize(apps, None)
+
+    gold.refresh_from_db()
+    elite.refresh_from_db()
+    premium.refresh_from_db()
+
+    assert gold.duration_days == 90
+    assert elite.duration_days == 180
+    assert premium.duration_days == 360
+
+    # Clean up: restore to 30 days so subsequent tests have normalized state
+    normalize_durations(apps, None)
