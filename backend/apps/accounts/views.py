@@ -692,6 +692,43 @@ class MemberLoginView(APIView):
 class MemberAccountDeletionView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
+    def get(self, request):
+        member = request.user
+        return ApiResponse(
+            data={
+                'account_status': member.account_status,
+                'is_deleted_pending': member.account_status == Member.AccountStatus.DELETION_PENDING,
+                'deleted_at': member.deleted_at.isoformat() if member.deleted_at else None,
+                'recovery_until': member.recovery_until.isoformat() if member.recovery_until else None,
+                'days_remaining': deletion_days_remaining(member),
+                'is_hidden': member.is_hidden,
+            }
+        )
+
+    def post(self, request):
+        member = request.user
+        action = request.data.get('action', '').lower()
+        if action == 'cancel' or request.data.get('cancel'):
+            if member.account_status != Member.AccountStatus.DELETION_PENDING:
+                return ApiResponse(
+                    success=False,
+                    message='Account is not currently scheduled for deletion.',
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                member = restore_member_account(member=member)
+            except ValueError as exc:
+                return ApiResponse(success=False, message=str(exc), status=status.HTTP_400_BAD_REQUEST)
+            record_security_audit_event('MEMBER_ACCOUNT_DELETION_CANCELLED', request=request, account=member)
+            return ApiResponse(
+                data={
+                    'account_status': member.account_status,
+                    'is_deleted_pending': False,
+                },
+                message='Account deletion request has been cancelled.',
+            )
+        return self.delete(request)
+
     def delete(self, request):
         member = request.user
         try:

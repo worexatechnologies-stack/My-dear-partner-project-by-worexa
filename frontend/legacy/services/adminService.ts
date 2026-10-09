@@ -28,6 +28,15 @@ export interface PaginatedResult<T> {
   results: T[];
   next?: string | null;
   previous?: string | null;
+  summary?: {
+    total?: number;
+    pending_profile?: number;
+    pending_photo?: number;
+    pending_doc?: number;
+    verified?: number;
+    suspended?: number;
+    [key: string]: any;
+  };
 }
 
 // Kept as aliases because both names are used by older and newer admin screens.
@@ -483,6 +492,7 @@ const normalizePage = <T>(data: PaginatedResult<T> | T[]): PaginatedResult<T> =>
     page_size: pageSize,
     num_pages: data.num_pages ?? (pageSize ? Math.ceil(data.count / pageSize) : 0),
     results: data.results ?? [],
+    summary: (data as any).summary,
   };
 };
 

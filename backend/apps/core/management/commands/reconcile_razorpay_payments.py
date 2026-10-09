@@ -21,28 +21,58 @@ class Command(BaseCommand):
             default=30,
             help='Reconcile orders older than this many minutes.'
         )
-
-    def handle(self, *args, **options):
-        minutes = options['minutes']
-        threshold = timezone.now() - timedelta(minutes=minutes)
-        
-        self.stdout.write(self.style.WARNING(f'Starting reconciliation for orders created before {threshold}'))
-
-        # Fetch unpaid orders older than threshold
-        orders = PaymentOrder.objects.filter(
-            status='created',
-            created_at__lt=threshold
+        parser.add_argument(
+            '--order-id',
+            type=str,
+            default=None,
+            help='Target a specific order by UUID, razorpay_order_id, or internal_order_number.'
         )
 
+    def handle(self, *args, **options):
+        order_id_arg = options.get('order_id')
+        if order_id_arg:
+            order_id_clean = str(order_id_arg).strip()
+            orders = PaymentOrder.objects.none()
+            try:
+                import uuid
+                val = uuid.UUID(order_id_clean)
+                orders = PaymentOrder.objects.filter(pk=val)
+            except (ValueError, TypeError, AttributeError):
+                pass
+            if not orders.exists():
+                orders = PaymentOrder.objects.filter(razorpay_order_id=order_id_clean)
+            if not orders.exists():
+                orders = PaymentOrder.objects.filter(internal_order_number=order_id_clean)
+            self.stdout.write(self.style.WARNING(f'Targeted reconciliation for order: {order_id_clean}'))
+        else:
+            minutes = options['minutes']
+            threshold = timezone.now() - timedelta(minutes=minutes)
+            self.stdout.write(self.style.WARNING(f'Starting reconciliation for orders created before {threshold}'))
+            # Fetch unpaid orders older than threshold
+            orders = PaymentOrder.objects.filter(
+                status='created',
+                created_at__lt=threshold
+            )
+
         total_orders = orders.count()
-        self.stdout.write(f'Found {total_orders} unpaid orders to check.')
+        self.stdout.write(f'Found {total_orders} unpaid order(s) to check.')
 
         reconciled_count = 0
         expired_count = 0
         failed_count = 0
 
+        key_id = getattr(settings, 'RAZORPAY_KEY_ID', None)
+        key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', None)
+        demo_mode = getattr(settings, 'RAZORPAY_DEMO_MODE', False)
+
+        if not key_id or not key_secret or demo_mode:
+            self.stdout.write(self.style.WARNING(
+                'Razorpay gateway credentials not configured or DEMO mode active. Skipping remote gateway queries.'
+            ))
+            return
+
         credentials = base64.b64encode(
-            f'{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}'.encode('utf-8')
+            f'{key_id}:{key_secret}'.encode('utf-8')
         ).decode('ascii')
 
         for order in orders:

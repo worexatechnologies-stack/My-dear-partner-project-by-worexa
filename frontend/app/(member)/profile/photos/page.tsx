@@ -31,14 +31,9 @@ import {
 } from '@/legacy/services/photoApi';
 import { friendlyMessage, ACTION_MESSAGES, SUCCESS_MESSAGES } from '@/lib/error-messages';
 
-const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-const ACCEPTED_IMAGE_NAME = /\.(?:jpe?g|png|webp)$/i;
-
 function selectedFileError(file: File): string | null {
-  if (!ACCEPTED_IMAGE_TYPES.has(file.type.toLowerCase()) || !ACCEPTED_IMAGE_NAME.test(file.name)) {
-    return 'Please choose a JPEG, PNG, or WebP image.';
-  }
-  if (file.size > MAX_PROFILE_PHOTO_BYTES) return 'Image size must be 10 MB or smaller.';
+  if (!file) return 'Please choose a photo.';
+  if (file.size === 0) return 'The selected file is empty.';
   return null;
 }
 
@@ -258,7 +253,7 @@ export default function PhotosPage() {
         <input
           ref={replaceInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           onChange={handleReplaceSelect}
           className="hidden"
           aria-label="Choose replacement profile photo"
@@ -300,7 +295,7 @@ export default function PhotosPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 onChange={handleFileSelect}
                 className="hidden"
                 aria-label="Choose profile photo to upload"
@@ -312,7 +307,7 @@ export default function PhotosPage() {
                     <ImageIcon className="h-8 w-8 text-rose-600" aria-hidden="true" />
                   </div>
                   <h2 className="mb-2 text-lg font-bold text-gray-900">Upload a photo</h2>
-                  <p className="mb-4 text-gray-600">JPEG, PNG, or WebP, up to 10 MB. It will be reviewed before other members can see it.</p>
+                  <p className="mb-4 text-gray-600">Any photo format or size. It will be reviewed before other members can see it.</p>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

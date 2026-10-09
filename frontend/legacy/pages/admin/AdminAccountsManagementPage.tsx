@@ -76,10 +76,6 @@ export default function AdminAccountsManagementPage() {
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo file size must be under 5MB.');
-      return;
-    }
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
@@ -133,6 +129,8 @@ export default function AdminAccountsManagementPage() {
     }
   };
 
+  const [dbSummary, setDbSummary] = useState<{ total: number; active: number; inactive: number; super_admin: number } | null>(null);
+
   const loadAccounts = useCallback(async (targetPage = 1) => {
     setLoading(true);
     setError('');
@@ -151,6 +149,14 @@ export default function AdminAccountsManagementPage() {
       }
       setAccounts(results);
       setTotalCount(response.count || results.length);
+      if ((response as any).summary) {
+        setDbSummary({
+          total: (response as any).summary.total ?? response.count ?? results.length,
+          active: (response as any).summary.active ?? 0,
+          inactive: (response as any).summary.inactive ?? 0,
+          super_admin: (response as any).summary.super_admin ?? 0,
+        });
+      }
       setPage(targetPage);
     } catch (err: any) {
       setError(err?.message || 'Failed to load administrative accounts.');
@@ -255,9 +261,9 @@ export default function AdminAccountsManagementPage() {
   };
 
   // Metric counts
-  const activeCount = accounts.filter((a) => a.is_active).length;
-  const superAdminCount = accounts.filter((a) => a.role === 'SUPER_ADMIN').length;
-  const inactiveCount = accounts.filter((a) => !a.is_active).length;
+  const activeCount = dbSummary ? dbSummary.active : accounts.filter((a) => a.is_active).length;
+  const superAdminCount = dbSummary ? dbSummary.super_admin : accounts.filter((a) => a.role === 'SUPER_ADMIN').length;
+  const inactiveCount = dbSummary ? dbSummary.inactive : accounts.filter((a) => !a.is_active).length;
 
   if (loading && !accounts.length) {
     return <AdminLoading label="Loading administrative accounts list..." />;

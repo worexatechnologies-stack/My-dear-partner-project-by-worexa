@@ -536,17 +536,79 @@ class PaymentVerifyView(APIView):
         )
 
 
+def _resolve_payment_order(identifier):
+    """Resolve a PaymentOrder by UUID pk, razorpay_order_id, or internal_order_number."""
+    if not identifier:
+        return None
+    val_str = str(identifier).strip()
+    try:
+        val = uuid.UUID(val_str)
+        order = PaymentOrder.objects.filter(pk=val).first()
+        if order:
+            return order
+    except (ValueError, TypeError, AttributeError):
+        pass
+    order = PaymentOrder.objects.filter(razorpay_order_id=val_str).first()
+    if order:
+        return order
+    return PaymentOrder.objects.filter(internal_order_number=val_str).first()
+
+
 class PaymentOrderStatusView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, id):
-        order = get_object_or_404(PaymentOrder, pk=id)
+        order = _resolve_payment_order(id)
+
+        if not order:
+            return ApiErrorResponse(
+                code='ORDER_NOT_FOUND',
+                message='Payment order not found.',
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         if order.user != request.user and not request.user.is_staff:
             return ApiErrorResponse(
                 code='UNAUTHORIZED',
                 message='You are not authorized to view this status.',
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # On-demand gateway reconciliation for pending created orders
+        if (
+            order.status == 'created'
+            and order.razorpay_order_id
+            and not getattr(settings, 'RAZORPAY_DEMO_MODE', False)
+            and getattr(settings, 'RAZORPAY_KEY_ID', None)
+            and getattr(settings, 'RAZORPAY_KEY_SECRET', None)
+        ):
+            try:
+                import base64
+                import json
+                from urllib.request import Request, urlopen
+                credentials = base64.b64encode(
+                    f'{settings.RAZORPAY_KEY_ID}:{settings.RAZORPAY_KEY_SECRET}'.encode('utf-8')
+                ).decode('ascii')
+                url = f'https://api.razorpay.com/v1/orders/{order.razorpay_order_id}/payments'
+                req = Request(
+                    url,
+                    headers={'Authorization': f'Basic {credentials}', 'Content-Type': 'application/json'},
+                    method='GET',
+                )
+                with urlopen(req, timeout=8) as res:
+                    payment_list = json.loads(res.read().decode('utf-8'))
+                    items = payment_list.get('items', [])
+                for payment in items:
+                    if payment.get('status') == 'captured':
+                        RazorpayMembershipService.activate_order_transactional(
+                            order_id=order.razorpay_order_id,
+                            payment_id=payment['id'],
+                            raw_payload=payment,
+                        )
+                        order.refresh_from_db()
+                        break
+            except Exception as exc:
+                logger.debug('On-demand payment reconciliation check skipped: %s', exc)
 
         tx = PaymentTransaction.objects.filter(payment_order=order, status='captured').first()
         purchase = MembershipPurchase.objects.filter(payment_transaction=tx).first() if tx else None
@@ -557,17 +619,36 @@ class PaymentOrderStatusView(APIView):
             refund_status = ref.status
 
         # can_retry if failed or created and not captured
-        can_retry = order.status in ('created', 'failed', 'cancelled')
+        can_retry = order.status in ('created', 'failed', 'cancelled', 'expired')
         can_request_refund = order.status == 'paid' and (not ref or ref.status == 'failed')
+
+        membership_data = None
+        if purchase and purchase.membership_plan:
+            membership_data = {
+                'plan_name': purchase.membership_plan.name,
+                'starts_at': purchase.starts_at.isoformat() if purchase.starts_at else None,
+                'expires_at': purchase.expires_at.isoformat() if purchase.expires_at else None,
+                'status': purchase.status,
+            }
 
         return ApiResponse(
             data={
+                'internal_order_id': str(order.pk),
+                'order_id': order.razorpay_order_id or str(order.pk),
+                'razorpay_order_id': order.razorpay_order_id,
+                'internal_order_number': order.internal_order_number,
                 'order_status': order.status,
-                'payment_status': tx.status if tx else None,
-                'membership_status': purchase.status if purchase else None,
+                'payment_status': tx.status if tx else ('captured' if order.status == 'paid' else None),
+                'membership_status': purchase.status if purchase else ('active' if order.status == 'paid' else None),
+                'membership': membership_data,
+                'amount': str(order.amount),
+                'currency': order.currency,
+                'plan_name': order.membership_plan.name if order.membership_plan else None,
                 'refund_status': refund_status,
                 'can_retry': can_retry,
-                'can_request_refund': can_request_refund
+                'can_request_refund': can_request_refund,
+                'created_at': order.created_at.isoformat(),
+                'updated_at': order.updated_at.isoformat(),
             }
         )
 
@@ -628,7 +709,14 @@ class PaymentReceiptView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, id):
-        order = get_object_or_404(PaymentOrder, pk=id)
+        order = _resolve_payment_order(id)
+        if not order:
+            return ApiErrorResponse(
+                code='ORDER_NOT_FOUND',
+                message='Payment order not found.',
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         if order.user != request.user and not request.user.is_staff:
             return ApiErrorResponse(
                 code='UNAUTHORIZED',
@@ -670,7 +758,14 @@ class PaymentRefundRequestView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
     def post(self, request, id):
-        order = get_object_or_404(PaymentOrder, pk=id)
+        order = _resolve_payment_order(id)
+        if not order:
+            return ApiErrorResponse(
+                code='ORDER_NOT_FOUND',
+                message='Payment order not found.',
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         if order.user != request.user:
             return ApiErrorResponse(
                 code='UNAUTHORIZED',
@@ -729,7 +824,20 @@ class PaymentRefundStatusView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, id):
-        refund = get_object_or_404(RefundRequest, pk=id)
+        refund = None
+        try:
+            val = uuid.UUID(str(id))
+            refund = RefundRequest.objects.filter(pk=val).first()
+        except (ValueError, TypeError, AttributeError):
+            pass
+
+        if not refund:
+            return ApiErrorResponse(
+                code='REFUND_NOT_FOUND',
+                message='Refund request not found.',
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         if refund.payment_transaction.user != request.user and not request.user.is_staff:
             return ApiErrorResponse(
                 code='UNAUTHORIZED',

@@ -29,7 +29,7 @@ const superAdmin: AdminRole[] = ['SUPER_ADMIN'];
 export const adminNavigation: AdminNavItem[] = [
   { path: '/admin/dashboard', label: 'Dashboard', description: 'Your live operational overview.', icon: LayoutDashboard, section: 'Workspace', implemented: true },
   { path: '/admin/members', label: 'Members', description: 'Search, review, verify and manage members.', icon: Users, section: 'Operations', permissions: ['members.view'], implemented: true },
-  // { path: '/admin/profile-verifications', label: 'Profile approvals', description: 'Review profiles waiting for approval.', icon: UserRoundCheck, section: 'Operations', permissions: ['verification.view_all'], roles: leadership },
+  { path: '/admin/profile-verifications', label: 'Profile approvals', description: 'Review profiles waiting for approval.', icon: UserRoundCheck, section: 'Operations', permissions: ['verification.view_all'], roles: leadership, implemented: true },
   { path: '/admin/photo-verifications', label: 'Photo approvals', description: 'Approve or reject member photos.', icon: FileImage, section: 'Operations', permissions: ['verification.view_all'], roles: leadership },
   { path: '/admin/documents', label: 'Document Verification', shortLabel: 'Documents', description: 'Review and approve member verification documents.', icon: FileCheck2, section: 'Operations', permissions: ['verification.view_all'], roles: leadership, implemented: true },
   { path: '/admin/memberships', label: 'Memberships', description: 'Review subscriptions and membership health.', icon: BadgeCheck, section: 'Operations', permissions: ['members.view'], roles: leadership, implemented: true },

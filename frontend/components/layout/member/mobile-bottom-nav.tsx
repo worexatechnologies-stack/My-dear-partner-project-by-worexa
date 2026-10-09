@@ -1,10 +1,11 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Compass, Search, MessageCircle, Heart, User } from 'lucide-react';
 import { fetchInterestStats } from '@/lib/interest-stats';
+import { useUnreadMessagesCount } from '@/lib/unread-messages-state';
 
 const PRIMARY_NAV = [
   { label: 'Discover',     icon: Compass,        href: '/dashboard' },
@@ -17,6 +18,7 @@ const PRIMARY_NAV = [
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const [receivedCount, setReceivedCount] = useState(0);
+  const { unreadCount, clearUnreadCount } = useUnreadMessagesCount();
 
   useEffect(() => {
     fetchInterestStats().then((s) => setReceivedCount(s.received)).catch(() => {});
@@ -92,6 +94,7 @@ export default function MobileBottomNav() {
               href={item.href}
               aria-current={active ? 'page' : undefined}
               className={`mdp-bottom-nav-item ${active ? 'active' : ''}`}
+              onClick={item.label === 'Messages' ? clearUnreadCount : undefined}
             >
               <div style={{ position: 'relative', display: 'inline-flex' }}>
                 <Icon
@@ -104,6 +107,20 @@ export default function MobileBottomNav() {
                     transition: 'all 0.15s ease',
                   }}
                 />
+                {item.label === 'Messages' && unreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '-0.25rem', right: '-0.4rem',
+                    background: '#e11d48', color: 'white',
+                    fontSize: '0.5rem', fontWeight: 700,
+                    minWidth: '0.875rem', height: '0.875rem',
+                    borderRadius: '9999px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: '0 0.2rem', border: '1.5px solid white',
+                    lineHeight: 1,
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
                 {item.label === 'Likes' && receivedCount > 0 && (
                   <span style={{
                     position: 'absolute', top: '-0.25rem', right: '-0.4rem',

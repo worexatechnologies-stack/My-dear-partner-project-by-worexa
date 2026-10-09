@@ -351,19 +351,23 @@ class Command(BaseCommand):
                 declared_size = int(field_file.size)
             except (AttributeError, OSError, TypeError, ValueError):
                 declared_size = None
-            if declared_size is not None and declared_size > ImageProcessingService.MAX_UPLOAD_BYTES:
+            if (
+                ImageProcessingService.MAX_UPLOAD_BYTES is not None
+                and declared_size is not None
+                and declared_size > ImageProcessingService.MAX_UPLOAD_BYTES
+            ):
                 raise BackfillFailure(
-                    f"Legacy photo {legacy_photo.pk} at {name!r} is larger than the 10 MB limit."
+                    f"Legacy photo {legacy_photo.pk} at {name!r} is larger than the limit."
                 )
             field_file.open("rb")
-            # Never trust storage metadata alone. A bounded read prevents a
-            # corrupt or adversarial legacy object from exhausting the worker
-            # before the in-memory processor can apply its upload limit.
-            source_bytes = field_file.read(ImageProcessingService.MAX_UPLOAD_BYTES + 1)
-            if len(source_bytes) > ImageProcessingService.MAX_UPLOAD_BYTES:
-                raise BackfillFailure(
-                    f"Legacy photo {legacy_photo.pk} at {name!r} is larger than the 10 MB limit."
-                )
+            if ImageProcessingService.MAX_UPLOAD_BYTES is not None:
+                source_bytes = field_file.read(ImageProcessingService.MAX_UPLOAD_BYTES + 1)
+                if len(source_bytes) > ImageProcessingService.MAX_UPLOAD_BYTES:
+                    raise BackfillFailure(
+                        f"Legacy photo {legacy_photo.pk} at {name!r} is larger than the limit."
+                    )
+            else:
+                source_bytes = field_file.read()
         except BackfillFailure:
             raise
         except Exception as exc:

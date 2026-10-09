@@ -203,9 +203,12 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
         if not devices:
             return
 
+        from apps.core.message_service import decrypt_retained_message_text
+
         sender_name = sender_user.get_full_name() or sender_user.email or "Member"
         conversation_id = str(getattr(chat_msg, 'conversation_id', '') or '')
-        encrypted_text = getattr(chat_msg, 'text', '') or ''
+        clean_text = decrypt_retained_message_text(chat_msg)
+        body = clean_text[:100] if clean_text else "You have a new message"
         message_id = str(chat_msg.pk)
         sender_id = str(sender_user.pk)
         receiver_id = str(recipient_user.pk)
@@ -222,13 +225,13 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
             send_chat_push(
                 device=device,
                 sender_name=sender_name,
-                encrypted_text=encrypted_text,
+                encrypted_text=clean_text,
                 message_id=message_id,
                 conversation_id=conversation_id,
                 sender_id=sender_id,
                 receiver_id=receiver_id,
-                title="New message",
-                body="You have a new message",
+                title=f"New message from {sender_name}",
+                body=body,
             )
     except Exception:
         logger.exception("Failed to dispatch mobile FCM chat push")
@@ -245,6 +248,7 @@ def notify_chat_message(recipient, sender, text, message):
     """
     from django.utils import timezone
 
+    from apps.core.message_service import decrypt_retained_message_text
     from apps.core.models import Notification
 
     # Always dispatch mobile push to registered devices after transaction commit
@@ -252,7 +256,8 @@ def notify_chat_message(recipient, sender, text, message):
 
     link_url = f'/messages?user={sender.pk}'
     title = f'New message from {sender.get_full_name() or "Member"}'
-    body = str(text or '')[:100]
+    clean_text = decrypt_retained_message_text(message) if message else text
+    body = str(clean_text or '')[:100]
 
     existing = (
         Notification.objects.filter(
@@ -362,7 +367,7 @@ def notify(recipient, *, notification_type, title, message, link_url='', related
     )
 
 
-def paginated_response(request, queryset, serializer_class, *, context=None, message='Request completed successfully.'):
+def paginated_response(request, queryset, serializer_class, *, context=None, message='Request completed successfully.', extra=None):
     try:
         requested_size = int(request.query_params.get('page_size') or request.query_params.get('pageSize') or 10)
     except (TypeError, ValueError):
@@ -389,6 +394,8 @@ def paginated_response(request, queryset, serializer_class, *, context=None, mes
         'previous': page.previous_page_number() if page.has_previous() else None,
         'results': data,
     }
+    if extra and isinstance(extra, dict):
+        payload.update(extra)
     return ApiResponse(data=payload, message=message)
 
 

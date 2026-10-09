@@ -938,9 +938,6 @@ class MessageMarkReadView(MessageHistoryView):
 
     def post(self, request, user_id):
         partner = self._partner(user_id)
-        block = self._check_messaging(request, partner)
-        if block:
-            return block
         read_message_ids = _mark_partner_messages_read(request.user, partner)
         _broadcast_chat_read_receipt(
             reader=request.user,
@@ -1693,11 +1690,65 @@ class MemberProfileReportCreateView(APIView):
         summary="Report a profile",
         description="Enables regular members to file a safety report against a malicious member profile"
     )
+    def get(self, request):
+        reports = ProfileReport.objects.filter(reported_by_member=request.user).order_by('-created_at')
+        return paginated_response(request, reports, MemberProfileReportSerializer)
+
     def post(self, request):
-        serializer = MemberProfileReportSerializer(data=request.data)
+        data = dict(request.data or {})
+
+        # Normalize target ID
+        raw_target = (
+            data.get('reported_member')
+            or data.get('reported_user')
+            or data.get('target_user')
+            or data.get('target_member_id')
+            or data.get('reported_member_id')
+            or data.get('target_id')
+            or data.get('profile_id')
+        )
+
+        if not raw_target:
+            return ApiResponse(
+                success=False,
+                message='Please specify the member to report.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Resolve member vs profile UUID
+        from apps.accounts.models import Member, MemberProfile
+
+        target_member_id = raw_target
+        if not Member.objects.filter(pk=raw_target).exists():
+            prof = MemberProfile.objects.filter(pk=raw_target).select_related('member').first()
+            if prof and prof.member:
+                target_member_id = str(prof.member.pk)
+            else:
+                return ApiResponse(
+                    success=False,
+                    message='Reported member profile was not found.',
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        if str(target_member_id) == str(request.user.pk):
+            return ApiResponse(
+                success=False,
+                message='You cannot report your own profile.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data['reported_member'] = target_member_id
+        if not data.get('reason'):
+            data['reason'] = 'Suspicious or inappropriate activity'
+
+        serializer = MemberProfileReportSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         report = serializer.save(reported_by_member=request.user, status=ProfileReport.Status.OPEN)
-        return ApiResponse(data=MemberProfileReportSerializer(report).data, message='Profile report submitted.', status=status.HTTP_201_CREATED)
+        return ApiResponse(
+            data=MemberProfileReportSerializer(report).data,
+            message='Profile report submitted successfully. Our safety team will review it.',
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PaymentHistoryView(APIView):

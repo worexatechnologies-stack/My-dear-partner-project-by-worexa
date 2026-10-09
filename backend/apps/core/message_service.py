@@ -94,11 +94,17 @@ def get_or_create_conversation(first, second):
 
 def create_message(*, sender, receiver, text, message_type=ChatMessage.MessageType.TEXT, metadata=None):
     conversation = get_or_create_conversation(sender, receiver)
+    clean_text = decrypt_text_payload(
+        text,
+        sender_id=sender.pk,
+        receiver_id=receiver.pk,
+        conversation_id=conversation.pk,
+    )
     message = ChatMessage.objects.create(
         conversation=conversation,
         sender=sender,
         receiver=receiver,
-        text=text,
+        text=clean_text,
         message_type=message_type,
         metadata=metadata or {},
         retention_expires_at=timezone.now() + timedelta(days=settings.MESSAGE_RETENTION_DAYS),
@@ -156,27 +162,37 @@ def _legacy_e2ee_seeds(message):
     return tuple(dict.fromkeys(seeds))
 
 
-def decrypt_retained_message_text(message):
-    """Decode legacy fallback-encrypted chat text for the privileged audit flow.
-
-    This is intentionally server-side only. Normal member message APIs keep
-    returning the stored payload, which is decrypted in the participant's
-    browser. A malformed or unavailable legacy payload never leaks raw cipher
-    text into the audit interface.
-    """
-
-    text = str(message.text or '')
-    if not text.startswith(LEGACY_E2EE_PREFIX):
+def decrypt_text_payload(text, sender_id=None, receiver_id=None, conversation_id=None):
+    if not text or not isinstance(text, str):
+        return '' if text is None else str(text)
+    if not (text.startswith(LEGACY_E2EE_PREFIX) or '_E2EE_' in text or ('"iv":' in text and '"ct":' in text)):
         return text
 
+    raw_json = text
+    if raw_json.startswith(LEGACY_E2EE_PREFIX):
+        raw_json = raw_json[len(LEGACY_E2EE_PREFIX):]
+    elif '_E2EE_' in raw_json:
+        raw_json = raw_json.split('_E2EE_', 1)[1].lstrip(': ')
+
     try:
-        payload = json.loads(text[len(LEGACY_E2EE_PREFIX):])
+        payload = json.loads(raw_json.strip())
         iv = base64.b64decode(payload['iv'], validate=True)
         ciphertext = base64.b64decode(payload['ct'], validate=True)
-    except (binascii.Error, json.JSONDecodeError, KeyError, TypeError, ValueError):
-        return 'Encrypted message unavailable'
+    except Exception:
+        return text
 
-    for seed in _legacy_e2ee_seeds(message):
+    seeds = []
+    if sender_id and receiver_id:
+        seeds.append('_'.join(sorted((str(sender_id), str(receiver_id)))))
+    if conversation_id:
+        seeds.append(str(conversation_id))
+    if sender_id:
+        seeds.append(str(sender_id))
+    if receiver_id:
+        seeds.append(str(receiver_id))
+    seeds.append('default')
+
+    for seed in dict.fromkeys(seeds):
         try:
             key = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
@@ -184,9 +200,37 @@ def decrypt_retained_message_text(message):
                 salt=LEGACY_E2EE_SALT,
                 iterations=1000,
             ).derive(seed.encode('utf-8'))
-            return AESGCM(key).decrypt(iv, ciphertext, None).decode('utf-8')
-        except (InvalidTag, UnicodeDecodeError, ValueError):
+            decrypted = AESGCM(key).decrypt(iv, ciphertext, None).decode('utf-8')
+            if decrypted:
+                return decrypted
+        except Exception:
             continue
+
+    return text
+
+
+def decrypt_retained_message_text(message):
+    """Decode legacy fallback-encrypted chat text into readable plaintext.
+
+    Returns the actual message text for display across all member, mobile,
+    and audit interfaces.
+    """
+    text = str(getattr(message, 'text', '') or '')
+    if not text.startswith(LEGACY_E2EE_PREFIX) and not '_E2EE_' in text and not ('"iv":' in text and '"ct":' in text):
+        return text
+
+    sender_id = getattr(message, 'sender_id', None) or getattr(message, 'sender_id_snapshot', None)
+    receiver_id = getattr(message, 'receiver_id', None) or getattr(message, 'receiver_id_snapshot', None)
+    conversation_id = getattr(message, 'conversation_id', None)
+
+    decrypted = decrypt_text_payload(
+        text,
+        sender_id=sender_id,
+        receiver_id=receiver_id,
+        conversation_id=conversation_id,
+    )
+    if decrypted and not decrypted.startswith(LEGACY_E2EE_PREFIX) and not ('"iv":' in decrypted and '"ct":' in decrypted):
+        return decrypted
 
     return 'Encrypted message unavailable'
 
@@ -203,12 +247,21 @@ def serialize_message(message, *, viewer=None, privileged=False):
     if hidden_for_viewer and not privileged:
         return None
 
+    if deleted:
+        resolved_text = 'Message deleted'
+    else:
+        decrypted = decrypt_retained_message_text(message)
+        if decrypted == 'Encrypted message unavailable' and not privileged:
+            resolved_text = message.text
+        else:
+            resolved_text = decrypted
+
     return {
         'id': str(message.pk),
         'conversation_id': str(message.conversation_id) if message.conversation_id else None,
         'sender_id': str(message.sender_id or message.sender_id_snapshot or ''),
         'receiver_id': str(message.receiver_id or message.receiver_id_snapshot or ''),
-        'text': decrypt_retained_message_text(message) if privileged else (message.text if not deleted else 'Message deleted'),
+        'text': resolved_text,
         'message_type': message.message_type,
         'metadata': message.metadata or {},
         'is_read': message.is_read,

@@ -1,6 +1,6 @@
 import { baseApi } from './baseApi';
 
-export const MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024;
+export const MAX_PROFILE_PHOTO_BYTES = Number.MAX_SAFE_INTEGER;
 
 export type ProfilePhotoStatus = 'pending' | 'approved' | 'rejected';
 

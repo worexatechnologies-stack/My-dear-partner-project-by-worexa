@@ -145,6 +145,48 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+try:
+    from celery.schedules import crontab
+    CELERY_BEAT_SCHEDULE = {
+        'celery.backend_cleanup': {
+            'task': 'celery.backend_cleanup',
+            'schedule': crontab(hour=4, minute=0),
+        },
+        'reset-daily-view-limits': {
+            'task': 'apps.memberships.tasks.reset_daily_view_limits',
+            'schedule': crontab(hour=0, minute=0),
+        },
+        'recalculate-compatibility-scores': {
+            'task': 'apps.matching.tasks.recalculate_compatibility_scores',
+            'schedule': crontab(hour=0, minute=15),
+        },
+        'expire-memberships': {
+            'task': 'apps.memberships.tasks.expire_memberships',
+            'schedule': crontab(hour=0, minute=5),
+        },
+        'notify-expiring-memberships': {
+            'task': 'apps.memberships.tasks.notify_expiring_memberships',
+            'schedule': crontab(hour=9, minute=0),
+        },
+        'permanently-delete-expired-members': {
+            'task': 'apps.core.tasks.permanently_delete_expired_members',
+            'schedule': crontab(hour=0, minute=30),
+        },
+        'purge-expired-chat-messages': {
+            'task': 'apps.core.tasks.purge_expired_chat_messages',
+            'schedule': crontab(hour=1, minute=0),
+        },
+        'reconcile-razorpay-payments': {
+            'task': 'apps.core.tasks.reconcile_razorpay_payments_task',
+            'schedule': crontab(minute='*/15'),
+        },
+        'process-sla-escalations': {
+            'task': 'apps.core.tasks.process_sla_escalations',
+            'schedule': crontab(minute='*/15'),
+        },
+    }
+except ImportError:
+    pass
 
 # Redis stores only short-lived metadata/permission cache entries. Profile
 # image bytes remain exclusively in PostgreSQL and image responses read them
@@ -232,8 +274,8 @@ AUTH_USER_MODEL = 'accounts.Member'
 # Profile-photo uploads are capped at 10 MiB by the API and must be processed
 # from memory.  Keeping accepted files below this threshold prevents Django's
 # temporary-file upload handler from writing profile images to local storage.
-FILE_UPLOAD_MAX_MEMORY_SIZE = 11 * 1024 * 1024
-DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = config['STATIC_URL']

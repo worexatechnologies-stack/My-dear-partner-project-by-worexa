@@ -138,7 +138,7 @@ export function NotificationBell() {
                       <strong className="line-clamp-1 flex-1 text-xs font-bold text-[#302328]">{notification.title}</strong>
                       {!notification.is_read && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#b64a68]" aria-label="Unread" />}
                     </span>
-                    <span className="mt-0.5 line-clamp-1 block text-xs leading-5 text-[#78676d]">{isChat ? 'You have a new message.' : notification.message}</span>
+                    <span className="mt-0.5 line-clamp-1 block text-xs leading-5 text-[#78676d]">{isChat ? (notification.message && !notification.message.startsWith('__E2EE__:') ? notification.message : 'You have a new message.') : notification.message}</span>
                     <span className="mt-1 block text-[10px] font-semibold text-[#a08c93]">{notificationTime(notification.created_at)}</span>
                   </span>
                 </button>

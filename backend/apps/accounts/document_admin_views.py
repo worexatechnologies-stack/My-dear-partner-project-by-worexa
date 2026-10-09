@@ -146,6 +146,36 @@ class AdminDocumentPreviewView(APIView):
             raw_bytes = doc.raw_file_bytes
             if raw_bytes is None:
                 raise ValueError('Decompression failed')
+
+            # If client requests visual image representation (for card thumbnail or image lightbox):
+            wants_image = request.GET.get('as_image') == '1' or 'image/' in request.headers.get('Accept', '')
+            if wants_image and doc.mime_type == 'application/pdf':
+                try:
+                    import io, pypdf
+                    reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
+                    if reader.pages and reader.pages[0].images:
+                        page_img = reader.pages[0].images[0]
+                        ctype = 'image/jpeg' if page_img.name.lower().endswith(('.jpg', '.jpeg')) else 'image/png'
+                        img_resp = HttpResponse(page_img.data, content_type=ctype)
+                        img_resp['Content-Length'] = len(page_img.data)
+                        img_resp['X-Content-Type-Options'] = 'nosniff'
+                        img_resp['Cache-Control'] = 'private, max-age=3600'
+                        return img_resp
+                except Exception:
+                    pass
+
+                # Fallback on-the-fly Aadhaar visual card generator if PDF has no embedded image
+                try:
+                    from scripts.generate_aadhaar_documents import create_aadhaar_card_image
+                    _, _, img_bytes = create_aadhaar_card_image(doc.member, doc.display_name)
+                    img_resp = HttpResponse(img_bytes, content_type='image/jpeg')
+                    img_resp['Content-Length'] = len(img_bytes)
+                    img_resp['X-Content-Type-Options'] = 'nosniff'
+                    img_resp['Cache-Control'] = 'private, max-age=3600'
+                    return img_resp
+                except Exception:
+                    pass
+
             response = HttpResponse(raw_bytes, content_type=doc.mime_type or 'application/octet-stream')
             safe_filename = doc.original_file_name.replace('"', '').replace('\\', '').replace('/', '')
             response['Content-Disposition'] = f'inline; filename="{safe_filename}"'

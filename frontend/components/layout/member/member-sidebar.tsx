@@ -13,6 +13,7 @@ import { useAuth } from '@/legacy/contexts/AuthContext';
 import ProfileImage from '@/components/profile/ProfileImage';
 import SiteLogo from '@/components/branding/site-logo';
 import { NotificationBell } from '@/components/member/notification-bell';
+import { useUnreadMessagesCount } from '@/lib/unread-messages-state';
 import MobileBottomNav from './mobile-bottom-nav';
 
 /* ─── Nav definitions (Instagram Style) ─── */
@@ -43,17 +44,19 @@ const accountNav: NavItemDef[] = [
 /* ─── NavLink (Instagram Style 1) ─── */
 
 function NavLink({
-  item, isActive, badge, collapsed,
+  item, isActive, badge, collapsed, onClick,
 }: {
   item: NavItemDef;
   isActive: boolean;
   badge?: number;
   collapsed: boolean;
+  onClick?: () => void;
 }) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       title={collapsed ? item.label : undefined}
       className="group"
       style={{
@@ -188,6 +191,7 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
 export function MemberSidebar({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const { unreadCount, clearUnreadCount } = useUnreadMessagesCount();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -320,11 +324,14 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
                   : item.href === '/profile/me'
                   ? pathname.startsWith('/profile')
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const badge = item.label === 'Messages' ? unreadCount : undefined;
               return (
                 <NavLink
                   key={item.label}
                   item={item}
                   isActive={active}
+                  badge={badge}
+                  onClick={item.label === 'Messages' ? clearUnreadCount : undefined}
                   collapsed={isCollapsed}
                 />
               );

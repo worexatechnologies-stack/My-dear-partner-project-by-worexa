@@ -506,6 +506,7 @@ export default function AdminProfileApprovalsPage() {
               const memberName = v.member?.full_name || 'Unnamed Member';
               const memberEmail = v.member?.email || 'No email provided';
               const memberId = v.member_id || v.member?.id;
+              const photoUrl = v.photo_url || v.member?.photo_url || v.member?.avatar_url || v.member?.thumbnail_url || v.member?.avatar || v.member?.photo;
               const photoStatus = v.photo_status || v.member?.photo_status;
               const docStatus = v.document_status || v.member?.document_status;
               const isPhotoApproved = v.has_photo || photoStatus === 'approved';
@@ -561,8 +562,22 @@ export default function AdminProfileApprovalsPage() {
 
                     {/* Member Info & Avatar */}
                     <div className="flex items-start gap-3.5">
-                      <div className="h-12 w-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-base shrink-0 shadow-2xs">
-                        {(memberName || 'M')[0].toUpperCase()}
+                      <div className="h-12 w-12 rounded-2xl bg-indigo-50 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-indigo-700 text-base shrink-0 shadow-xs relative">
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt={memberName}
+                            className="h-full w-full object-cover rounded-2xl"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              if (e.currentTarget.parentElement) {
+                                e.currentTarget.parentElement.innerText = (memberName || 'M')[0].toUpperCase();
+                              }
+                            }}
+                          />
+                        ) : (
+                          (memberName || 'M')[0].toUpperCase()
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <a
@@ -705,6 +720,7 @@ export default function AdminProfileApprovalsPage() {
                   const memberName = v.member?.full_name || 'Unnamed member';
                   const memberEmail = v.member?.email || '—';
                   const memberId = v.member_id || v.member?.id;
+                  const photoUrl = v.photo_url || v.member?.photo_url || v.member?.avatar_url || v.member?.thumbnail_url || v.member?.avatar || v.member?.photo;
                   const photoStatus = v.photo_status || v.member?.photo_status;
                   const docStatus = v.document_status || v.member?.document_status;
                   const isPhotoApproved = v.has_photo || photoStatus === 'approved';
@@ -718,8 +734,22 @@ export default function AdminProfileApprovalsPage() {
                       {/* Member column */}
                       <td data-label="Member">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm shrink-0">
-                            {(memberName || 'M')[0].toUpperCase()}
+                          <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-indigo-700 text-sm shrink-0 relative">
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={memberName}
+                                className="h-full w-full object-cover rounded-xl"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.parentElement) {
+                                    e.currentTarget.parentElement.innerText = (memberName || 'M')[0].toUpperCase();
+                                  }
+                                }}
+                              />
+                            ) : (
+                              (memberName || 'M')[0].toUpperCase()
+                            )}
                           </div>
                           <div className="min-w-0">
                             <a

@@ -35,7 +35,7 @@ import { fetchApi } from '../services/apiClient';
 import { useRealtime } from '../../providers/RealtimeProvider';
 import { useChatSocket } from '../../hooks/use-chat-socket';
 import { usePresence } from '../../hooks/use-presence';
-import { deriveFallbackKey, encryptMessage, smartDecryptText } from '../utils/crypto';
+import { smartDecryptText } from '../utils/crypto';
 import { clearActiveChatPartnerId, setActiveChatPartnerId } from '@/lib/chat-notification-state';
 import { profileHref } from '@/lib/profile-url';
 
@@ -824,13 +824,7 @@ export default function MessagesPage() {
     const plainText = (preset ?? draft).trim();
     if (!plainText || !activeConversation || !currentUserId || restriction) return;
     const partnerId = profileId(activeConversation);
-    let wireText = plainText;
-    try {
-      const key = await deriveFallbackKey([currentUserId, partnerId].sort().join('_'));
-      wireText = await encryptMessage(plainText, key);
-    } catch {
-      // Plaintext remains a safe compatibility fallback if Web Crypto is unavailable.
-    }
+    const wireText = plainText;
     const temporaryId = `temp_${Date.now()}`;
     const createdAt = new Date();
     const optimistic: ChatMessage = {
@@ -1432,7 +1426,7 @@ export default function MessagesPage() {
                             My Dear Partner is an introductory matchmaking platform. We are not responsible for any personal communications, offline meetings, monetary transactions, or agreements between members. Never send money, passwords, or banking details to anyone.
                           </p>
                           <div className="mt-2.5 flex items-center justify-center gap-3 text-[10.5px] font-semibold text-amber-800">
-                            <span className="inline-flex items-center gap-1"><LockKeyhole className="h-3 w-3 text-amber-600" /> End-to-end encrypted</span>
+                            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-emerald-600" /> Verified & secure messaging</span>
                             <span>•</span>
                             <Link to="/privacy" className="underline hover:text-amber-950">Privacy Policy</Link>
                           </div>
@@ -1554,7 +1548,7 @@ export default function MessagesPage() {
                         disabled={!draft.trim()}
                         title="Send message"
                         aria-label="Send message"
-                        className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[12px] bg-[#eed7de] text-white transition-all duration-200 hover:bg-[#e4c9d1] active:scale-95 disabled:cursor-not-allowed disabled:bg-[#334155] disabled:text-slate-500 disabled:active:scale-100"
+                        className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[12px] bg-[#d81b60] text-white transition-all duration-200 hover:bg-[#ad1457] active:scale-95 disabled:cursor-not-allowed disabled:bg-[#334155] disabled:text-slate-500 disabled:active:scale-100"
                       >
                         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" /></svg>
                       </button>

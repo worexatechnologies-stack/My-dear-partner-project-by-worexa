@@ -104,6 +104,16 @@ export default function AdminUsersPage() {
   const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
+  // Summary state from API
+  const [dbSummary, setDbSummary] = useState<{
+    total: number;
+    pendingProfile: number;
+    pendingPhoto: number;
+    pendingDoc: number;
+    verified: number;
+    suspended: number;
+  } | null>(null);
+
   const PAGE_SIZE = 20;
 
   const load = useCallback(async () => {
@@ -123,6 +133,16 @@ export default function AdminUsersPage() {
       });
       setUsers(data.results || []);
       setCount(data.count || 0);
+      if (data.summary) {
+        setDbSummary({
+          total: data.summary.total ?? data.count ?? 0,
+          pendingProfile: data.summary.pending_profile ?? 0,
+          pendingPhoto: data.summary.pending_photo ?? 0,
+          pendingDoc: data.summary.pending_doc ?? 0,
+          verified: data.summary.verified ?? 0,
+          suspended: data.summary.suspended ?? 0,
+        });
+      }
     } catch {
       setError('Failed to load members.');
     } finally {
@@ -132,8 +152,11 @@ export default function AdminUsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Summary stats computed from the data
+  // Summary stats: actual database totals from API, fallback to current page only if API summary absent
   const summary = useMemo(() => {
+    if (dbSummary) {
+      return dbSummary;
+    }
     const all = users;
     return {
       total: count,
@@ -143,7 +166,7 @@ export default function AdminUsersPage() {
       verified: all.filter(u => u.profile_status === 'approved').length,
       suspended: all.filter(u => !u.is_active).length,
     };
-  }, [users, count]);
+  }, [dbSummary, users, count]);
 
   const doSearch = () => {
     setPage(1);

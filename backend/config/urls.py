@@ -59,6 +59,7 @@ urlpatterns = [
     
     # Safety & Settings features (Item 2 of production contract)
     path('api/v1/settings/', UserSettingsView.as_view(), name='user_settings'),
+    path('api/v1/privacy-settings/', UserPrivacySettingsView.as_view(), name='user_privacy_settings'),
     path('api/v1/safety/eligibility/', SafetyEligibilityView.as_view(), name='safety_eligibility'),
     path('api/v1/safety/reports/', MemberProfileReportCreateView.as_view(), name='safety_reports_alias'),
     path('api/v1/safety/account-deletion/', SafetyAccountDeletionAliasView.as_view(), name='safety_account_deletion_alias'),

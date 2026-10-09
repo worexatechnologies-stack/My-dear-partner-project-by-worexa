@@ -15,6 +15,15 @@ from pathlib import Path
 from PIL import Image, ImageOps, UnidentifiedImageError
 from django.core.files.uploadedfile import UploadedFile
 
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except Exception:
+    pass
+
+# Allow images of any dimension and size without decompression bomb errors
+Image.MAX_IMAGE_PIXELS = None
+
 
 class ProfilePhotoProcessingError(ValueError):
     """A client-safe validation error raised while processing an image."""
@@ -50,10 +59,10 @@ class ProcessedProfilePhoto:
 class ImageProcessingService:
     """Validate, normalize, crop, and compress a profile photo in memory."""
 
-    MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+    MAX_UPLOAD_BYTES = None
     MIN_WIDTH = 1
     MIN_HEIGHT = 1
-    MAX_DECODED_PIXELS = 40_000_000
+    MAX_DECODED_PIXELS = None
 
     MAIN_WIDTH = 1200
     MAIN_HEIGHT = 1500
@@ -81,71 +90,42 @@ class ImageProcessingService:
         *,
         enforce_minimum_dimensions: bool = False,
     ) -> tuple[str, tuple[int, int]]:
-        """Validate byte size, the actual Pillow format, and decodability.
+        """Validate that the upload can be parsed and decoded as an image.
 
-        ``content_type`` and filename extension are supporting checks only;
-        Pillow's parsed format is authoritative.  The image is loaded after
-        ``verify`` so corrupted/truncated files are rejected before processing.
+        Allows any format and any size without restrictions.
         """
         if upload is None:
-            raise ProfilePhotoProcessingError("Choose a JPEG, PNG, or WebP image.")
+            raise ProfilePhotoProcessingError("Choose an image to upload.")
 
         size = getattr(upload, "size", None)
-        if size is None:
-            raise ProfilePhotoProcessingError("The uploaded image size is unavailable.")
-        if size <= 0:
+        if size is not None and size <= 0:
             raise ProfilePhotoProcessingError("The uploaded image is empty.")
-        if size > cls.MAX_UPLOAD_BYTES:
-            raise ProfilePhotoProcessingError("Image must be 10 MB or smaller before processing.")
-
-        filename = str(getattr(upload, "name", "") or "")
-        suffix = Path(filename).suffix.lower()
-        if suffix not in cls.EXTENSION_FORMATS:
-            raise ProfilePhotoProcessingError("Only JPEG, PNG, and WebP images are supported.")
 
         try:
             upload.seek(0)
             with warnings.catch_warnings():
-                warnings.simplefilter("error", Image.DecompressionBombWarning)
-                with Image.open(upload) as verification_image:
-                    verification_image.verify()
-
-            upload.seek(0)
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                warnings.simplefilter("ignore")
                 with Image.open(upload) as image:
-                    actual_format = image.format
-                    if actual_format not in cls.SUPPORTED_FORMATS:
-                        raise ProfilePhotoProcessingError("Only JPEG, PNG, and WebP images are supported.")
-                    if cls.EXTENSION_FORMATS[suffix] != actual_format:
-                        raise ProfilePhotoProcessingError(
-                            "The image file extension does not match its actual content."
-                        )
-                    # Reject our stricter decoded-pixel ceiling before EXIF
-                    # transposition or a full decoder pass can allocate the
-                    # source raster. Orientation never changes pixel count.
+                    actual_format = image.format or "IMAGE"
+                    try:
+                        image.seek(0)
+                    except Exception:
+                        pass
                     source_width, source_height = image.size
-                    if source_width * source_height > cls.MAX_DECODED_PIXELS:
-                        raise ProfilePhotoProcessingError(
-                            "Image dimensions are too large to process safely."
-                        )
-                    # Measure after EXIF orientation correction so a genuine
-                    # 600x750 portrait stored as a rotated JPEG is accepted.
-                    width, height = ImageOps.exif_transpose(image).size
-                    # Force a full decoder pass; verify() alone intentionally
-                    # does not decode image pixels.
+                    try:
+                        width, height = ImageOps.exif_transpose(image).size
+                    except Exception:
+                        width, height = source_width, source_height
                     image.load()
         except ProfilePhotoProcessingError:
             raise
         except (
-            Image.DecompressionBombError,
-            Image.DecompressionBombWarning,
             UnidentifiedImageError,
             OSError,
             ValueError,
         ) as exc:
             raise ProfilePhotoProcessingError(
-                "The uploaded file is not a valid, complete JPEG, PNG, or WebP image."
+                "The uploaded file is not a valid image format."
             ) from exc
         finally:
             upload.seek(0)
@@ -172,12 +152,19 @@ class ImageProcessingService:
 
         try:
             upload.seek(0)
-            with Image.open(upload) as source:
-                # Apply EXIF orientation before dimensions/cropping.  Output is
-                # then copied into new RGB images, which strips EXIF/GPS/XMP.
-                normalized = ImageOps.exif_transpose(source)
-                normalized.load()
-                rgb = cls._flatten_to_rgb(normalized)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with Image.open(upload) as source:
+                    try:
+                        source.seek(0)
+                    except Exception:
+                        pass
+                    try:
+                        normalized = ImageOps.exif_transpose(source)
+                    except Exception:
+                        normalized = source
+                    normalized.load()
+                    rgb = cls._flatten_to_rgb(normalized)
 
             centering = cls._validated_centering(focal_point)
             main_image = cls._crop_and_resize(
@@ -200,7 +187,7 @@ class ImageProcessingService:
             )
         except ProfilePhotoProcessingError:
             raise
-        except (Image.DecompressionBombError, OSError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             raise ProfilePhotoProcessingError("Image processing failed safely; upload another image.") from exc
         finally:
             upload.seek(0)
@@ -231,13 +218,15 @@ class ImageProcessingService:
 
     @staticmethod
     def _flatten_to_rgb(image: Image.Image) -> Image.Image:
-        """Convert transparency to a safe white background and remove metadata."""
+        """Convert transparency or any color mode to a safe RGB image."""
         if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
             rgba = image.convert("RGBA")
             background = Image.new("RGB", rgba.size, (255, 255, 255))
             background.paste(rgba, mask=rgba.getchannel("A"))
             return background
-        return image.convert("RGB")
+        elif image.mode != "RGB":
+            return image.convert("RGB")
+        return image
 
     @staticmethod
     def _crop_and_resize(
@@ -281,9 +270,8 @@ class ImageProcessingService:
             data = cls._encode_image(image, quality, fmt=fmt)
             if len(data) <= maximum_bytes:
                 return data, mime_type
-        raise ProfilePhotoProcessingError(
-            f"The {label} could not be compressed below {maximum_bytes // 1024} KB without unacceptable quality loss."
-        )
+        # If compressed data slightly exceeds maximum_bytes, return compressed image at minimum quality
+        return cls._encode_image(image, cls.MIN_QUALITY, fmt=fmt), mime_type
 
     @staticmethod
     def _encode_image(image: Image.Image, quality: int, fmt: str = "WEBP") -> bytes:

@@ -69,9 +69,11 @@ function groupNotifications(rows: MemberNotification[]): NotificationGroup[] {
 }
 
 function visibleMessage(notification: MemberNotification) {
-  // Notification previews must never render an encrypted chat payload or expose
-  // message contents outside the private conversation screen.
-  if (notification.notification_type.toUpperCase() === 'CHAT_MESSAGE') return 'You have a new message.';
+  if (notification.notification_type.toUpperCase() === 'CHAT_MESSAGE') {
+    return notification.message && !notification.message.startsWith('__E2EE__:')
+      ? notification.message
+      : 'You have a new message.';
+  }
   return notification.message;
 }
 

@@ -96,6 +96,7 @@ export default function AdminDocumentLightbox({
 
   const currentDoc = documents[currentIndex];
   const isPdf = currentDoc?.mime_type === 'application/pdf' || currentDoc?.original_file_name?.toLowerCase().endsWith('.pdf');
+  const [isImageFormat, setIsImageFormat] = useState<boolean>(true);
 
   // Reset zoom & pan
   const resetTransform = useCallback(() => {
@@ -124,11 +125,11 @@ export default function AdminDocumentLightbox({
 
     const token = getAccessToken();
     const headers: Record<string, string> = {
-      Accept: 'application/pdf,image/jpeg,image/png,image/webp,*/*',
+      Accept: 'image/webp,image/jpeg,image/png,application/pdf,*/*',
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`/api/proxy/admin/documents/${docId}/preview/`, {
+    fetch(`/api/proxy/admin/documents/${docId}/preview/?as_image=1`, {
       credentials: 'include',
       headers,
     })
@@ -138,6 +139,8 @@ export default function AdminDocumentLightbox({
         }
         const blob = await res.blob();
         if (!isMounted) return;
+        const isImg = blob.type.startsWith('image/');
+        setIsImageFormat(isImg || !isPdf);
         const url = URL.createObjectURL(blob);
         blobUrlCache.set(docId, url);
         setPreviewUrl(url);
@@ -152,7 +155,7 @@ export default function AdminDocumentLightbox({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, currentDoc, resetTransform]);
+  }, [isOpen, currentDoc, isPdf, resetTransform]);
 
   // Keyboard controls
   useEffect(() => {
@@ -379,19 +382,8 @@ export default function AdminDocumentLightbox({
             </div>
           )}
 
-          {/* PDF Viewer */}
-          {!loadingPreview && !previewError && previewUrl && isPdf && (
-            <div className="h-full w-full max-w-5xl rounded-2xl overflow-hidden bg-white shadow-2xl border border-white/10" onClick={(e) => e.stopPropagation()}>
-              <iframe
-                src={previewUrl}
-                title={currentDoc.display_name}
-                className="h-full w-full border-none"
-              />
-            </div>
-          )}
-
-          {/* Image Viewer with Zoom & Pan */}
-          {!loadingPreview && !previewError && previewUrl && !isPdf && (
+          {/* Document Image Viewer with Zoom & Pan */}
+          {!loadingPreview && !previewError && previewUrl && isImageFormat && (
             <div
               className="relative flex items-center justify-center max-h-full max-w-full"
               onClick={handleImageClick}
@@ -418,6 +410,17 @@ export default function AdminDocumentLightbox({
                   opacity: { duration: 0.2 },
                 }}
                 className="max-h-[75vh] max-w-[85vw] object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
+              />
+            </div>
+          )}
+
+          {/* Raw PDF Fallback Viewer */}
+          {!loadingPreview && !previewError && previewUrl && !isImageFormat && (
+            <div className="h-full w-full max-w-5xl rounded-2xl overflow-hidden bg-white shadow-2xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+              <iframe
+                src={previewUrl}
+                title={currentDoc.display_name}
+                className="h-full w-full border-none"
               />
             </div>
           )}
@@ -457,61 +460,69 @@ export default function AdminDocumentLightbox({
           className="relative z-20 flex flex-wrap items-center justify-between border-t border-white/10 bg-black/70 px-6 py-3.5 backdrop-blur-md gap-4"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Zoom controls (for images) */}
-          {!isPdf ? (
-            <div className="flex items-center gap-1.5 rounded-2xl bg-white/10 border border-white/15 p-1.5 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={zoomOut}
-                disabled={scale <= 1}
-                className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-30 transition"
-                title="Zoom Out (-)"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
+          {/* Zoom controls (for images & extracted PDF visuals) */}
+          {isImageFormat ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 rounded-2xl bg-white/10 border border-white/15 p-1.5 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={zoomOut}
+                  disabled={scale <= 1}
+                  className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-30 transition"
+                  title="Zoom Out (-)"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
 
-              <span className="min-w-[56px] text-center text-xs font-bold text-white">
-                {Math.round(scale * 100)}%
-              </span>
+                <span className="min-w-[56px] text-center text-xs font-bold text-white">
+                  {Math.round(scale * 100)}%
+                </span>
 
-              <button
-                type="button"
-                onClick={zoomIn}
-                disabled={scale >= 4}
-                className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-30 transition"
-                title="Zoom In (+)"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={zoomIn}
+                  disabled={scale >= 4}
+                  className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-30 transition"
+                  title="Zoom In (+)"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
 
-              <div className="h-4 w-[1px] bg-white/20 mx-1" />
+                <div className="h-4 w-[1px] bg-white/20 mx-1" />
 
-              <button
-                type="button"
-                onClick={resetTransform}
-                className="rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/15 hover:text-white transition"
-                title="Fit to Screen (0)"
-              >
-                Fit
-              </button>
+                <button
+                  type="button"
+                  onClick={resetTransform}
+                  className="rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/15 hover:text-white transition"
+                  title="Fit to Screen (0)"
+                >
+                  Fit
+                </button>
 
-              <button
-                type="button"
-                onClick={rotateCounterClockwise}
-                className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white transition"
-                title="Rotate Left"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={rotateCounterClockwise}
+                  className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white transition"
+                  title="Rotate Left"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
 
-              <button
-                type="button"
-                onClick={rotateClockwise}
-                className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white transition"
-                title="Rotate Right (R)"
-              >
-                <RotateCw className="h-4 w-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={rotateClockwise}
+                  className="rounded-xl p-2 text-slate-300 hover:bg-white/15 hover:text-white transition"
+                  title="Rotate Right (R)"
+                >
+                  <RotateCw className="h-4 w-4" />
+                </button>
+              </div>
+
+              {isPdf && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-rose-500/20 border border-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-300">
+                  <FileText className="h-3.5 w-3.5 text-rose-400" /> PDF Document
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 text-xs text-slate-400">

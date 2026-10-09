@@ -250,17 +250,100 @@ function AdminLayoutInner({ children }: { children?: ReactNode }) {
           </form>
 
           <div className="admin-topbar-actions">
-            <div className="admin-profile-menu" ref={profileRef}>
-              <button type="button" className="admin-profile-trigger" onClick={() => setProfileOpen((value) => !value)} aria-expanded={profileOpen}>
-                <span className="admin-avatar">{user?.id ? <img src={`/api/proxy/users/${user.id}/avatar/`} alt="" /> : initials}</span>
-                <span className="admin-profile-copy"><strong>{displayName}</strong><small>{user?.admin_role_display || user?.admin_role_name || roleLabels[role]}</small></span>
-                <ChevronDown />
+            <div className="admin-profile-menu" ref={profileRef} style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="admin-profile-trigger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setProfileOpen((prev) => !prev);
+                }}
+                aria-expanded={profileOpen}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+              >
+                <span className="admin-avatar">
+                  {typeof (user as any)?.avatar === 'string' && (user as any).avatar ? (
+                    <img
+                      src={(user as any).avatar}
+                      alt={displayName}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    initials
+                  )}
+                </span>
+                <span className="admin-profile-copy">
+                  <strong>{displayName}</strong>
+                  <small>{user?.admin_role_display || user?.admin_role_name || roleLabels[role]}</small>
+                </span>
+                <ChevronDown className={`transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
               </button>
               {profileOpen && (
-                <div className="admin-profile-dropdown">
-                  <div><strong>{displayName}</strong><span>{user?.email}</span></div>
-                  <Link to="/"><UserRound /> Public website</Link>
-                  <button type="button" onClick={handleLogout}><LogOut /> Sign out securely</button>
+                <div
+                  className="admin-profile-dropdown"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    zIndex: 9999,
+                    background: '#ffffff',
+                    border: '1px solid rgba(0,0,0,0.1)',
+                    borderRadius: '14px',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
+                    minWidth: '220px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '8px',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                    <strong style={{ display: 'block', fontSize: '13px', color: '#0f172a' }}>{displayName}</strong>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{user?.email}</span>
+                  </div>
+                  <Link
+                    to="/"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#334155',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <UserRound size={16} /> Public website
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#e11d48',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#fff1f2')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <LogOut size={16} /> Sign out securely
+                  </button>
                 </div>
               )}
             </div>

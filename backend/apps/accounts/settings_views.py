@@ -23,8 +23,9 @@ class UserSettingsView(APIView):
     """
     GET /api/v1/settings/
     PATCH /api/v1/settings/
+    PUT /api/v1/settings/
     
-    Persist incognito, push, and email preferences per account.
+    Persist incognito, push, email, and visibility preferences per account.
     """
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
@@ -42,6 +43,9 @@ class UserSettingsView(APIView):
                     'matches': True,
                     'promotions': False,
                 },
+                'show_online_status': settings_obj.show_online_status,
+                'contact_visibility': settings_obj.contact_visibility,
+                'photo_visibility': settings_obj.photo_visibility,
                 'updated_at': settings_obj.updated_at.isoformat() if settings_obj.updated_at else None,
             }
         )
@@ -49,7 +53,7 @@ class UserSettingsView(APIView):
     def patch(self, request):
         member = request.user
         settings_obj = _get_or_create_settings(member)
-        data = request.data
+        data = request.data or {}
 
         # Incognito / is_hidden
         if 'incognito' in data:
@@ -59,7 +63,7 @@ class UserSettingsView(APIView):
             member.is_hidden = bool(data['is_hidden'])
             member.save(update_fields=('is_hidden', 'updated_at'))
 
-        # Push / Email
+        # Push / Email / Notifications
         settings_updated = False
         if 'push_notifications' in data:
             settings_obj.push_notifications = bool(data['push_notifications'])
@@ -73,6 +77,44 @@ class UserSettingsView(APIView):
             settings_obj.notification_preferences = current
             settings_updated = True
 
+        # Online Status & Visibility
+        if 'show_online_status' in data:
+            settings_obj.show_online_status = bool(data['show_online_status'])
+            settings_updated = True
+
+        if 'contact_visibility' in data:
+            val = str(data['contact_visibility']).strip().upper()
+            contact_map = {
+                'ALL': 'ALL',
+                'PUBLIC': 'ALL',
+                'CONNECTED_ONLY': 'CONNECTED_ONLY',
+                'CONNECTED': 'CONNECTED_ONLY',
+                'MATCHES_ONLY': 'CONNECTED_ONLY',
+                'MUTUAL': 'CONNECTED_ONLY',
+                'HIDDEN': 'HIDDEN',
+                'NONE': 'HIDDEN',
+                'PRIVATE': 'HIDDEN',
+            }
+            if val in contact_map:
+                settings_obj.contact_visibility = contact_map[val]
+                settings_updated = True
+
+        if 'photo_visibility' in data:
+            val = str(data['photo_visibility']).strip().upper()
+            photo_map = {
+                'ALL': 'ALL',
+                'PUBLIC': 'ALL',
+                'CONNECTED_ONLY': 'CONNECTED_ONLY',
+                'CONNECTED': 'CONNECTED_ONLY',
+                'MATCHES_ONLY': 'CONNECTED_ONLY',
+                'APPROVED_MEMBERS': 'APPROVED_MEMBERS',
+                'APPROVED_ONLY': 'APPROVED_MEMBERS',
+                'VERIFIED_ONLY': 'APPROVED_MEMBERS',
+            }
+            if val in photo_map:
+                settings_obj.photo_visibility = photo_map[val]
+                settings_updated = True
+
         if settings_updated:
             settings_obj.save()
 
@@ -83,16 +125,23 @@ class UserSettingsView(APIView):
                 'push_notifications': settings_obj.push_notifications,
                 'email_notifications': settings_obj.email_notifications,
                 'notification_preferences': settings_obj.notification_preferences,
+                'show_online_status': settings_obj.show_online_status,
+                'contact_visibility': settings_obj.contact_visibility,
+                'photo_visibility': settings_obj.photo_visibility,
                 'updated_at': settings_obj.updated_at.isoformat() if settings_obj.updated_at else None,
             },
             message='Settings updated successfully.'
         )
 
+    def put(self, request):
+        return self.patch(request)
+
 
 class UserPrivacySettingsView(APIView):
     """
-    GET /api/v1/member-auth/privacy-settings/
-    PATCH /api/v1/member-auth/privacy-settings/
+    GET /api/v1/privacy-settings/ or /api/v1/member-auth/privacy-settings/
+    PATCH /api/v1/privacy-settings/ or /api/v1/member-auth/privacy-settings/
+    PUT /api/v1/privacy-settings/ or /api/v1/member-auth/privacy-settings/
 
     Enforce online-status and contact visibility per account.
     """
@@ -106,6 +155,7 @@ class UserPrivacySettingsView(APIView):
                 'contact_visibility': settings_obj.contact_visibility,
                 'photo_visibility': settings_obj.photo_visibility,
                 'is_hidden': request.user.is_hidden,
+                'incognito': request.user.is_hidden,
                 'updated_at': settings_obj.updated_at.isoformat() if settings_obj.updated_at else None,
             }
         )
@@ -113,7 +163,7 @@ class UserPrivacySettingsView(APIView):
     def patch(self, request):
         member = request.user
         settings_obj = _get_or_create_settings(member)
-        data = request.data
+        data = request.data or {}
         settings_updated = False
 
         if 'show_online_status' in data:
@@ -122,18 +172,42 @@ class UserPrivacySettingsView(APIView):
 
         if 'contact_visibility' in data:
             val = str(data['contact_visibility']).strip().upper()
-            if val in ('ALL', 'CONNECTED_ONLY', 'HIDDEN'):
-                settings_obj.contact_visibility = val
+            contact_map = {
+                'ALL': 'ALL',
+                'PUBLIC': 'ALL',
+                'CONNECTED_ONLY': 'CONNECTED_ONLY',
+                'CONNECTED': 'CONNECTED_ONLY',
+                'MATCHES_ONLY': 'CONNECTED_ONLY',
+                'MUTUAL': 'CONNECTED_ONLY',
+                'HIDDEN': 'HIDDEN',
+                'NONE': 'HIDDEN',
+                'PRIVATE': 'HIDDEN',
+            }
+            if val in contact_map:
+                settings_obj.contact_visibility = contact_map[val]
                 settings_updated = True
 
         if 'photo_visibility' in data:
             val = str(data['photo_visibility']).strip().upper()
-            if val in ('ALL', 'CONNECTED_ONLY', 'APPROVED_MEMBERS'):
-                settings_obj.photo_visibility = val
+            photo_map = {
+                'ALL': 'ALL',
+                'PUBLIC': 'ALL',
+                'CONNECTED_ONLY': 'CONNECTED_ONLY',
+                'CONNECTED': 'CONNECTED_ONLY',
+                'MATCHES_ONLY': 'CONNECTED_ONLY',
+                'APPROVED_MEMBERS': 'APPROVED_MEMBERS',
+                'APPROVED_ONLY': 'APPROVED_MEMBERS',
+                'VERIFIED_ONLY': 'APPROVED_MEMBERS',
+            }
+            if val in photo_map:
+                settings_obj.photo_visibility = photo_map[val]
                 settings_updated = True
 
         if 'is_hidden' in data:
             member.is_hidden = bool(data['is_hidden'])
+            member.save(update_fields=('is_hidden', 'updated_at'))
+        elif 'incognito' in data:
+            member.is_hidden = bool(data['incognito'])
             member.save(update_fields=('is_hidden', 'updated_at'))
 
         if settings_updated:
@@ -145,10 +219,14 @@ class UserPrivacySettingsView(APIView):
                 'contact_visibility': settings_obj.contact_visibility,
                 'photo_visibility': settings_obj.photo_visibility,
                 'is_hidden': member.is_hidden,
+                'incognito': member.is_hidden,
                 'updated_at': settings_obj.updated_at.isoformat() if settings_obj.updated_at else None,
             },
             message='Privacy settings updated successfully.'
         )
+
+    def put(self, request):
+        return self.patch(request)
 
 
 class SafetyEligibilityView(APIView):
@@ -274,6 +352,20 @@ class SafetyEligibilityView(APIView):
         )
 
 
+class IsMemberOrPendingDeletion(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated and str(getattr(user, 'account_type', '')) == 'MEMBER'):
+            return False
+        if user.is_active and user.deleted_at is None:
+            return True
+        return bool(
+            user.account_status == Member.AccountStatus.DELETION_PENDING
+            and user.recovery_until
+            and user.recovery_until > timezone.now()
+        )
+
+
 class SafetyAccountDeletionAliasView(APIView):
     """
     DELETE /api/v1/safety/account-deletion/
@@ -281,7 +373,7 @@ class SafetyAccountDeletionAliasView(APIView):
 
     Alias for mobile/legacy compatibility mapping to member deletion.
     """
-    permission_classes = (permissions.IsAuthenticated, IsMember)
+    permission_classes = (permissions.IsAuthenticated, IsMemberOrPendingDeletion)
 
     def get(self, request):
         member = request.user
@@ -294,6 +386,31 @@ class SafetyAccountDeletionAliasView(APIView):
                 'is_hidden': member.is_hidden,
             }
         )
+
+    def post(self, request):
+        action = request.data.get('action', '').lower()
+        if action == 'cancel' or request.data.get('cancel'):
+            from apps.accounts.lifecycle import restore_member_account
+            member = request.user
+            if member.account_status != Member.AccountStatus.DELETION_PENDING:
+                return ApiResponse(
+                    success=False,
+                    message='Account is not currently scheduled for deletion.',
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                member = restore_member_account(member=member)
+            except ValueError as exc:
+                return ApiResponse(success=False, message=str(exc), status=status.HTTP_400_BAD_REQUEST)
+            record_security_audit_event('MEMBER_ACCOUNT_DELETION_CANCELLED', request=request, account=member)
+            return ApiResponse(
+                data={
+                    'account_status': member.account_status,
+                    'is_deleted_pending': False,
+                },
+                message='Account deletion request has been cancelled.',
+            )
+        return self.delete(request)
 
     def delete(self, request):
         member = request.user

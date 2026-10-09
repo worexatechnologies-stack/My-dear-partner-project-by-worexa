@@ -1,6 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from apps.accounts.verification_views import (
+    AdminVerificationApproveView,
+    AdminVerificationRejectView,
+    AdminVerificationRequestChangesView,
+)
+from apps.messaging.views import UnreadCountView
+
 from .role_views import (
     AdminAccountApprovalsView,
     AdminAccountDetailView,
@@ -29,6 +36,7 @@ from .role_views import (
     AdminPaymentRefundView,
     AdminRefundRequestApproveRejectView,
     AdminPaymentReconcileView,
+    AdminBulkPaymentReconcileView,
     AdminProfileReportDetailView,
     AdminProfileReportListView,
     AdminReportExportView,
@@ -193,6 +201,7 @@ urlpatterns = [
     path('interests/<uuid:pk>/', InterestDetailView.as_view(), name='interest_detail'),
     path('matchmaking/compatibility/', CompatibilityCheckView.as_view(), name='compatibility_check'),
     path('conversations/', ConversationListView.as_view(), name='conversations_list'),
+    path('conversations/unread-count/', UnreadCountView.as_view(), name='conversations_unread_count'),
     path('conversations/<uuid:user_id>/messages/', MessageHistoryView.as_view(), name='conversation_messages'),
     path('conversations/<uuid:user_id>/mark-read/', MessageMarkReadView.as_view(), name='conversation_mark_read'),
     path('messages/<uuid:message_id>/delete/', MessageDeleteView.as_view(), name='message_delete'),
@@ -203,11 +212,11 @@ urlpatterns = [
     # Razorpay Payment Gateway integration endpoints
     path('payments/orders/', PaymentOrderCreateView.as_view(), name='payment_order_create'),
     path('payments/verify/', PaymentVerifyView.as_view(), name='payment_verify'),
-    path('payments/orders/<uuid:id>/status/', PaymentOrderStatusView.as_view(), name='payment_order_status'),
+    path('payments/orders/<str:id>/status/', PaymentOrderStatusView.as_view(), name='payment_order_status'),
     path('payments/history/', PaymentHistoryView.as_view(), name='payment_history'),
-    path('payments/<uuid:id>/receipt/', PaymentReceiptView.as_view(), name='payment_receipt'),
-    path('payments/<uuid:id>/refund-request/', PaymentRefundRequestView.as_view(), name='payment_refund_request'),
-    path('payments/refunds/<uuid:id>/', PaymentRefundStatusView.as_view(), name='payment_refund_status'),
+    path('payments/<str:id>/receipt/', PaymentReceiptView.as_view(), name='payment_receipt'),
+    path('payments/<str:id>/refund-request/', PaymentRefundRequestView.as_view(), name='payment_refund_request'),
+    path('payments/refunds/<str:id>/', PaymentRefundStatusView.as_view(), name='payment_refund_status'),
     path('payments/webhooks/razorpay/', RazorpayWebhookView.as_view(), name='razorpay_webhook'),
     path('member/entitlements/', MembershipEntitlementsView.as_view(), name='member_entitlements'),
     path('complaints/', MemberComplaintListCreateView.as_view(), name='member_complaints'),
@@ -287,6 +296,7 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/', AdminUserActionView.as_view(), name='admin_user_action'),
     path('admin/users/<uuid:user_id>/grant-membership/', AdminGrantMembershipView.as_view(), name='admin_user_grant_membership'),
     path('admin/payments/', AdminPaymentListView.as_view(), name='admin_payments_list'),
+    path('admin/payments/reconcile/', AdminBulkPaymentReconcileView.as_view(), name='admin_payments_bulk_reconcile'),
     path('admin/payments/<uuid:id>/', AdminPaymentDetailView.as_view(), name='admin_payment_detail'),
     path('admin/payments/<uuid:id>/refund/', AdminPaymentRefundView.as_view(), name='admin_payment_refund'),
     path('admin/refund-requests/<uuid:id>/<str:action>/', AdminRefundRequestApproveRejectView.as_view(), name='admin_refund_request_action'),
@@ -318,6 +328,9 @@ urlpatterns = [
     path('admin/reported-profiles/<uuid:report_id>/', AdminProfileReportDetailView.as_view(), name='admin_reported_profile_detail'),
     path('admin/verifications/', AdminVerificationListView.as_view(), name='admin_verifications'),
     path('admin/verifications/<uuid:verification_id>/', AdminVerificationDetailView.as_view(), name='admin_verification_detail'),
+    path('admin/verifications/<uuid:verification_id>/approve/', AdminVerificationApproveView.as_view(), name='admin_verification_approve'),
+    path('admin/verifications/<uuid:verification_id>/reject/', AdminVerificationRejectView.as_view(), name='admin_verification_reject'),
+    path('admin/verifications/<uuid:verification_id>/request-changes/', AdminVerificationRequestChangesView.as_view(), name='admin_verification_request_changes'),
     path('admin/faqs/', AdminFAQListCreateView.as_view(), name='admin_faqs'),
     path('admin/faqs/<uuid:item_id>/', AdminFAQDetailView.as_view(), name='admin_faq_detail'),
     path('admin/settings/', AdminSettingsView.as_view(), name='admin_settings'),

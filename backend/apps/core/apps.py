@@ -29,19 +29,19 @@ class CoreConfig(AppConfig):
             request_started.disconnect(dispatch_uid='core_expire_stale_orders')
             threshold = timezone.now() - timedelta(hours=1)
             try:
-                stale = PaymentOrder.objects.filter(
+                # Do NOT blindly expire orders that have a razorpay_order_id without gateway verification.
+                # Only expire orders that never received a gateway order id and are older than 2 hours.
+                stale_unlinked = PaymentOrder.objects.filter(
                     status='created',
-                    created_at__lt=threshold,
+                    razorpay_order_id__isnull=True,
+                    created_at__lt=timezone.now() - timedelta(hours=2),
                 )
-                count = stale.count()
+                count = stale_unlinked.count()
                 if count:
-                    stale.update(status='expired', updated_at=timezone.now())
+                    stale_unlinked.update(status='expired', updated_at=timezone.now())
                     logger.info(
-                        'startup: expired %d stale PaymentOrder(s) '
-                        'older than 1 hour. key=%s mode=%s',
+                        'startup: expired %d unlinked PaymentOrder(s) older than 2 hours.',
                         count,
-                        getattr(settings, 'RAZORPAY_KEY_ID', '')[:6] + '****',
-                        getattr(settings, 'RAZORPAY_MODE', 'N/A'),
                     )
             except (PaymentOrder.DoesNotExist, DatabaseError):
                 pass

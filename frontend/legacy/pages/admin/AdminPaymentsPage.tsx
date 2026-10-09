@@ -27,6 +27,8 @@ export default function AdminPaymentsPage() {
     if (paramStatus) setStatus(paramStatus.toLowerCase());
   }, [searchParams]);
 
+  const [dbSummary, setDbSummary] = useState<{ value: number; active: number; pending: number } | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -34,6 +36,13 @@ export default function AdminPaymentsPage() {
       const result = await getAdminTransactionsPage({ page, page_size: 20, search, status: status || undefined });
       setTransactions(result.results);
       setCount(result.count);
+      if ((result as any).summary) {
+        setDbSummary({
+          value: Number((result as any).summary.total_value || 0),
+          active: Number((result as any).summary.successful_count || 0),
+          pending: Number((result as any).summary.pending_count || 0),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : `${membershipMode ? 'Memberships' : 'Payments'} could not be loaded.`);
     } finally {
@@ -61,11 +70,14 @@ export default function AdminPaymentsPage() {
     debounceMs: 300,
   });
 
-  const summary = useMemo(() => ({
-    value: transactions.reduce((total, item) => total + Number(item.amount || 0), 0),
-    active: transactions.filter((item) => ['ACTIVE', 'PAID', 'SUCCESS', 'SUCCESSFUL'].includes(item.status.toUpperCase())).length,
-    pending: transactions.filter((item) => item.status.toUpperCase().includes('PENDING')).length,
-  }), [transactions]);
+  const summary = useMemo(() => {
+    if (dbSummary) return dbSummary;
+    return {
+      value: transactions.reduce((total, item) => total + Number(item.amount || 0), 0),
+      active: transactions.filter((item) => ['ACTIVE', 'PAID', 'SUCCESS', 'SUCCESSFUL'].includes(item.status.toUpperCase())).length,
+      pending: transactions.filter((item) => item.status.toUpperCase().includes('PENDING')).length,
+    };
+  }, [dbSummary, transactions]);
 
   if (loading && !transactions.length) return <AdminLoading label={`Loading ${membershipMode ? 'membership records' : 'payment history'}â€¦`} />;
   if (error && !transactions.length) return <AdminErrorState message={error} onRetry={load} />;

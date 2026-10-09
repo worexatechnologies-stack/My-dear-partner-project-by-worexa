@@ -68,3 +68,29 @@ export function isActiveChatNotification(link?: unknown): boolean {
   const notificationPartnerId = partnerFromChatLink(link);
   return Boolean(activePartnerId && notificationPartnerId && activePartnerId === notificationPartnerId);
 }
+
+/**
+ * Returns the set of partner IDs that the user has muted.
+ * Reads from the same localStorage key written by MessagesPage.
+ */
+export function getMutedConversationIds(userId?: string | number | null): Set<string> {
+  if (typeof window === 'undefined' || !userId) return new Set();
+  try {
+    const raw = window.localStorage.getItem(`mdp_muted_conversations_${userId}`);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter(Boolean).map((id: string) => String(id).trim().toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Returns true when the given conversation is muted by the user.
+ */
+export function isConversationMuted(userId?: string | number | null, partnerId?: string | null): boolean {
+  if (!userId || !partnerId) return false;
+  const key = String(partnerId).trim().toLowerCase();
+  return getMutedConversationIds(userId).has(key);
+}

@@ -210,7 +210,7 @@ function NotificationLiveToast({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-[#302328]">{notification.title}</p>
           <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[#78676d]">
-            {isChat ? 'You have a new message.' : notification.message}
+            {isChat ? (notification.message && !notification.message.startsWith('__E2EE__:') ? notification.message : 'You have a new message.') : notification.message}
           </p>
         </div>
         <button

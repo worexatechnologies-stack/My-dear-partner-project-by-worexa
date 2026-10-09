@@ -12,7 +12,7 @@ const tokenResponsePath = /\/(?:login|register|otp\/verify|token\/refresh)\/?$/;
 const refreshRequestPath = /\/(?:token\/refresh|logout|logout-all)\/?$/;
 const logoutPath = /\/(?:logout|logout-all)\/?$/;
 const publicAuthPath = /^(?:member|admin|super-admin|staff)-auth\/(?:login|register|otp\/verify|token\/refresh|logout(?:-all)?)\/?$/;
-const UPSTREAM_TIMEOUT_MS = 15_000;
+const UPSTREAM_TIMEOUT_MS = 120_000;
 
 function cookieOptions() {
   return {
@@ -99,6 +99,11 @@ function isProtectedResourcePath(path: string) {
   if (path.startsWith("users/") || path.startsWith("v1/users/")) return true;
   if (path.startsWith("conversations") || path.startsWith("v1/conversations")) return true;
   if (path.startsWith("blocks") || path.startsWith("v1/blocks")) return true;
+  if (path.startsWith("settings") || path.startsWith("v1/settings")) return true;
+  if (path.startsWith("privacy-settings") || path.startsWith("v1/privacy-settings")) return true;
+  if (path.startsWith("safety") || path.startsWith("v1/safety")) return true;
+  if (path.startsWith("verification") || path.startsWith("v1/verification")) return true;
+  if (path.startsWith("payments") || path.startsWith("v1/payments")) return true;
   return false;
 }
 

@@ -340,16 +340,6 @@ export default function EditProfilePage() {
   const uploadPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!allowedPhotoTypes.has(file.type.toLowerCase()) || !allowedPhotoFilename.test(file.name)) {
-      setNotice({ text: 'Choose a JPEG, PNG, or WebP image.', error: true });
-      event.target.value = '';
-      return;
-    }
-    if (file.size > MAX_PROFILE_PHOTO_BYTES) {
-      setNotice({ text: 'Image size must be 10 MB or smaller.', error: true });
-      event.target.value = '';
-      return;
-    }
     setBusy(true);
     setNotice(null);
     try {
@@ -625,8 +615,8 @@ export default function EditProfilePage() {
                   <ImagePlus className="w-5 h-5" />
                 </div>
                 <span className="text-xs font-bold text-slate-800 group-hover:text-[#e11d48]">Add Photo</span>
-                <span className="text-[10px] text-slate-400 mt-1">JPEG, PNG or WebP<br />Up to 10 MB</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} disabled={busy} className="hidden" />
+                <span className="text-[10px] text-slate-400 mt-1">Any format &amp; size</span>
+                <input type="file" accept="image/*" onChange={uploadPhoto} disabled={busy} className="hidden" />
               </label>
             );
           }

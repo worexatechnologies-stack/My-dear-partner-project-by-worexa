@@ -261,6 +261,10 @@ export async function smartDecryptText(
     }
   }
 
-  return '🔒 Encrypted message';
+  // Never show 'Encrypted message' label; fallback to raw text or empty if JSON ciphertext
+  if (text.startsWith('__E2EE__:') || (text.includes('"iv"') && text.includes('"ct"'))) {
+    return '';
+  }
+  return text;
 }
 

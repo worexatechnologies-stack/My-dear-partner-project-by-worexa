@@ -67,6 +67,8 @@ export default function AdminMembershipsPage() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
+  const [dbSummary, setDbSummary] = useState<{ total: number; active: number; expired: number } | null>(null);
+
   const loadSubscriptions = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -74,6 +76,13 @@ export default function AdminMembershipsPage() {
       const data = await getMemberships({ page, page_size: 20, search: search || undefined, status: statusFilter || undefined });
       setItems(data.results);
       setCount(data.count);
+      if ((data as any).summary) {
+        setDbSummary({
+          total: (data as any).summary.total ?? data.count,
+          active: (data as any).summary.active ?? 0,
+          expired: (data as any).summary.expired ?? 0,
+        });
+      }
     } catch (err) {
       setError(messageFrom(err));
     } finally {
@@ -178,8 +187,8 @@ export default function AdminMembershipsPage() {
   if (loading && !items.length) return <AdminLoading label="Loading memberships…" />;
   if (error && !items.length) return <AdminErrorState message={error} onRetry={loadSubscriptions} />;
 
-  const activeCount = items.filter((i) => i.is_active).length;
-  const expiredCount = items.filter((i) => !i.is_active).length;
+  const activeCount = dbSummary ? dbSummary.active : items.filter((i) => i.is_active).length;
+  const expiredCount = dbSummary ? dbSummary.expired : items.filter((i) => !i.is_active).length;
 
   return (
     <>
@@ -202,13 +211,13 @@ export default function AdminMembershipsPage() {
       />
 
       <div className="admin-stat-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '1.5rem' }}>
-        <article className="admin-stat-card">
+        <article className="admin-stat-card" style={{ cursor: 'pointer' }} onClick={() => setStatusFilter('active')}>
           <span className="admin-stat-icon green"><BadgeCheck /></span>
-          <div><strong>{activeCount}</strong><p>Active (this page)</p></div>
+          <div><strong>{activeCount}</strong><p>Active Memberships</p></div>
         </article>
-        <article className="admin-stat-card">
+        <article className="admin-stat-card" style={{ cursor: 'pointer' }} onClick={() => setStatusFilter('expired')}>
           <span className="admin-stat-icon slate"><Clock3 /></span>
-          <div><strong>{expiredCount}</strong><p>Expired (this page)</p></div>
+          <div><strong>{expiredCount}</strong><p>Expired Memberships</p></div>
         </article>
       </div>
 

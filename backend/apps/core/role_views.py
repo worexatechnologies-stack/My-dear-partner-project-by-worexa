@@ -437,7 +437,13 @@ class AdminAccountListCreateView(ScopedAPIView):
             rows.extend(queryset)
 
         rows.sort(key=lambda row: row.created_at, reverse=True)
-        return paginated_response(request, rows, _AdministrativeAccountSerializer)
+        summary = {
+            'total': len(rows),
+            'active': sum(1 for r in rows if getattr(r, 'is_active', True)),
+            'inactive': sum(1 for r in rows if not getattr(r, 'is_active', True)),
+            'super_admin': sum(1 for r in rows if str(getattr(r, 'role', '')) == 'SUPER_ADMIN' or str(getattr(r, 'account_type', '')) == 'SUPER_ADMIN'),
+        }
+        return paginated_response(request, rows, _AdministrativeAccountSerializer, extra={'summary': summary})
 
     @transaction.atomic
     def post(self, request):
@@ -992,7 +998,7 @@ class AdminDashboardView(ScopedAPIView):
         return None  # all time
 
     def get(self, request):
-        from django.db.models import Sum, Count
+        from django.db.models import Sum, Count, Q as DQ
         from django.utils import timezone
         from datetime import timedelta
 
@@ -1011,21 +1017,28 @@ class AdminDashboardView(ScopedAPIView):
         suspended_users = members_qs.filter(is_active=False).count()
         new_today = members_qs.filter(created_at__gte=today_start).count()
         new_this_month = members_qs.filter(created_at__gte=month_start).count()
-        if range_start:
-            members_qs = members_qs.filter(created_at__gte=range_start)
         verified_users = members_qs.filter(profile_status=Member.ProfileStatus.APPROVED).count()
         male_profiles = members_qs.filter(gender='Male').count()
         female_profiles = members_qs.filter(gender='Female').count()
         premium_users = members_qs.filter(is_premium=True).count()
 
         # Verification queues
-        pending_profile_approvals = ProfileVerificationRequest.objects.filter(
-            verification_type=ProfileVerificationRequest.VerificationType.FULL_PROFILE,
-            status__in=(
-                ProfileVerificationRequest.Status.PENDING_REVIEW,
-            )
+        pending_profile_approvals = members_qs.filter(
+            profile_status=Member.ProfileStatus.PENDING_REVIEW
         ).count()
+        if pending_profile_approvals == 0:
+            pending_profile_approvals = ProfileVerificationRequest.objects.filter(
+                verification_type=ProfileVerificationRequest.VerificationType.FULL_PROFILE,
+                status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+            ).count()
+
         pending_photo_approvals = members_qs.filter(photo_status=Member.VerificationStatus.PENDING_REVIEW).count()
+        if pending_photo_approvals == 0:
+            try:
+                from apps.profiles.models import ProfilePhoto
+                pending_photo_approvals = ProfilePhoto.objects.filter(status='PENDING').count()
+            except Exception:
+                pass
 
         # Document verification
         try:
@@ -1038,7 +1051,7 @@ class AdminDashboardView(ScopedAPIView):
         try:
             from apps.core.models import MemberMembership
             active_memberships = MemberMembership.objects.filter(
-                is_active=True, expires_at__gte=now
+                DQ(is_active=True) & (DQ(expires_at__gte=now) | DQ(expires_at__isnull=True))
             ).count()
             expired_memberships = MemberMembership.objects.filter(
                 is_active=False
@@ -1048,7 +1061,6 @@ class AdminDashboardView(ScopedAPIView):
             expired_memberships = 0
 
         # Payments
-        from django.db.models import Q as DQ
         total_revenue_val = PaymentTransaction.objects.filter(
             status='captured'
         ).aggregate(total=Sum('amount'))['total'] or 0
@@ -1057,12 +1069,14 @@ class AdminDashboardView(ScopedAPIView):
         ).aggregate(total=Sum('amount'))['total'] or 0
         total_revenue = str(total_revenue_val)
         revenue_this_month = str(revenue_this_month_val)
-        pending_payments = PaymentOrder.objects.filter(status='created').count()
+        pending_payments = PaymentOrder.objects.filter(status__in=('created', 'attempted')).count()
         successful_payments = PaymentTransaction.objects.filter(status='captured').count()
         failed_payments = PaymentTransaction.objects.filter(status='failed').count()
 
         # Support tickets
-        pending_tickets = SupportTicket.objects.filter(status=SupportTicket.Status.UNASSIGNED).count()
+        pending_tickets = SupportTicket.objects.filter(
+            status__in=(SupportTicket.Status.UNASSIGNED, SupportTicket.Status.OPEN, SupportTicket.Status.REOPENED)
+        ).count()
         assigned_tickets = SupportTicket.objects.filter(status=SupportTicket.Status.ASSIGNED).count()
         open_tickets = SupportTicket.objects.exclude(
             status__in=(SupportTicket.Status.RESOLVED, SupportTicket.Status.CLOSED)
@@ -1102,6 +1116,61 @@ class AdminDashboardView(ScopedAPIView):
             'escalated_complaints': Complaint.objects.filter(status='ESCALATED').count() if hasattr(Complaint, 'objects') else 0,
         }
 
+        # Monthly signups chart data
+        monthly_signups_data = []
+        try:
+            from django.db.models.functions import TruncMonth
+            monthly_counts = (
+                members_qs.annotate(month=TruncMonth('created_at'))
+                .values('month')
+                .annotate(count=Count('id'))
+                .order_by('month')
+            )
+            for item in monthly_counts:
+                if item['month']:
+                    label = item['month'].strftime('%b %Y')
+                    monthly_signups_data.append({'month': label, 'count': item['count']})
+        except Exception:
+            pass
+
+        # Membership distribution chart data
+        membership_dist = []
+        try:
+            from apps.core.models import MemberMembership
+            dist_counts = (
+                MemberMembership.objects.filter(
+                    DQ(is_active=True) & (DQ(expires_at__gte=now) | DQ(expires_at__isnull=True))
+                )
+                .values('plan__name')
+                .annotate(count=Count('id'))
+            )
+            for item in dist_counts:
+                name = item['plan__name'] or 'Premium'
+                membership_dist.append({'name': name, 'count': item['count']})
+        except Exception:
+            pass
+
+        # Revenue trend chart data
+        monthly_rev_data = []
+        try:
+            from django.db.models.functions import TruncMonth
+            rev_counts = (
+                PaymentTransaction.objects.filter(status='captured')
+                .annotate(month=TruncMonth('created_at'))
+                .values('month')
+                .annotate(total=Sum('amount'))
+                .order_by('month')
+            )
+            for item in rev_counts:
+                if item['month']:
+                    label = item['month'].strftime('%b %Y')
+                    monthly_rev_data.append({'label': label, 'value': float(item['total'])})
+        except Exception:
+            pass
+
+        chart_registrations = [{'label': d['month'], 'value': d['count']} for d in monthly_signups_data]
+        chart_memberships = [{'label': d['name'], 'value': d['count']} for d in membership_dist]
+
         recent_member_qs = Member.objects.filter(deleted_at__isnull=True)
         if range_start:
             recent_member_qs = recent_member_qs.filter(created_at__gte=range_start)
@@ -1118,22 +1187,70 @@ class AdminDashboardView(ScopedAPIView):
                 queryset=MembershipRequest.objects.filter(status='pending').select_related('selected_plan'),
                 to_attr='_prefetched_pending_requests'),
         )
-        recent_members = recent_member_qs.order_by('-created_at')[:5]
-        recent_tickets = SupportTicket.objects.select_related('category').order_by('-created_at')[:5]
-        recent_payments = PaymentTransaction.objects.select_related('payment_order__membership_plan', 'user').order_by('-created_at')[:5]
+        recent_members = recent_member_qs.order_by('-created_at')[:6]
+        recent_tickets = SupportTicket.objects.select_related('category').order_by('-created_at')[:6]
+        recent_payments = PaymentTransaction.objects.select_related('payment_order__membership_plan', 'user').order_by('-created_at')[:6]
+
+        activity_model = SuperAdminActivityLog if is_super else AdminActivityLog
+        raw_activities = activity_model.objects.order_by('-created_at')[:6]
+        recent_activity = []
+        for act in raw_activities:
+            desc = act.description or ''
+            action_str = str(act.action or '').upper()
+            if action_str == 'DOCUMENT_APPROVED':
+                if 'for member ' in desc:
+                    parts = desc.split('for member ')
+                    m = Member.objects.filter(pk=parts[1].strip()).first() if len(parts) == 2 else None
+                    name = (m.get_full_name() or m.email) if m else 'member'
+                    desc = f"Approved Aadhaar document for {name}"
+                else:
+                    desc = "Approved member document"
+            elif action_str == 'MEMBERSHIP_PLAN_UPDATED':
+                desc = "Updated membership plan pricing and features"
+            elif not desc:
+                if 'APPROVE' in action_str:
+                    desc = f"Approved {act.module or 'record'}"
+                elif 'REJECT' in action_str:
+                    desc = f"Rejected {act.module or 'record'}"
+                elif 'UPDATE' in action_str:
+                    desc = f"Updated {act.module or 'settings'}"
+                else:
+                    desc = action_str.replace('_', ' ').title()
+            elif 'for member ' in desc:
+                parts = desc.split('for member ')
+                if len(parts) == 2:
+                    m = Member.objects.filter(pk=parts[1].strip()).first()
+                    if m:
+                        desc = f"{parts[0]}for {m.get_full_name() or m.email}"
+
+            recent_activity.append({
+                'id': str(act.pk),
+                'admin_name': act.actor_name or ('Super Admin' if is_super else 'Admin'),
+                'actor_name': act.actor_name or ('Super Admin' if is_super else 'Admin'),
+                'actor_role': act.actor_role or ('SUPER_ADMIN' if is_super else 'ADMIN'),
+                'role': 'SUPER_ADMIN' if is_super else 'ADMIN',
+                'action': act.action,
+                'module': act.module,
+                'description': desc,
+                'created_at': act.created_at.isoformat(),
+            })
 
         return ApiResponse(data={
             'role': request.user.admin_role_code,
             'role_display': request.user.admin_role_display,
             'permissions': sorted(request.user.get_effective_admin_permissions()),
             'stats': stats,
-            'charts': {'registrations': [], 'revenue': [], 'memberships': []},
+            'charts': {
+                'registrations': chart_registrations,
+                'revenue': monthly_rev_data,
+                'memberships': chart_memberships,
+            },
             'recent_users': MemberSerializer(recent_members, many=True, context={'request': request}).data,
             'recent_tickets': SupportTicketSerializer(recent_tickets, many=True).data,
             'recent_payments': PaymentSerializer(recent_payments, many=True).data,
-            'recent_activity': [],
-            'monthly_signups': [],
-            'membership_distribution': [],
+            'recent_activity': recent_activity,
+            'monthly_signups': monthly_signups_data,
+            'membership_distribution': membership_dist,
             'content': {
                 'faqs': FAQ.objects.count(),
             },
@@ -1236,7 +1353,27 @@ class AdminUserListView(ScopedAPIView):
             queryset = queryset.order_by(order_field)
         else:
             queryset = queryset.order_by('-created_at')
-        return paginated_response(request, queryset, MemberSerializer, context={'today': today})
+
+        # Real database summary counts across all scoped members
+        from django.db.models import Count, Q
+        base_scope = Member.objects.filter(deleted_at__isnull=True)
+        base_scope = apply_scope_filter(request.user, base_scope, branch_path='branch')
+        summary_counts = base_scope.aggregate(
+            total=Count('id'),
+            pending_profile=Count('id', filter=Q(profile_status='pending_review')),
+            pending_photo=Count('id', filter=Q(photo_status='pending_review')),
+            pending_doc=Count('id', filter=Q(document_status='pending_review')),
+            verified=Count('id', filter=Q(profile_status=Member.ProfileStatus.APPROVED)),
+            suspended=Count('id', filter=Q(is_active=False)),
+        )
+
+        return paginated_response(
+            request,
+            queryset,
+            MemberSerializer,
+            context={'today': today},
+            extra={'summary': summary_counts},
+        )
 
 class AdminUserActionView(ScopedAPIView):
     allowed_account_types = (AccountType.SUPER_ADMIN, AccountType.ADMIN)
@@ -2509,7 +2646,12 @@ class AdminPaymentListView(ScopedAPIView):
                     rep['notes'] = getattr(obj, 'notes', None)
                 return rep
 
-        return paginated_response(request, queryset, PaymentOrderWireSerializer)
+        summary_counts = {
+            'total_value': str(PaymentOrder.objects.filter(status__in=['paid', 'captured', 'authorized']).aggregate(total=Sum('amount'))['total'] or 0),
+            'successful_count': PaymentOrder.objects.filter(status__in=['paid', 'captured', 'authorized']).count(),
+            'pending_count': PaymentOrder.objects.filter(status__in=['created', 'checkout_opened', 'attempted']).count(),
+        }
+        return paginated_response(request, queryset, PaymentOrderWireSerializer, extra={'summary': summary_counts})
 
 class AdminPaymentDetailView(ScopedAPIView):
     allowed_account_types = (AccountType.SUPER_ADMIN, AccountType.ADMIN, AccountType.ADMIN)
@@ -2820,6 +2962,41 @@ class AdminPaymentReconcileView(ScopedAPIView):
 
         return ApiResponse(data={'status': 'completed', 'fixes': fixes})
 
+
+class AdminBulkPaymentReconcileView(ScopedAPIView):
+    """Admin endpoint to reconcile all pending payment orders with Razorpay."""
+    allowed_account_types = (AccountType.SUPER_ADMIN, AccountType.ADMIN)
+    required_permission = 'payments.reconcile'
+
+    def post(self, request):
+        from io import StringIO
+        from django.core.management import call_command
+
+        try:
+            minutes = max(0, int(request.data.get('minutes', 30)))
+        except (ValueError, TypeError):
+            minutes = 30
+
+        out = StringIO()
+        try:
+            call_command('reconcile_razorpay_payments', minutes=minutes, stdout=out)
+            output = out.getvalue()
+            return ApiResponse(
+                data={
+                    'status': 'completed',
+                    'log': output.strip(),
+                },
+                message='Payment reconciliation completed successfully.',
+            )
+        except Exception as exc:
+            logger.exception("Bulk payment reconciliation failed: %s", exc)
+            return ApiResponse(
+                success=False,
+                message=f"Reconciliation failed: {str(exc)}",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 class _MembershipWireSerializer(serializers.Serializer):
     def to_representation(self, membership):
         # Check the member's current active plan (prefetched to avoid N+1)
@@ -2899,7 +3076,17 @@ class AdminMembershipListView(ScopedAPIView):
                 | Q(member__first_name__icontains=search)
                 | Q(member__last_name__icontains=search)
             )
-        return paginated_response(request, queryset.order_by('-start_date'), _MembershipWireSerializer)
+        summary_counts = {
+            'total': MemberMembership.objects.count(),
+            'active': MemberMembership.objects.filter(is_active=True).count(),
+            'expired': MemberMembership.objects.filter(is_active=False).count(),
+        }
+        return paginated_response(
+            request,
+            queryset.order_by('-start_date'),
+            _MembershipWireSerializer,
+            extra={'summary': summary_counts},
+        )
 
 class _MembershipRequestWireSerializer(serializers.Serializer):
     def to_representation(self, req):
@@ -3506,7 +3693,13 @@ class SuperAdminAccountListCreateView(ScopedAPIView):
 
             
         rows.sort(key=lambda x: x.created_at, reverse=True)
-        return paginated_response(request, rows, _AdministrativeAccountSerializer)
+        summary = {
+            'total': len(rows),
+            'active': sum(1 for r in rows if getattr(r, 'is_active', True)),
+            'inactive': sum(1 for r in rows if not getattr(r, 'is_active', True)),
+            'super_admin': sum(1 for r in rows if str(getattr(r, 'role', '')) == 'SUPER_ADMIN' or str(getattr(r, 'account_type', '')) == 'SUPER_ADMIN'),
+        }
+        return paginated_response(request, rows, _AdministrativeAccountSerializer, extra={'summary': summary})
 
     @transaction.atomic
     def post(self, request):

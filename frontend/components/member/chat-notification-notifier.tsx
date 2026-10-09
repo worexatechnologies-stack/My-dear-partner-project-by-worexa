@@ -8,6 +8,7 @@ import { smartDecryptText } from '@/legacy/utils/crypto';
 import {
   ACTIVE_CHAT_CHANGED_EVENT,
   getActiveChatPartnerId,
+  isConversationMuted,
 } from '@/lib/chat-notification-state';
 
 type ConversationSnapshot = {
@@ -74,6 +75,8 @@ export function ChatNotificationNotifier() {
       dismissChatNotification(key);
       return;
     }
+    // Skip browser notification if the user muted this conversation
+    if (isConversationMuted(currentUserId, partnerId)) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     // Keep one browser alert for the whole unread batch instead of a toast and
@@ -165,7 +168,8 @@ export function ChatNotificationNotifier() {
         }
 
         const previous = snapshotsRef.current.get(conversationId);
-        if (initializedRef.current && (!previous || unread > previous.unread)) {
+        // Skip notification scheduling for muted conversations
+        if (initializedRef.current && (!previous || unread > previous.unread) && !isConversationMuted(currentUserId, conversationId)) {
           scheduleChatNotification(
             conversation.profile?.name || 'Member',
             lastMessage,

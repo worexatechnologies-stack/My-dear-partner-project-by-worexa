@@ -16,7 +16,7 @@ from rest_framework.pagination import CursorPagination
 from apps.accounts.permissions import IsMember
 from apps.core.responses import ApiResponse, ApiErrorResponse
 from apps.core.models import ChatMessage, ProfileBlock
-from apps.core.message_service import create_message, get_or_create_conversation, serialize_message, visible_messages_for_user
+from apps.core.message_service import create_message, decrypt_retained_message_text, get_or_create_conversation, serialize_message, visible_messages_for_user
 from apps.accounts.models import Member
 from apps.profiles.models import ProfilePhoto
 from apps.profiles.photo_permissions import can_view_profile_photo
@@ -297,7 +297,7 @@ class SendMessageView(APIView):
                 'id': str(message.id),
                 'sender_id': str(message.sender_id),
                 'receiver_id': str(message.receiver_id),
-                'text': message.text,
+                'text': decrypt_retained_message_text(message),
                 'message_type': message.message_type,
                 'is_read': message.is_read,
                 'created_at': message.created_at.isoformat(),
@@ -357,24 +357,22 @@ class UnreadCountView(APIView):
     GET /api/v1/member-auth/conversations/unread-count/
     
     Get total unread message count.
-    
-    Response:
-        {
-            "success": true,
-            "data": {
-                "total_unread": 12
-            }
-        }
     """
-    
-    permission_classes = (permissions.IsAuthenticated, IsMember)
+    permission_classes = (permissions.IsAuthenticated,)
     
     def get(self, request):
         member = request.user
+        if getattr(member, 'account_type', '') != 'MEMBER':
+            return ApiResponse(
+                success=True,
+                data={'total_unread': 0},
+                status=status.HTTP_200_OK
+            )
         
         total_unread = ChatMessage.objects.filter(
             receiver=member,
-            is_read=False
+            is_read=False,
+            deleted_for_everyone=False
         ).count()
         
         return ApiResponse(

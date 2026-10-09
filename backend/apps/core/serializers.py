@@ -54,6 +54,20 @@ def member_summary(member, *, include_contact=False):
         'first_name': member.first_name,
         'last_name': member.last_name,
     }
+    try:
+        from apps.profiles.models import ProfilePhoto
+        from apps.profiles.serializers import photo_endpoint_urls
+        primary_photo = ProfilePhoto.objects.without_binary().filter(
+            user=member, is_deleted=False
+        ).order_by('-is_primary', 'display_order', '-created_at').first()
+        if primary_photo:
+            urls = photo_endpoint_urls(primary_photo)
+            result['photo_url'] = urls['thumbnail_url']
+            result['thumbnail_url'] = urls['thumbnail_url']
+            result['photo'] = urls['thumbnail_url']
+            result['image_url'] = urls['image_url']
+    except Exception:
+        pass
     if include_contact:
         result.update(email=member.email, mobile_number=getattr(member, 'mobile_number', ''))
         result['gender'] = getattr(member, 'gender', '')
@@ -1040,15 +1054,33 @@ class WebPushSubscriptionInputSerializer(serializers.Serializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(source='payment_order.membership_plan.name', read_only=True)
+    plan = serializers.CharField(source='payment_order.membership_plan.name', read_only=True)
     client_reference = serializers.CharField(source='payment_order.internal_order_number', read_only=True)
     gateway_reference = serializers.CharField(source='razorpay_payment_id', read_only=True)
+    reference = serializers.CharField(source='razorpay_payment_id', read_only=True)
+    gateway = serializers.CharField(source='method', read_only=True)
+    date = serializers.DateTimeField(source='created_at', read_only=True)
+    user = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentTransaction
         fields = (
-            'id', 'plan_name', 'client_reference', 'amount', 'currency',
-            'status', 'gateway_reference', 'created_at', 'updated_at',
+            'id', 'user', 'email', 'plan', 'plan_name', 'client_reference',
+            'amount', 'currency', 'status', 'gateway_reference', 'reference',
+            'gateway', 'date', 'created_at', 'updated_at',
         )
+
+    def get_user(self, obj):
+        if obj.user:
+            return obj.user.get_full_name() or obj.user.email
+        return 'Member'
+
+    def get_email(self, obj):
+        if obj.user:
+            return obj.user.email
+        return ''
+
 
 
 class VerificationAssignmentSerializer(serializers.ModelSerializer):
@@ -1089,6 +1121,7 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
     is_ready = serializers.SerializerMethodField()
     pending_document = serializers.SerializerMethodField()
     pending_photo = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfileVerificationRequest
@@ -1098,8 +1131,20 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
             'rejection_reason', 'escalation_reason', 'current_assignment',
             'profile_photos', 'verification_documents', 'history', 'created_at', 'updated_at',
             'photo_status', 'document_status', 'has_photo', 'has_document', 'has_bio',
-            'is_ready', 'pending_document', 'pending_photo',
+            'is_ready', 'pending_document', 'pending_photo', 'photo_url',
         )
+
+    def get_photo_url(self, obj):
+        if not obj.member:
+            return None
+        from apps.profiles.models import ProfilePhoto
+        from apps.profiles.serializers import photo_endpoint_urls
+        photo = ProfilePhoto.objects.without_binary().filter(
+            user_id=obj.member_id, is_deleted=False
+        ).order_by('-is_primary', 'display_order', '-created_at').first()
+        if photo:
+            return photo_endpoint_urls(photo)['thumbnail_url']
+        return None
 
     def get_member(self, obj):
         return member_summary(obj.member, include_contact=True)
@@ -1208,5 +1253,5 @@ class MemberComplaintSerializer(serializers.ModelSerializer):
 class MemberProfileReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfileReport
-        fields = ('id', 'reported_member', 'reason', 'details', 'status', 'created_at', 'updated_at')
+        fields = ('id', 'reported_member', 'reason', 'details', 'evidence_file', 'status', 'created_at', 'updated_at')
         read_only_fields = ('id', 'status', 'created_at', 'updated_at')

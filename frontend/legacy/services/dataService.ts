@@ -138,6 +138,15 @@ export const getConversations = async (): Promise<Conversation[]> => {
   });
 };
 
+export const getUnreadMessagesCount = async (): Promise<number> => {
+  try {
+    const res = await fetchApi<{ total_unread: number }>('/conversations/unread-count/');
+    return Math.max(0, Number(res?.total_unread || 0));
+  } catch {
+    return 0;
+  }
+};
+
 /**
  * Paginated conversation fetch. The backend limits each request (default 50,
  * max 100) and reports ``X-Has-More``/``X-Page``/``X-Page-Size`` headers so the

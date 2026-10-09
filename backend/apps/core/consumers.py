@@ -10,7 +10,7 @@ from django.utils import timezone
 from apps.accounts.models import AccountType, Member
 
 from .models import ChatMessage
-from .message_service import conversation_contains_member, create_message, hide_message_for_user
+from .message_service import conversation_contains_member, create_message, decrypt_retained_message_text, hide_message_for_user
 
 
 logger = logging.getLogger(__name__)
@@ -326,7 +326,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'id': str(message.id),
             'sender_id': str(message.sender_id),
             'receiver_id': str(message.receiver_id),
-            'text': message.text,
+            'text': decrypt_retained_message_text(message),
             'created_at': message.created_at.isoformat(),
             'is_read': message.is_read,
             'message_type': message.message_type,

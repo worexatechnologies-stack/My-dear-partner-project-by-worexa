@@ -207,6 +207,127 @@ class MemberMobileOtpVerifyView(APIView):
             message='Mobile number verified successfully!',
             status=status.HTTP_200_OK
         )
+
+
+class MemberEmailOtpSendView(APIView):
+    """
+    POST /api/member/verification/email/send-otp/
+    
+    Send OTP to email for verification.
+    """
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+    throttle_classes = (OTPCooldownThrottle,)
+
+    def post(self, request):
+        from .views import _issue_challenge, _normalize_email
+        from .models import AuthChallenge, AccountType, Member
+        member = request.user
+
+        new_email = request.data.get('email') or request.data.get('identifier')
+        candidate_email = new_email if isinstance(new_email, str) and new_email.strip() else member.email
+        if not candidate_email:
+            return ApiResponse(
+                success=False,
+                message='Email address not set in profile.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        clean_email = _normalize_email(candidate_email)
+        if Member.objects.filter(email=clean_email).exclude(pk=member.pk).exists():
+            return ApiResponse(
+                success=False,
+                message='This email address is already in use by another account.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if clean_email != member.email:
+            member.email = clean_email
+            member.is_email_verified = False
+            member.save(update_fields=['email', 'is_email_verified', 'updated_at'])
+
+        _code, delivered = _issue_challenge(
+            account_type=AccountType.MEMBER,
+            identifier=member.email,
+            purpose=AuthChallenge.Purpose.REGISTRATION,
+            request=request,
+            lifetime_minutes=15,
+            channel='EMAIL',
+        )
+        if not delivered:
+            return ApiResponse(
+                success=False,
+                message='Unable to send verification email. Please try again shortly.',
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return ApiResponse(
+            success=True,
+            data={'expires_in': 900},
+            message='Verification code sent to your email address.',
+            status=status.HTTP_200_OK
+        )
+
+
+class MemberEmailOtpVerifyView(APIView):
+    """
+    POST /api/member/verification/email/verify-otp/
+    
+    Verify email OTP.
+    """
+    permission_classes = (permissions.IsAuthenticated, IsMember)
+
+    def post(self, request):
+        from .views import _consume_challenge
+        from .models import AuthChallenge, AccountType
+
+        member = request.user
+        otp_code = request.data.get('code', '').strip()
+
+        if not otp_code:
+            return ApiResponse(
+                success=False,
+                message='Verification code is required.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not member.email:
+            return ApiResponse(
+                success=False,
+                message='Email not set in profile.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if member.is_email_verified:
+            return ApiResponse(
+                success=False,
+                message='Email is already verified.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not _consume_challenge(
+            account_type=AccountType.MEMBER,
+            identifier=member.email,
+            purpose=AuthChallenge.Purpose.REGISTRATION,
+            code=otp_code,
+        ):
+            return ApiResponse(
+                success=False,
+                message='Invalid or expired verification code.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        member.is_email_verified = True
+        member.save(update_fields=['is_email_verified', 'updated_at'])
+
+        VerificationEvents.publish_contact_verified(member, 'email')
+
+        return ApiResponse(
+            success=True,
+            message='Email address verified successfully!',
+            status=status.HTTP_200_OK
+        )
+
+
 class MemberProfileSubmitView(APIView):
     """
     PUT /api/member/verification/profile/

@@ -30,11 +30,6 @@ export default function AdminDocumentThumbnail({
   const isPdf = mimeType === 'application/pdf' || originalFileName?.toLowerCase().endsWith('.pdf');
 
   useEffect(() => {
-    if (isPdf) {
-      setLoading(false);
-      return;
-    }
-
     if (thumbnailCache.has(documentId)) {
       setSrc(thumbnailCache.get(documentId)!);
       setLoading(false);
@@ -50,7 +45,7 @@ export default function AdminDocumentThumbnail({
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`/api/proxy/admin/documents/${documentId}/preview/`, {
+    fetch(`/api/proxy/admin/documents/${documentId}/preview/?as_image=1`, {
       credentials: 'include',
       headers,
     })
@@ -72,25 +67,7 @@ export default function AdminDocumentThumbnail({
     return () => {
       isMounted = false;
     };
-  }, [documentId, isPdf]);
-
-  if (isPdf) {
-    return (
-      <div
-        className={`relative flex flex-col items-center justify-center bg-rose-50 border border-rose-200/70 rounded-xl p-3 text-rose-600 transition-all hover:shadow-md group/thumb cursor-pointer ${className}`}
-        onClick={onClick}
-        title="Click to view PDF document"
-      >
-        <FileText className="h-8 w-8 text-rose-500 mb-1 group-hover/thumb:scale-110 transition-transform" />
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md">
-          PDF
-        </span>
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/thumb:opacity-100 rounded-xl flex items-center justify-center transition-opacity">
-          <Maximize2 className="h-4 w-4 text-white drop-shadow-md" />
-        </div>
-      </div>
-    );
-  }
+  }, [documentId]);
 
   return (
     <div
@@ -105,16 +82,26 @@ export default function AdminDocumentThumbnail({
       )}
 
       {src && !hasError ? (
-        <img
-          src={src}
-          alt={displayName}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
-          onError={() => setHasError(true)}
-        />
+        <>
+          <img
+            src={src}
+            alt={displayName}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+            onError={() => setHasError(true)}
+          />
+          {isPdf && (
+            <span className="absolute bottom-2 left-2 z-10 rounded-md bg-rose-600/90 text-white font-extrabold text-[9px] px-2 py-0.5 shadow-md uppercase tracking-wider backdrop-blur-sm pointer-events-none">
+              PDF
+            </span>
+          )}
+        </>
       ) : hasError ? (
-        <div className="h-full w-full flex flex-col items-center justify-center p-2 text-slate-400 bg-slate-50 text-center">
-          <FileCode className="h-6 w-6 text-slate-300 mb-1" />
-          <span className="text-[10px] text-slate-500 font-medium truncate max-w-full">
+        <div className="h-full w-full flex flex-col items-center justify-center p-2 text-slate-400 bg-rose-50/60 text-center">
+          <FileText className="h-7 w-7 text-rose-500 mb-1" />
+          <span className="text-[10px] text-rose-700 font-bold uppercase tracking-wider bg-rose-100/80 px-2 py-0.5 rounded-md mb-1">
+            {isPdf ? 'PDF' : 'DOC'}
+          </span>
+          <span className="text-[10px] text-slate-500 font-medium truncate max-w-[85%]">
             {originalFileName || displayName}
           </span>
         </div>
