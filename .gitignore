@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+secrets/*
+!secrets/.gitkeep
 
 # Python cache & test files
 __pycache__/

@@ -5,7 +5,7 @@ from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import AnonymousUser
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from apps.accounts.models import (
     AccountType,
@@ -38,7 +38,9 @@ def make_member(**kwargs):
 
 
 def make_super_admin(**kwargs):
-    role, _ = AdminRole.objects.get_or_create(code=AccountType.SUPER_ADMIN, defaults={'name': 'Super Admin', 'permissions': []})
+    role = AdminRole.objects.filter(code=AccountType.SUPER_ADMIN).first()
+    if not role:
+        role = AdminRole.objects.create(code=AccountType.SUPER_ADMIN, name='Super Admin')
     defaults = dict(
         email="superadmin@example.com",
         first_name="Super",
@@ -51,7 +53,9 @@ def make_super_admin(**kwargs):
 
 
 def make_admin(**kwargs):
-    role, _ = AdminRole.objects.get_or_create(code=AccountType.ADMIN, defaults={'name': 'Admin', 'permissions': []})
+    role = AdminRole.objects.filter(code=AccountType.ADMIN).first()
+    if not role:
+        role = AdminRole.objects.create(code=AccountType.ADMIN, name='Admin')
     defaults = dict(
         email="admin@example.com",
         first_name="Test",
@@ -66,7 +70,9 @@ def make_admin(**kwargs):
 def make_staff(**kwargs):
     # Operational staff share the ADMIN authentication scope; STAFF is not a
     # standalone AccountType in the current account model.
-    role, _ = AdminRole.objects.get_or_create(code=AccountType.ADMIN, defaults={'name': 'Admin', 'permissions': []})
+    role = AdminRole.objects.filter(code=AccountType.ADMIN).first()
+    if not role:
+        role = AdminRole.objects.create(code=AccountType.ADMIN, name='Admin')
     defaults = dict(
         email="staff@example.com",
         first_name="Test",
@@ -79,7 +85,7 @@ def make_staff(**kwargs):
 
 
 @override_settings(CHANNEL_LAYERS=IN_MEMORY_CHANNEL_LAYER)
-class NotificationConsumerTests(TestCase):
+class NotificationConsumerTests(TransactionTestCase):
     """Test suite for the unified NotificationConsumer."""
 
     async def _connect(self, user):
@@ -512,25 +518,134 @@ class DeviceRegistrationAndPushTests(TestCase):
             self.assertEqual(msg_arg.data["kind"], "interest")
             self.assertEqual(msg_arg.data["interest_id"], "interest_789")
 
-    def test_test_push_endpoint_supports_general(self):
-        self.client.force_authenticate(user=self.member1)
+    def test_invalid_argument_error_does_not_delete_device(self):
+        from apps.notifications.models import Device
+        from apps.notifications.push import send_chat_push
+        import firebase_admin.exceptions as fb_exceptions
 
-        with patch("apps.notifications.views.send_general_push") as mock_gen_push:
-            mock_gen_push.return_value = "msg_gen_test_999"
+        dev = Device.objects.create(user=self.member1, token="valid_token_invalid_payload")
 
-            response = self.client.post(
-                "/api/v1/devices/test-push/",
-                {
-                    "token": "fcm_token_gen_test",
-                    "type": "general",
-                    "title": "Custom General Title",
-                    "body": "Custom General Body",
-                },
-                format="json",
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.side_effect = fb_exceptions.InvalidArgumentError("Malformed payload argument")
+
+            with self.assertRaises(fb_exceptions.InvalidArgumentError):
+                send_chat_push(device=dev)
+            # CRITICAL: Device MUST NOT be deleted for general or payload argument errors!
+            self.assertTrue(Device.objects.filter(token="valid_token_invalid_payload").exists())
+
+    def test_chat_push_deduplication(self):
+        from apps.notifications.models import Device
+        from apps.notifications.push import send_chat_push
+        from django.core.cache import cache
+
+        cache.clear()
+        dev = Device.objects.create(user=self.member1, token="token_dedup_test")
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/first_call"
+
+            res1 = send_chat_push(device=dev, message_id="unique_msg_101")
+            self.assertEqual(res1, "projects/mydearpartner/messages/first_call")
+            self.assertEqual(mock_send.call_count, 1)
+
+            # Second dispatch for the exact same message and device
+            res2 = send_chat_push(device=dev, message_id="unique_msg_101")
+            self.assertEqual(res2, "ALREADY_DELIVERED")
+            # Should not call FCM send a second time
+            self.assertEqual(mock_send.call_count, 1)
+
+    def test_react_native_chat_payload_compliance(self):
+        from apps.notifications.push import send_chat_push
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "msg_rn_success"
+
+            send_chat_push(
+                device="token_rn_abc",
+                sender_name="Priya",
+                message_id="msg_456",
+                conversation_id="conv_789",
+                sender_id="user_111",
+                receiver_id="user_222",
+                title="New message from Priya",
+                body="Hello there!",
             )
-            self.assertEqual(response.status_code, 200)
-            self.assertTrue(response.data["success"])
-            self.assertEqual(response.data["data"]["type"], "general")
-            mock_gen_push.assert_called_once()
+
+            mock_send.assert_called_once()
+            msg = mock_send.call_args[0][0]
+
+            # 1. kind: "message"
+            self.assertEqual(msg.data["kind"], "message")
+            # 2. conversation_id, message_id, sender_id, sender_name
+            self.assertEqual(msg.data["conversation_id"], "conv_789")
+            self.assertEqual(msg.data["message_id"], "msg_456")
+            self.assertEqual(msg.data["sender_id"], "user_111")
+            self.assertEqual(msg.data["sender_name"], "Priya")
+            # 3. All data values must be strings
+            for key, val in msg.data.items():
+                self.assertIsInstance(val, str, f"Data value for {key} is not a string")
+            # 4. Android channel: mdp_messages_v2, priority: high
+            self.assertEqual(msg.android.notification.channel_id, "mdp_messages_v2")
+            self.assertEqual(msg.android.priority, "high")
+            # 5. APNs sound: default, priority: 10, mutable-content: 1
+            self.assertEqual(msg.apns.headers["apns-priority"], "10")
+            self.assertEqual(msg.apns.payload.aps.sound, "default")
+            self.assertTrue(msg.apns.payload.aps.mutable_content)
+
+    def test_chat_push_suppression_when_blocked_or_opted_out(self):
+        from apps.core.api_utils import _send_mobile_chat_push
+        from apps.core.models import ProfileBlock
+        from apps.notifications.models import Device
+        from apps.accounts.models import MemberAccountSettings
+        from unittest.mock import MagicMock
+
+        sender = self.member1
+        recipient = self.member2
+        Device.objects.create(user=recipient, token="recip_device_block_test")
+
+        mock_msg = MagicMock()
+        mock_msg.pk = "msg_blk_1"
+        mock_msg.conversation_id = "conv_blk_1"
+        mock_msg.message_text = "secret"
+        mock_msg.retained_message_text = "hello"
+
+        with patch("apps.notifications.push.deliver_chat_push_task.delay") as mock_delay:
+            # Case A: Block exists (recipient blocked sender)
+            ProfileBlock.objects.create(blocker=recipient, blocked=sender)
+            _send_mobile_chat_push(recipient, sender, mock_msg)
+            mock_delay.assert_not_called()
+
+            # Remove block
+            ProfileBlock.objects.all().delete()
+
+            # Case B: Push notifications disabled in settings
+            settings_obj, _ = MemberAccountSettings.objects.get_or_create(member=recipient)
+            settings_obj.push_notifications = False
+            settings_obj.save()
+
+            _send_mobile_chat_push(recipient, sender, mock_msg)
+            mock_delay.assert_not_called()
+
+            # Case C: Push enabled, but chat preference disabled
+            settings_obj.push_notifications = True
+            settings_obj.notification_preferences = {"chat": False}
+            settings_obj.save()
+
+            _send_mobile_chat_push(recipient, sender, mock_msg)
+            mock_delay.assert_not_called()
+
+            # Case D: Both enabled -> should dispatch
+            settings_obj.notification_preferences = {"chat": True}
+            settings_obj.save()
+
+            _send_mobile_chat_push(recipient, sender, mock_msg)
+            mock_delay.assert_called_once()
+
 
 

@@ -1,5 +1,6 @@
 import gzip
 import json
+import logging
 import math
 from urllib import request as urllib_request
 from datetime import date, datetime
@@ -10,6 +11,8 @@ from django.core.cache import cache
 from django.core.paginator import EmptyPage, Paginator
 from django.db import transaction
 from rest_framework import status
+
+logger = logging.getLogger(__name__)
 
 
 _IPRIVATE = (
@@ -196,22 +199,71 @@ def create_notification(recipient, *, type, title, body, link_url='', related_ob
 
 def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
     try:
+        from django.db.models import Q
+        from apps.accounts.models import Member
+        from apps.core.models import ProfileBlock
+        from apps.core.services.match_closure_service import MatchClosureService
         from apps.notifications.models import Device
-        from apps.notifications.push import deliver_chat_push_task, send_chat_push
+        from apps.notifications.push import deliver_chat_push_task
 
-        devices = list(Device.objects.filter(user=recipient_user, active=True))
+        # Resolve recipient and sender Member instances if passed as IDs
+        recipient = recipient_user
+        if not isinstance(recipient, Member):
+            recipient = Member.objects.filter(pk=getattr(recipient_user, 'pk', recipient_user)).first()
+        if not recipient:
+            return
+
+        sender = sender_user
+        if not isinstance(sender, Member):
+            sender = Member.objects.filter(pk=getattr(sender_user, 'pk', sender_user)).first()
+        if not sender:
+            return
+
+        # 1. Check account active status
+        if not recipient.is_active or getattr(recipient, 'account_status', 'ACTIVE') != 'ACTIVE':
+            logger.info("Chat push suppressed: recipient %s is inactive", recipient.pk)
+            return
+
+        # 2. Check blocker relationships (neither party may have blocked the other)
+        if ProfileBlock.objects.filter(
+            Q(blocker_id=recipient.pk, blocked_id=sender.pk) |
+            Q(blocker_id=sender.pk, blocked_id=recipient.pk)
+        ).exists():
+            logger.info("Chat push suppressed: block exists between %s and %s", sender.pk, recipient.pk)
+            return
+
+        # 3. Check closed match
+        if MatchClosureService.has_closed_match(sender, recipient):
+            logger.info("Chat push suppressed: match closed between %s and %s", sender.pk, recipient.pk)
+            return
+
+        # 4. Check recipient notification preferences / privacy settings
+        settings_obj = getattr(recipient, 'account_settings', None)
+        if not settings_obj:
+            from apps.accounts.models import MemberAccountSettings
+            settings_obj = MemberAccountSettings.objects.filter(member=recipient).first()
+        if settings_obj:
+            if not getattr(settings_obj, 'push_notifications', True):
+                logger.info("Chat push suppressed: push_notifications disabled for user=%s", recipient.pk)
+                return
+            notif_prefs = getattr(settings_obj, 'notification_preferences', None) or {}
+            if notif_prefs.get('chat') is False:
+                logger.info("Chat push suppressed: chat notifications disabled in preferences for user=%s", recipient.pk)
+                return
+
+        devices = list(Device.objects.filter(user=recipient, active=True))
         if not devices:
             return
 
         from apps.core.message_service import decrypt_retained_message_text
 
-        sender_name = sender_user.get_full_name() or sender_user.email or "Member"
+        sender_name = sender.get_full_name() or sender.email or "Member"
         conversation_id = str(getattr(chat_msg, 'conversation_id', '') or '')
         clean_text = decrypt_retained_message_text(chat_msg)
         body = clean_text[:100] if clean_text else "You have a new message"
-        message_id = str(chat_msg.pk)
-        sender_id = str(sender_user.pk)
-        receiver_id = str(recipient_user.pk)
+        message_id = str(getattr(chat_msg, 'pk', ''))
+        sender_id = str(sender.pk)
+        receiver_id = str(recipient.pk)
         title = f"New message from {sender_name}"
 
         logger.info(
@@ -233,19 +285,18 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
                 title=title,
                 body=body,
             )
-        except Exception:
-            for device in devices:
-                send_chat_push(
-                    device=device,
-                    sender_name=sender_name,
-                    encrypted_text=clean_text,
-                    message_id=message_id,
-                    conversation_id=conversation_id,
-                    sender_id=sender_id,
-                    receiver_id=receiver_id,
-                    title=title,
-                    body=body,
-                )
+        except Exception as celery_err:
+            logger.warning("Celery enqueue failed (%s); falling back to direct synchronous dispatch", celery_err)
+            deliver_chat_push_task(
+                receiver_id,
+                sender_name=sender_name,
+                encrypted_text=clean_text,
+                message_id=message_id,
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+                title=title,
+                body=body,
+            )
     except Exception:
         logger.exception("Failed to dispatch mobile FCM chat push")
 

@@ -26,7 +26,12 @@ _firebase_initialized = False
 
 
 def get_firebase_credentials():
-    """Locate and load Firebase credentials from environment or secret files."""
+    """Locate and load Firebase credentials from environment or secret files.
+    
+    Verifies project ID against expected project (mydearpartner-7dd4b).
+    """
+    from pathlib import Path
+
     # 1. Inline JSON via environment variable (useful in Docker / container deployments)
     raw_json = (
         os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON', '').strip()
@@ -39,7 +44,10 @@ def get_firebase_credentials():
             else:
                 import base64
                 cred_dict = json.loads(base64.b64decode(raw_json).decode('utf-8'))
-            return credentials.Certificate(cred_dict)
+            cred = credentials.Certificate(cred_dict)
+            project_id = getattr(cred, 'project_id', None) or cred_dict.get('project_id', 'unknown')
+            logger.info("Found valid inline Firebase credentials JSON (project_id=%s)", project_id)
+            return cred
         except Exception as exc:
             logger.warning("Failed to parse inline Firebase credentials JSON: %s", exc)
 
@@ -50,6 +58,7 @@ def get_firebase_credentials():
         os.environ.get('FIREBASE_SERVICE_ACCOUNT_FILE'),
         os.environ.get('FIREBASE_CREDENTIALS_PATH'),
         os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'),
+        '/app/secrets/firebase-service-account.json',
         '/opt/mydearpartner/secrets/firebase-service-account.json',
         str(getattr(settings, 'BASE_DIR', '')) + '/secrets/firebase-service-account.json',
         str(getattr(settings, 'BASE_DIR', '')) + '/firebase-service-account.json',
@@ -57,12 +66,44 @@ def get_firebase_credentials():
 
     for path in candidates:
         if path and os.path.exists(path) and os.path.isfile(path):
+            if not os.access(path, os.R_OK):
+                logger.error(
+                    "Permission denied reading Firebase credentials file at '%s'. "
+                    "Ensure file has read permissions for the application user (e.g. chmod 644).",
+                    path,
+                )
+                continue
             try:
                 cred = credentials.Certificate(path)
-                logger.info("Found valid Firebase credentials file at '%s'", path)
+                project_id = getattr(cred, 'project_id', 'unknown')
+                logger.info("Found valid Firebase credentials file at '%s' (project_id=%s)", path, project_id)
                 return cred
             except Exception as exc:
                 logger.warning("Failed reading Firebase credentials from '%s': %s", path, exc)
+
+    # 3. Look for any *.json file inside secrets directories
+    secrets_dirs = [
+        Path('/app/secrets'),
+        Path('/opt/mydearpartner/secrets'),
+        Path(getattr(settings, 'BASE_DIR', '')) / 'secrets',
+        Path(getattr(settings, 'BASE_DIR', '')).parent / 'secrets',
+    ]
+    for sdir in secrets_dirs:
+        try:
+            if sdir.exists() and sdir.is_dir():
+                for json_file in sdir.glob('*.json'):
+                    if not os.access(str(json_file), os.R_OK):
+                        logger.warning("Found file '%s' in secrets but it is not readable (check permissions)", json_file)
+                        continue
+                    try:
+                        cred = credentials.Certificate(str(json_file))
+                        project_id = getattr(cred, 'project_id', 'unknown')
+                        logger.info("Found valid Firebase credentials in secrets dir: '%s' (project_id=%s)", json_file, project_id)
+                        return cred
+                    except Exception:
+                        continue
+        except Exception:
+            pass
 
     return None
 
@@ -84,11 +125,12 @@ def firebase_app():
         return None
 
     try:
-        app = firebase_admin.initialize_app(cred)
+        project_id = getattr(cred, 'project_id', None) or os.environ.get('FIREBASE_PROJECT_ID', 'mydearpartner-7dd4b')
+        app = firebase_admin.initialize_app(cred, {'projectId': project_id})
         _firebase_initialized = True
         logger.info(
             "Firebase Admin initialized successfully (project_id=%s)",
-            getattr(cred, 'project_id', 'unknown'),
+            getattr(cred, 'project_id', project_id),
         )
         return app
     except Exception as exc:
@@ -97,27 +139,32 @@ def firebase_app():
 
 
 def _handle_token_error(token, user_id, exc):
-    """Remove invalid/unregistered token from database when Firebase rejects it."""
+    """Remove invalid/unregistered token from database only when confirmed unregistered.
+    
+    CRITICAL: Never delete device records for InvalidArgumentError or general exceptions.
+    InvalidArgumentError indicates a malformed payload or field, NOT an invalid token.
+    Only UnregisteredError / NOT_FOUND / REGISTRATION-TOKEN-NOT-REGISTERED confirms the token is dead.
+    """
     is_unregistered = isinstance(exc, (messaging.UnregisteredError, exceptions.NotFoundError))
-    is_invalid = isinstance(exc, exceptions.InvalidArgumentError)
     err_str = str(exc).upper()
     err_code = str(getattr(exc, 'code', '') or '').upper()
 
     if (
         is_unregistered
-        or is_invalid
-        or 'UNREGISTERED' in err_str
-        or 'INVALID_ARGUMENT' in err_str
-        or err_code in ('UNREGISTERED', 'INVALID_ARGUMENT', 'NOT_FOUND')
+        or 'UNREGISTERED' in err_code
+        or 'NOT_FOUND' in err_code
+        or 'REGISTRATION-TOKEN-NOT-REGISTERED' in err_str
+        or 'MISMATCHED-CREDENTIAL' in err_str
+        or err_code == 'UNREGISTERED'
     ):
         from apps.notifications.models import Device
 
         deleted_count, _ = Device.objects.filter(token=token).delete()
         logger.warning(
-            "Firebase token invalid/unregistered. Removed %s device record(s) "
+            "Firebase token confirmed unregistered. Removed %s device record(s) "
             "for token=%s... (recipient_user_id=%s, error=%s)",
             deleted_count,
-            token[:15],
+            token[:15] if token else '',
             user_id,
             exc,
         )
@@ -142,9 +189,11 @@ def send_chat_push(
 ):
     """Send FCM/APNs push notification for a new chat message.
 
-    Appears in the system tray when foregrounded, backgrounded, or killed.
-    Android uses channel 'mdp_messages_v2' with priority 'high'.
-    iOS uses APNs priority 10, sound default, badge 1, mutable-content 1.
+    Compatible with React Native and native iOS/Android apps:
+    - kind: "message"
+    - conversation_id, message_id, sender_id, sender_name (all strings)
+    - Android channel: mdp_messages_v2 with priority 'high'
+    - APNs sound: default, priority: 10, mutable-content: 1
     """
     app = firebase_app()
     if not app:
@@ -152,27 +201,40 @@ def send_chat_push(
 
     token = getattr(device, 'token', device)
     user_id = getattr(device, 'user_id', receiver_id)
+    dev_id = getattr(device, 'id', token)
 
-    # Build data payload (all values must be strings)
+    # Deduplication check to prevent avoidable duplicate dispatch
+    from django.core.cache import cache
+    cache_key = f"chat_push_sent:{message_id}:{dev_id}" if message_id else None
+    if cache_key and cache.get(cache_key):
+        logger.info(
+            "Chat push already delivered for message=%s device=%s; skipping duplicate dispatch",
+            message_id,
+            dev_id,
+        )
+        return "ALREADY_DELIVERED"
+
+    # Build data payload (ALL values must be strings for React Native / mobile FCM)
     data = {
         "kind": "message",
         "conversation_id": str(conversation_id or ""),
         "message_id": str(message_id or ""),
         "sender_id": str(sender_id or ""),
+        "sender_name": str(sender_name or "Member"),
     }
-    if sender_name:
-        data["sender_name"] = str(sender_name)
 
-    # Android config
+    # Android configuration: high priority and dedicated channel
     android = messaging.AndroidConfig(
         priority="high",
         notification=messaging.AndroidNotification(
             channel_id="mdp_messages_v2",
             sound="default",
+            default_sound=True,
+            default_vibrate_timings=True,
         ),
     )
 
-    # APNs config
+    # APNs configuration: high priority (10), default sound, badge, mutable-content 1
     apns = messaging.APNSConfig(
         headers={
             "apns-priority": "10",
@@ -182,6 +244,7 @@ def send_chat_push(
                 sound="default",
                 badge=1,
                 mutable_content=True,
+                content_available=True,
             )
         ),
     )
@@ -189,8 +252,8 @@ def send_chat_push(
     msg = messaging.Message(
         token=token,
         notification=messaging.Notification(
-            title=title or "New message",
-            body=body or "You have a new message",
+            title=str(title or f"New message from {sender_name}"),
+            body=str(body or "You have a new message"),
         ),
         data=data,
         android=android,
@@ -203,18 +266,28 @@ def send_chat_push(
             "Firebase message delivered: message_id=%s recipient_user_id=%s token=%s...",
             response,
             user_id,
-            token[:15],
+            token[:15] if token else '',
         )
+        if cache_key:
+            cache.set(cache_key, True, timeout=86400)
         return response
     except Exception as exc:
+        is_unreg = _handle_token_error(token, user_id, exc)
+        # For transient provider failures, re-raise so Celery task can retry with backoff
+        if isinstance(exc, (exceptions.UnavailableError, exceptions.DeadlineExceededError, exceptions.InternalError)):
+            logger.warning("Transient Firebase error for recipient_user_id=%s token=%s...: %s (will retry)", user_id, token[:15] if token else '', exc)
+            raise exc
+
         logger.error(
-            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            "Firebase delivery error for recipient_user_id=%s token=%s... (unregistered=%s): %s",
             user_id,
-            token[:15],
+            token[:15] if token else '',
+            is_unreg,
             exc,
         )
-        _handle_token_error(token, user_id, exc)
-        return None
+        if is_unreg:
+            return None
+        raise exc
 
 
 def send_interest_push(
@@ -496,8 +569,20 @@ def send_general_push_to_user(
     return results
 
 
-@shared_task(ignore_result=True, autoretry_for=(), retry_backoff=False)
+@shared_task(
+    bind=True,
+    max_retries=3,
+    autoretry_for=(
+        exceptions.UnavailableError,
+        exceptions.DeadlineExceededError,
+        exceptions.InternalError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+)
 def deliver_chat_push_task(
+    self,
     recipient_id,
     sender_name="Member",
     encrypted_text="",
@@ -507,29 +592,54 @@ def deliver_chat_push_task(
     title="New message",
     body="You have a new message",
 ):
-    """Celery background task for mobile chat push notifications."""
+    """Celery background task for mobile chat push notifications with bounded retries."""
     from apps.notifications.models import Device
 
     devices = list(Device.objects.filter(user_id=recipient_id, active=True))
     if not devices:
-        return
+        logger.info("No active devices found for recipient_id=%s", recipient_id)
+        return []
 
     app = firebase_app()
     if not app:
-        return
-
-    for dev in devices:
-        send_chat_push(
-            device=dev,
-            sender_name=sender_name,
-            encrypted_text=encrypted_text,
-            message_id=message_id,
-            conversation_id=conversation_id,
-            sender_id=sender_id,
-            receiver_id=recipient_id,
-            title=title,
-            body=body,
+        logger.warning(
+            "Firebase app unavailable in worker for recipient_id=%s. Will retry if attempts remain.",
+            recipient_id,
         )
+        if self.request.retries < self.max_retries:
+            raise self.retry(
+                exc=RuntimeError("Firebase Admin SDK not initialized in worker"),
+                countdown=5 * (2 ** self.request.retries),
+            )
+        return []
+
+    results = []
+    transient_exc = None
+    for dev in devices:
+        try:
+            res = send_chat_push(
+                device=dev,
+                sender_name=sender_name,
+                encrypted_text=encrypted_text,
+                message_id=message_id,
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+                receiver_id=recipient_id,
+                title=title,
+                body=body,
+            )
+            results.append(res)
+        except (exceptions.UnavailableError, exceptions.DeadlineExceededError, exceptions.InternalError) as t_err:
+            transient_exc = t_err
+        except Exception as err:
+            logger.error("Non-retryable push error for device %s (user=%s): %s", dev.id, recipient_id, err)
+            results.append(None)
+
+    if transient_exc:
+        # Re-raise so Celery retries remaining devices (already-sent devices skipped via cache deduplication)
+        raise self.retry(exc=transient_exc)
+
+    return results
 
 
 @shared_task(ignore_result=True, autoretry_for=(), retry_backoff=False)

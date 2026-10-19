@@ -43,6 +43,11 @@ x-backend-environment: &backend-environment
   OTP_PROVIDER: ${OTP_PROVIDER:-renflair}
   RENFLAIR_API_KEY: ${RENFLAIR_API_KEY:?RENFLAIR_API_KEY must be set}
   FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+  FIREBASE_SERVICE_ACCOUNT_FILE: ${FIREBASE_SERVICE_ACCOUNT_FILE:-}
+  FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+  FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
+  GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+  FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-mydearpartner-7dd4b}
   WEB_PUSH_VAPID_PUBLIC_KEY: ${WEB_PUSH_VAPID_PUBLIC_KEY:-}
   WEB_PUSH_VAPID_PRIVATE_KEY: ${WEB_PUSH_VAPID_PRIVATE_KEY:-}
   WEB_PUSH_VAPID_SUBJECT: ${WEB_PUSH_VAPID_SUBJECT:-mailto:support@mydearpartner.com}
@@ -176,6 +181,7 @@ services:
       - static_data:/app/staticfiles
       - media_data:/app/media
       - private_media_data:/app/private_media
+      - ./secrets:/app/secrets:ro
     restart: "no"
 
   backend:
@@ -195,6 +201,7 @@ services:
       - static_data:/app/staticfiles
       - media_data:/app/media
       - private_media_data:/app/private_media
+      - ./secrets:/app/secrets:ro
     # `docker compose watch` -> auto-rebuild + restart backend whenever backend source changes
     develop:
       watch:
@@ -233,6 +240,7 @@ services:
     volumes:
       - media_data:/app/media
       - private_media_data:/app/private_media
+      - ./secrets:/app/secrets:ro
 
   celery-beat:
     <<: *backend-service
@@ -252,6 +260,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    volumes:
+      - ./secrets:/app/secrets:ro
 
   nextjs:
     build:
