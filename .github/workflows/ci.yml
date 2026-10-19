@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: backend
     env:
-      DJANGO_ENV: production
+      DJANGO_ENV: local
       SECRET_KEY: ci-build-verification-secret-key-1234567890
       ALLOWED_HOSTS: localhost,127.0.0.1,testserver
       DB_ENGINE: django.db.backends.sqlite3
@@ -106,3 +106,7 @@ jobs:
           ALLOWED_HOSTS: localhost,127.0.0.1
           DB_PASSWORD: ci-db-password-placeholder
           RENFLAIR_API_KEY: ci-renflair-placeholder
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_WS_BASE_URL: ws://localhost:8000
+          NEXT_PUBLIC_MEDIA_BASE_URL: http://localhost:8000
