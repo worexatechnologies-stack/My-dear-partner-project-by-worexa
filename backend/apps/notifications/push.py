@@ -162,9 +162,8 @@ def _handle_token_error(token, user_id, exc):
         deleted_count, _ = Device.objects.filter(token=token).delete()
         logger.warning(
             "Firebase token confirmed unregistered. Removed %s device record(s) "
-            "for token=%s... (recipient_user_id=%s, error=%s)",
+            "for device [REDACTED_TOKEN] (recipient_user_id=%s, error=%s)",
             deleted_count,
-            token[:15] if token else '',
             user_id,
             exc,
         )
@@ -263,10 +262,9 @@ def send_chat_push(
     try:
         response = messaging.send(msg)
         logger.info(
-            "Firebase message delivered: message_id=%s recipient_user_id=%s token=%s...",
+            "Firebase message delivered: message_id=%s recipient_user_id=%s device=[REDACTED_TOKEN]",
             response,
             user_id,
-            token[:15] if token else '',
         )
         if cache_key:
             cache.set(cache_key, True, timeout=86400)
@@ -275,13 +273,12 @@ def send_chat_push(
         is_unreg = _handle_token_error(token, user_id, exc)
         # For transient provider failures, re-raise so Celery task can retry with backoff
         if isinstance(exc, (exceptions.UnavailableError, exceptions.DeadlineExceededError, exceptions.InternalError)):
-            logger.warning("Transient Firebase error for recipient_user_id=%s token=%s...: %s (will retry)", user_id, token[:15] if token else '', exc)
+            logger.warning("Transient Firebase error for recipient_user_id=%s device=[REDACTED_TOKEN]: %s (will retry)", user_id, exc)
             raise exc
 
         logger.error(
-            "Firebase delivery error for recipient_user_id=%s token=%s... (unregistered=%s): %s",
+            "Firebase delivery error for recipient_user_id=%s device=[REDACTED_TOKEN] (unregistered=%s): %s",
             user_id,
-            token[:15] if token else '',
             is_unreg,
             exc,
         )
@@ -357,17 +354,15 @@ def send_interest_push(
     try:
         response = messaging.send(msg)
         logger.info(
-            "Firebase message delivered: message_id=%s recipient_user_id=%s token=%s...",
+            "Firebase message delivered: message_id=%s recipient_user_id=%s device=[REDACTED_TOKEN]",
             response,
             user_id,
-            token[:15],
         )
         return response
     except Exception as exc:
         logger.error(
-            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            "Firebase delivery error for recipient_user_id=%s device=[REDACTED_TOKEN]: %s",
             user_id,
-            token[:15],
             exc,
         )
         _handle_token_error(token, user_id, exc)
@@ -514,17 +509,15 @@ def send_general_push(
     try:
         response = messaging.send(msg)
         logger.info(
-            "Firebase general notification delivered: message_id=%s recipient_user_id=%s token=%s...",
+            "Firebase general notification delivered: message_id=%s recipient_user_id=%s device=[REDACTED_TOKEN]",
             response,
             user_id,
-            token[:15],
         )
         return response
     except Exception as exc:
         logger.error(
-            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            "Firebase delivery error for recipient_user_id=%s device=[REDACTED_TOKEN]: %s",
             user_id,
-            token[:15],
             exc,
         )
         _handle_token_error(token, user_id, exc)

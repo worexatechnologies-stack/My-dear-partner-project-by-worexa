@@ -68,8 +68,8 @@ class Command(BaseCommand):
             )
         )
 
-        for target_token in tokens:
-            self.stdout.write(f"Sending to token: {target_token[:20]}...")
+        for idx, target_token in enumerate(tokens, 1):
+            self.stdout.write(f"Sending to target device #{idx} [REDACTED_FCM_TOKEN]...")
             if push_type == "interest":
                 msg_id = send_interest_push(
                     device=target_token,
@@ -105,9 +105,9 @@ class Command(BaseCommand):
 
             if msg_id:
                 self.stdout.write(
-                    self.style.SUCCESS(f" [OK] Successfully delivered! Firebase Message ID: {msg_id}")
+                    self.style.SUCCESS(f" [OK] Successfully accepted by FCM! Message ID: {msg_id}")
                 )
             else:
                 self.stdout.write(
-                    self.style.ERROR(f" [FAIL] Delivery failed for token: {target_token[:20]}... Check logs for details.")
+                    self.style.ERROR(" [FAIL] Delivery rejected or unconfigured. Check logs for details.")
                 )

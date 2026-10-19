@@ -48,11 +48,10 @@ class DeviceRegistrationView(APIView):
             },
         )
         logger.info(
-            "Device token registered for user %s: platform=%s, created=%s, token=%s...",
+            "Device token registered for user %s: platform=%s, created=%s, device=[REDACTED_TOKEN]",
             request.user.pk,
             platform,
             created,
-            token[:15],
         )
         return Response(
             {
@@ -79,9 +78,8 @@ class DeviceRegistrationView(APIView):
         target_token = str(target_token).strip()
         deleted_count, _ = Device.objects.filter(user=request.user, token=target_token).delete()
         logger.info(
-            "Device token removed for user %s: token=%s... count=%s",
+            "Device token removed for user %s: device=[REDACTED_TOKEN] count=%s",
             request.user.pk,
-            target_token[:15],
             deleted_count,
         )
         return Response({
@@ -123,10 +121,9 @@ class TestPushNotificationView(APIView):
                 )
 
         logger.info(
-            "Triggering test %s push for user %s to token=%s...",
+            "Triggering test %s push for user %s to device=[REDACTED_TOKEN]",
             push_type,
             request.user.pk,
-            token[:15],
         )
 
         try:
