@@ -27,7 +27,7 @@ except Exception:
     import django
     django.setup()
 
-from apps.notifications.push import send_chat_push, send_interest_push, firebase_app
+from apps.notifications.push import send_chat_push, send_interest_push, send_general_push, firebase_app
 
 
 def main():
@@ -35,9 +35,9 @@ def main():
     parser.add_argument("--token", required=True, help="Target FCM device token")
     parser.add_argument(
         "--type",
-        choices=["chat", "interest"],
+        choices=["chat", "interest", "general"],
         default="chat",
-        help="Notification type ('chat' or 'interest')",
+        help="Notification type ('chat', 'interest', or 'general')",
     )
     parser.add_argument("--title", default=None, help="Custom title")
     parser.add_argument("--body", default=None, help="Custom body")
@@ -69,6 +69,17 @@ def main():
             receiver_id="target-test",
             title=args.title or "New Interest",
             body=args.body or "Someone sent you an interest",
+        )
+    elif args.type == "general":
+        msg_id = send_general_push(
+            device=args.token,
+            title=args.title or "Test Notification",
+            body=args.body or "This is a test notification from MyDearPartner",
+            notification_id="test-script-001",
+            notification_type="TEST",
+            link_url="/notifications",
+            receiver_id="target-test",
+            channel_id="mdp_general_v2",
         )
     else:
         msg_id = send_chat_push(

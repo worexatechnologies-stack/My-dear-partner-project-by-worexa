@@ -8,6 +8,16 @@ export interface Profile {
   access?: any;
   is_unlocked?: boolean;
   slug?: string;
+  compatibility_data?: {
+    compatibility_score: number;
+    confidence: string;
+    data_completeness: number;
+    shared_strengths: string[];
+    considerations: string[];
+    summary: string;
+    explanation: string;
+    factors?: Record<string, any>;
+  };
 }
 
 export interface MembershipPlan { id: string; name: string; price: number; duration: string; features: string[]; highlighted: boolean; badge?: string; color: string }

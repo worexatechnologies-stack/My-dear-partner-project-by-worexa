@@ -165,7 +165,12 @@ class MemberProfileSummarySerializer(serializers.Serializer):
         return self._value(member, "work_location")
 
     def get_compatibility_score(self, member):
-        return self._value(member, "compatibility", 75)
+        req = self.context.get("request")
+        viewer = getattr(req, "user", None) if req else None
+        if viewer and getattr(viewer, "is_authenticated", False) and viewer.pk != member.pk:
+            from apps.matching.services import MatchmakingService
+            return MatchmakingService.get_quick_compatibility_score(viewer, member)
+        return self._value(member, "compatibility", 0)
 
     @staticmethod
     def _approved_photos(member):

@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Device
-from .push import send_chat_push, send_interest_push
+from .push import send_chat_push, send_interest_push, send_general_push
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,17 @@ class TestPushNotificationView(APIView):
                     receiver_id=str(request.user.pk),
                     title=title or "New Interest",
                     body=body or "Someone sent you an interest",
+                )
+            elif push_type == "general":
+                msg_id = send_general_push(
+                    device=token,
+                    title=title or "Test Notification",
+                    body=body or "This is a test notification from MyDearPartner",
+                    notification_id="test-notif-001",
+                    notification_type="TEST",
+                    link_url="/notifications",
+                    receiver_id=str(request.user.pk),
+                    channel_id="mdp_general_v2",
                 )
             else:
                 msg_id = send_chat_push(

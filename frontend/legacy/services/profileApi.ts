@@ -1,6 +1,23 @@
 import { baseApi } from './baseApi';
 import { normalizeMemberPhoto, type MemberPhoto } from './photoApi';
 
+export interface CompatibilityInsight {
+  compatibility_score: number;
+  confidence: 'high' | 'medium' | 'low';
+  data_completeness: number;
+  shared_strengths: string[];
+  considerations: string[];
+  summary: string;
+  explanation: string;
+  factors?: Record<string, {
+    weight: number;
+    score: number;
+    candidate_val?: any;
+    preference_val?: any;
+    match_type?: string;
+  }>;
+}
+
 /**
  * Profile data from API
  */
@@ -54,6 +71,7 @@ export interface MemberProfile {
   hobbies: string[];
   about: string;
   compatibility_score?: number;
+  compatibility?: CompatibilityInsight;
   contact_visible?: boolean;
   can_message?: boolean;
   can_view_contact?: boolean;
@@ -94,6 +112,7 @@ export interface UnlockUsage {
 export interface ProfileDetailResponse {
   profile: MemberProfile;
   usage: UnlockUsage;
+  compatibility?: CompatibilityInsight;
   interest?: {
     state: 'SENT' | 'RECEIVED' | 'ACCEPTED' | 'DECLINED' | null;
     id: string | null;
@@ -133,6 +152,32 @@ export const profileApi = baseApi.injectEndpoints({
       transformResponse: (response: any): ProfileDetailResponse => {
         const member = response.profile ?? {};
         const access = response.access ?? {};
+        const rawCompat = response.compatibility ?? member.compatibility;
+        let compatData: CompatibilityInsight | undefined = undefined;
+        if (typeof rawCompat === 'object' && rawCompat !== null) {
+          compatData = {
+            compatibility_score: Number(rawCompat.compatibility_score ?? member.compatibility_score ?? 0),
+            confidence: (rawCompat.confidence as 'high' | 'medium' | 'low') ?? 'medium',
+            data_completeness: Number(rawCompat.data_completeness ?? 100),
+            shared_strengths: Array.isArray(rawCompat.shared_strengths) ? rawCompat.shared_strengths : [],
+            considerations: Array.isArray(rawCompat.considerations) ? rawCompat.considerations : [],
+            summary: rawCompat.summary ?? '',
+            explanation: rawCompat.explanation ?? '',
+            factors: rawCompat.factors ?? {},
+          };
+        } else if (typeof rawCompat === 'number' || typeof member.compatibility_score === 'number') {
+          const score = Number(rawCompat ?? member.compatibility_score ?? 0);
+          compatData = {
+            compatibility_score: score,
+            confidence: 'medium',
+            data_completeness: 100,
+            shared_strengths: [],
+            considerations: [],
+            summary: '',
+            explanation: '',
+          };
+        }
+
         const photos = Array.isArray(member.photos)
           ? member.photos.map(normalizeMemberPhoto).filter((photo: MemberPhoto) => Boolean(photo.id))
           : [];
@@ -147,6 +192,8 @@ export const profileApi = baseApi.injectEndpoints({
           // page uses a nested view model, so adapt it once at the boundary.
           profile: {
             ...member,
+            compatibility: compatData,
+            compatibility_score: compatData?.compatibility_score ?? member.compatibility_score,
             user: {
               id: member.id,
               full_name: member.full_name,
@@ -170,6 +217,7 @@ export const profileApi = baseApi.injectEndpoints({
             can_view_full_profile: member.can_view_full_profile !== undefined ? Boolean(member.can_view_full_profile) : Boolean(access.can_view_full_profile ?? true),
             full_bio_locked: Boolean(member.full_bio_locked),
           } as MemberProfile,
+          compatibility: compatData,
           usage: {
             daily_limit: access.daily_unlock_limit,
             used_today: access.unlocks_used_today,
@@ -191,6 +239,15 @@ export const profileApi = baseApi.injectEndpoints({
       providesTags: (result, error, profileId) => [
         { type: 'ProfileDetail', id: profileId },
       ],
+    }),
+
+    // Get real-time dynamic compatibility analysis
+    getCompatibilityDetail: builder.query<CompatibilityInsight, string>({
+      query: (candidateId) => ({
+        url: `/matches/${candidateId}/compatibility/`,
+        method: 'GET',
+      }),
+      transformResponse: (response: any): CompatibilityInsight => response.data ?? response,
     }),
 
     // Get daily unlock usage
@@ -259,6 +316,7 @@ export const profileApi = baseApi.injectEndpoints({
 // Export hooks for usage in functional components
 export const {
   useGetProfileDetailQuery,
+  useGetCompatibilityDetailQuery,
   useGetUnlockUsageQuery,
   useSendInterestMutation,
   useGetUnlockHistoryQuery,

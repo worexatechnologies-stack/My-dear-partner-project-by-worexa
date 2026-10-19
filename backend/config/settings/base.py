@@ -66,6 +66,22 @@ SUPERADMIN_MOBILE = config['SUPERADMIN_MOBILE']
 SUPERADMIN_FIRST_NAME = config['SUPERADMIN_FIRST_NAME']
 SUPERADMIN_LAST_NAME = config['SUPERADMIN_LAST_NAME']
 
+# --- Dynamic Matchmaking Engine Settings ---
+
+# Configurable matching weights (sum = 1.0 / 100%)
+MATCHMAKING_WEIGHTS = {
+    'age': float(os.environ.get('MATCH_WEIGHT_AGE', 0.15)),
+    'education': float(os.environ.get('MATCH_WEIGHT_EDUCATION', 0.10)),
+    'profession': float(os.environ.get('MATCH_WEIGHT_PROFESSION', 0.10)),
+    'location': float(os.environ.get('MATCH_WEIGHT_LOCATION', 0.10)),
+    'community': float(os.environ.get('MATCH_WEIGHT_COMMUNITY', 0.10)),
+    'lifestyle': float(os.environ.get('MATCH_WEIGHT_LIFESTYLE', 0.10)),
+    'family': float(os.environ.get('MATCH_WEIGHT_FAMILY', 0.10)),
+    'timeline': float(os.environ.get('MATCH_WEIGHT_TIMELINE', 0.10)),
+    'mutual_alignment': float(os.environ.get('MATCH_WEIGHT_MUTUAL_ALIGNMENT', 0.10)),
+    'shared_interests': float(os.environ.get('MATCH_WEIGHT_SHARED_INTERESTS', 0.05)),
+}
+
 # Application definition
 INSTALLED_APPS = [
     'daphne',

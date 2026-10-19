@@ -347,7 +347,7 @@ function SearchProfileCard({
         <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-2 p-2.5">
           {profile.compatibility > 0 ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/85 px-2.5 py-1 text-[10px] font-bold text-white shadow-xs">
-              <Heart className="h-3 w-3 fill-[#e11d48] text-[#e11d48]" /> {profile.compatibility}% match
+              <Heart className="h-3 w-3 fill-[#e11d48] text-[#e11d48]" /> {profile.compatibility}% Match
             </span>
           ) : (
             <span />
@@ -1009,8 +1009,12 @@ export default function SearchPageV2() {
                       disabled={loadingMore}
                       className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#efefef] bg-white px-6 text-xs font-bold text-[#0f0f10] shadow-xs transition hover:border-[#dfd8dc] hover:bg-[#f9fafb] active:scale-95 disabled:cursor-wait disabled:opacity-60"
                     >
-                      {loadingMore && <LoaderCircle className="h-4 w-4 animate-spin text-[#e11d48]" />}
-                      {loadingMore ? 'Loading more profiles…' : `Load more · ${Math.max(0, totalCount - profiles.length)} remaining`}
+                      {loadingMore ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin text-[#e11d48]" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-[#8c7a82]" />
+                      )}
+                      <span>{loadingMore ? 'Loading more profiles…' : 'Load more'}</span>
                     </button>
                   ) : (
                     <p className="text-xs font-medium text-[#8c7a82]">

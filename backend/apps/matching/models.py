@@ -79,3 +79,46 @@ class MemberPass(models.Model):
     def __str__(self):
         return f"{self.user_id} passed {self.profile_id}"
 
+
+class ProfileCompatibilityRecord(models.Model):
+    """Personalized bidirectional compatibility score and AI insights cache."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="compatibility_evaluations_as_viewer",
+    )
+    candidate = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="compatibility_evaluations_as_candidate",
+    )
+    compatibility_score = models.PositiveSmallIntegerField(default=0)
+    confidence = models.CharField(max_length=20, default="medium")  # high, medium, low
+    data_completeness = models.PositiveSmallIntegerField(default=0)
+    shared_strengths = models.JSONField(default=list, blank=True)
+    considerations = models.JSONField(default=list, blank=True)
+    summary = models.TextField(blank=True, default="")
+    explanation = models.TextField(blank=True, default="")
+    factors = models.JSONField(default=dict, blank=True)
+    ai_generated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "profile_compatibility_records"
+        indexes = [
+            models.Index(fields=["viewer", "candidate"], name="compat_viewer_candidate_idx"),
+            models.Index(fields=["viewer", "-updated_at"], name="compat_viewer_updated_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("viewer", "candidate"),
+                name="unique_viewer_candidate_compat",
+            )
+        ]
+
+    def __str__(self):
+        return f"Compatibility {self.viewer_id} <-> {self.candidate_id}: {self.compatibility_score}%"
+

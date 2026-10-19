@@ -291,6 +291,7 @@ config = {
     'SUPERADMIN_MOBILE': optional_env('SUPERADMIN_MOBILE', '9876543200'),
     'SUPERADMIN_FIRST_NAME': optional_env('SUPERADMIN_FIRST_NAME', 'Super'),
     'SUPERADMIN_LAST_NAME': optional_env('SUPERADMIN_LAST_NAME', 'Admin'),
+
 }
 
 # Production must fail closed.  A missing or insecure deployment setting is

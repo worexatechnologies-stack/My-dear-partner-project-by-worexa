@@ -99,6 +99,12 @@ from apps.accounts.document_admin_views import (
     AdminDocumentRejectView,
 )
 
+from apps.matching.views import (
+    CompatibilityDetailView,
+    CompatibilityRecalculateView,
+    RecommendedMatchesView,
+)
+
 from .views import (
     CompatibilityCheckView,
     ContactEnquiryCreateView,
@@ -196,10 +202,13 @@ urlpatterns = [
     path('profiles/', ProfileListView.as_view(), name='profiles_list'),
     path('profiles/<str:pk>/', ProfileDetailView.as_view(), name='profile_detail'),
     path('profile-visitors/', ProfileVisitorListView.as_view(), name='profile_visitors'),
-    path('visitors/', ProfileVisitorListView.as_view(), name='visitors_alias'),
     path('interests/', InterestListCreateView.as_view(), name='interests_list'),
     path('interests/<uuid:pk>/', InterestDetailView.as_view(), name='interest_detail'),
     path('matchmaking/compatibility/', CompatibilityCheckView.as_view(), name='compatibility_check'),
+    path('matches/recommended/', RecommendedMatchesView.as_view(), name='matches_recommended'),
+    path('matches/recalculate/', CompatibilityRecalculateView.as_view(), name='matches_recalculate'),
+    path('matches/<uuid:candidate_id>/compatibility/', CompatibilityDetailView.as_view(), name='matches_compatibility_detail'),
+    path('matches/compatibility/', CompatibilityDetailView.as_view(), name='matches_compatibility_post'),
     path('conversations/', ConversationListView.as_view(), name='conversations_list'),
     path('conversations/unread-count/', UnreadCountView.as_view(), name='conversations_unread_count'),
     path('conversations/<uuid:user_id>/messages/', MessageHistoryView.as_view(), name='conversation_messages'),

@@ -452,3 +452,174 @@ class InterestDetailView(APIView):
                 pass
 
         transaction.on_commit(dispatch)
+
+
+def _find_candidate_member(target_id, excluded_ids=None):
+    if not target_id:
+        return None
+    qs = Member.objects.filter(is_active=True, deleted_at__isnull=True)
+    if excluded_ids:
+        qs = qs.exclude(pk__in=excluded_ids)
+    
+    target_str = str(target_id).strip()
+    import uuid
+    try:
+        val = uuid.UUID(target_str)
+        member = qs.filter(pk=val).first()
+        if member:
+            return member
+    except (ValueError, AttributeError):
+        pass
+
+    if target_str.isdigit():
+        member = qs.filter(profile__id=int(target_str)).first()
+        if member:
+            return member
+
+    return None
+
+
+class CompatibilityDetailView(APIView):
+    """Personalized bidirectional compatibility insights and scoring endpoint."""
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, candidate_id=None):
+        target_id = candidate_id or request.query_params.get('candidate_id') or request.query_params.get('member_id')
+        return self._respond(request, target_id)
+
+    def post(self, request, candidate_id=None):
+        target_id = candidate_id or request.data.get('candidate_id') or request.data.get('member_id') or request.data.get('profile_id')
+        return self._respond(request, target_id)
+
+    def _respond(self, request, target_id):
+        if not target_id:
+            return Response({'detail': 'candidate_id or member_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Exclude blocked pairs
+        blocked_ids = ProfileBlock.objects.filter(
+            Q(blocker=request.user) | Q(blocked=request.user)
+        ).values_list('blocker_id', 'blocked_id')
+        excluded = {val for pair in blocked_ids for val in pair}
+
+        target = _find_candidate_member(target_id, excluded_ids=excluded)
+
+        if not target:
+            return Response({'detail': 'Candidate not found or inaccessible.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target.pk == request.user.pk:
+            return Response({'detail': 'Cannot calculate compatibility with yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .services import MatchmakingService
+        force_refresh = request.query_params.get('refresh') == 'true' or request.data.get('refresh') is True
+        try:
+            result = MatchmakingService.get_or_calculate_compatibility(
+                viewer=request.user,
+                candidate=target,
+                use_ai=True,
+                force_refresh=force_refresh,
+            )
+        except Exception:
+            from .engine.scoring import calculate_compatibility
+            result = calculate_compatibility(request.user, target)
+
+        return Response({
+            'success': True,
+            'data': result,
+            # Top-level mirrors for legacy callers
+            'compatibility_score': result['compatibility_score'],
+            'confidence': result['confidence'],
+            'data_completeness': result['data_completeness'],
+            'shared_strengths': result['shared_strengths'],
+            'considerations': result['considerations'],
+            'summary': result['summary'],
+            'explanation': result['explanation'],
+            'factors': result['factors'],
+        })
+
+
+class CompatibilityRecalculateView(APIView):
+    """Force recalculation or cache invalidation for updated profiles and preferences."""
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        candidate_id = request.data.get('candidate_id') or request.data.get('member_id')
+        from .services import MatchmakingService
+
+        if candidate_id:
+            target = _find_candidate_member(candidate_id)
+            if not target:
+                return Response({'detail': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            try:
+                result = MatchmakingService.get_or_calculate_compatibility(
+                    viewer=request.user,
+                    candidate=target,
+                    use_ai=True,
+                    force_refresh=True,
+                )
+            except Exception:
+                from .engine.scoring import calculate_compatibility
+                result = calculate_compatibility(request.user, target)
+
+            return Response({'success': True, 'recalculated': True, 'data': result})
+
+        # Recalculate/invalidate viewer's cached records
+        invalidated_count = MatchmakingService.invalidate_for_member(request.user)
+        return Response({
+            'success': True,
+            'invalidated_count': invalidated_count,
+            'message': 'Compatibility caches successfully invalidated. Next views will recompute fresh.',
+        })
+
+
+class RecommendedMatchesView(APIView):
+    """Top personalized recommended matches ordered by dynamic compatibility."""
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        from apps.core.serializers import MemberPublicSerializer
+        from .models import MemberPass
+        from .services import MatchmakingService
+
+        # Exclude blocked, passed, and own profile
+        blocked_pairs = ProfileBlock.objects.filter(
+            Q(blocker=request.user) | Q(blocked=request.user)
+        ).values_list('blocker_id', 'blocked_id')
+        excluded = {val for pair in blocked_pairs for val in pair}
+        excluded.add(request.user.pk)
+
+        passed_profile_ids = MemberPass.objects.filter(user=request.user).values_list('profile__member_id', flat=True)
+        excluded.update(passed_profile_ids)
+
+        # Opposite gender preference default if specified
+        queryset = Member.objects.filter(is_active=True, deleted_at__isnull=True).exclude(pk__in=excluded)
+        if request.user.gender:
+            opp_gender = 'FEMALE' if request.user.gender.upper() == 'MALE' else 'MALE'
+            queryset = queryset.filter(gender__iexact=opp_gender)
+
+        candidates = list(
+            queryset.select_related('profile', 'preferences')
+            .prefetch_related(
+                Prefetch(
+                    'profile_photos',
+                    queryset=ProfilePhoto.objects.without_binary(),
+                )
+            )[:50]
+        )
+
+        # Score dynamically and sort by score descending
+        scored_candidates = []
+        for cand in candidates:
+            score = MatchmakingService.get_quick_compatibility_score(request.user, cand)
+            scored_candidates.append((score, cand))
+
+        scored_candidates.sort(key=lambda x: x[0], reverse=True)
+        top_candidates = [cand for _, cand in scored_candidates[:20]]
+
+        serializer = MemberPublicSerializer(top_candidates, many=True, context={'request': request})
+        return Response({
+            'success': True,
+            'count': len(top_candidates),
+            'results': serializer.data,
+        })
+

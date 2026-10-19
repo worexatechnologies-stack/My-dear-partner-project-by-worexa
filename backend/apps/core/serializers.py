@@ -418,7 +418,12 @@ class MemberPublicSerializer(serializers.ModelSerializer):
     def get_family_type(self, obj): return self._profile_value(obj, 'family_type')
     def get_marital_status(self, obj): return self._profile_value(obj, 'marital_status')
     def get_hobbies(self, obj): return self._profile_value(obj, 'hobbies', [])
-    def get_compatibility(self, obj): return self._profile_value(obj, 'compatibility', 0)
+    def get_compatibility(self, obj):
+        viewer = self._get_viewer()
+        if viewer and getattr(viewer, 'is_authenticated', False) and viewer.pk != obj.pk:
+            from apps.matching.services import MatchmakingService
+            return MatchmakingService.get_quick_compatibility_score(viewer, obj)
+        return self._profile_value(obj, 'compatibility', 0)
 
     def get_pref_about(self, obj):
         try:

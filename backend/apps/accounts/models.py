@@ -953,6 +953,10 @@ class MemberProfile(models.Model):
     family_location = models.CharField(max_length=150, blank=True)
     about = models.TextField(blank=True)
     hobbies = models.JSONField(default=list, blank=True)
+    lifestyle = models.JSONField(default=dict, blank=True)
+    family_expectations = models.CharField(max_length=200, blank=True, default='')
+    marriage_timeline = models.CharField(max_length=100, blank=True, default='')
+    relocation_preference = models.CharField(max_length=100, blank=True, default='')
     compatibility = models.PositiveSmallIntegerField(default=0)
     submitted_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
@@ -991,6 +995,10 @@ class MemberPreference(models.Model):
     preferred_education = models.CharField(max_length=150, blank=True)
     preferred_occupation = models.CharField(max_length=150, blank=True)
     preferred_marital_status = models.CharField(max_length=100, blank=True)
+    preferred_family_type = models.CharField(max_length=100, blank=True, default='')
+    preferred_marriage_timeline = models.CharField(max_length=100, blank=True, default='')
+    preferred_relocation = models.CharField(max_length=100, blank=True, default='')
+    preferred_lifestyle = models.JSONField(default=dict, blank=True)
     additional_expectations = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1210,55 +1218,55 @@ class StaffAccessScope(BaseAccessScope):
 
 
 
-
-
-class MemberAccountSettings(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    member = models.OneToOneField(
-        'Member',
-        on_delete=models.CASCADE,
-        related_name='account_settings',
-    )
-    # Settings preferences
-    push_notifications = models.BooleanField(default=True)
-    email_notifications = models.BooleanField(default=True)
-    notification_preferences = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text='Granular notification preferences (e.g. chat, interests, matches, marketing).'
-    )
-    
-    # Privacy settings
-    show_online_status = models.BooleanField(default=True)
-    contact_visibility = models.CharField(
-        max_length=20,
-        default='CONNECTED_ONLY',
-        choices=[
-            ('ALL', 'All Members'),
-            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
-            ('HIDDEN', 'Hidden'),
-        ],
-    )
-    photo_visibility = models.CharField(
-        max_length=20,
-        default='ALL',
-        choices=[
-            ('ALL', 'All Members'),
-            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
-            ('APPROVED_MEMBERS', 'Approved / Verified Members Only'),
-        ],
-    )
-    
-    # Safety / Eligibility
-    eligibility_consent = models.BooleanField(default=False)
-    eligibility_policy_version = models.CharField(max_length=30, default='v1.0')
-    eligibility_consented_at = models.DateTimeField(null=True, blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'member_account_settings'
-
-    def __str__(self):
-        return f'Account Settings for Member {self.member_id}'
+
+
+class MemberAccountSettings(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member = models.OneToOneField(
+        'Member',
+        on_delete=models.CASCADE,
+        related_name='account_settings',
+    )
+    # Settings preferences
+    push_notifications = models.BooleanField(default=True)
+    email_notifications = models.BooleanField(default=True)
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Granular notification preferences (e.g. chat, interests, matches, marketing).'
+    )
+    
+    # Privacy settings
+    show_online_status = models.BooleanField(default=True)
+    contact_visibility = models.CharField(
+        max_length=20,
+        default='CONNECTED_ONLY',
+        choices=[
+            ('ALL', 'All Members'),
+            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
+            ('HIDDEN', 'Hidden'),
+        ],
+    )
+    photo_visibility = models.CharField(
+        max_length=20,
+        default='ALL',
+        choices=[
+            ('ALL', 'All Members'),
+            ('CONNECTED_ONLY', 'Connected / Mutual Matches Only'),
+            ('APPROVED_MEMBERS', 'Approved / Verified Members Only'),
+        ],
+    )
+    
+    # Safety / Eligibility
+    eligibility_consent = models.BooleanField(default=False)
+    eligibility_policy_version = models.CharField(max_length=30, default='v1.0')
+    eligibility_consented_at = models.DateTimeField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'member_account_settings'
+
+    def __str__(self):
+        return f'Account Settings for Member {self.member_id}'

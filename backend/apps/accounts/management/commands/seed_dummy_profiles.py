@@ -340,6 +340,19 @@ class Command(BaseCommand):
                         "family_location": details["city"],
                         "about": about_text,
                         "hobbies": hobbies,
+                        "lifestyle": {
+                            "diet": ["Vegetarian", "Non-Vegetarian", "Eggetarian"][idx % 3],
+                            "smoking": "Never",
+                            "drinking": ["Never", "Never", "Occasionally"][idx % 3],
+                            "fitness": ["Regularly", "Moderate", "Yoga & Walking"][idx % 3],
+                        },
+                        "family_expectations": [
+                            "Values family bonding, respects elders, and maintains close family ties.",
+                            "Progressive family outlook with traditional roots and mutual respect.",
+                            "Supportive, close-knit family values with open communication.",
+                        ][idx % 3],
+                        "marriage_timeline": ["Within 6 months", "Within 1 year", "1-2 years"][idx % 3],
+                        "relocation_preference": ["Open to relocation", "Willing to relocate within India", "Prefers current city"][idx % 3],
                         "compatibility": 85 + (idx % 14),
                     },
                 )
@@ -357,6 +370,15 @@ class Command(BaseCommand):
                         "preferred_education": "Bachelors or Masters Degree",
                         "preferred_occupation": "Working Professional / Business",
                         "preferred_marital_status": "Never Married",
+                        "preferred_family_type": ["Nuclear Family or Joint Family", "Nuclear Family", "Open to all"][idx % 3],
+                        "preferred_marriage_timeline": ["Within 1 year", "1-2 years", "Within 6 months"][idx % 3],
+                        "preferred_relocation": ["Open to relocation", "Flexible", "Willing to discuss"][idx % 3],
+                        "preferred_lifestyle": {
+                            "diet": ["Vegetarian", "Any", "Eggetarian"][idx % 3],
+                            "smoking": "Never",
+                            "drinking": ["Never", "Occasionally"][idx % 2],
+                            "fitness": "Active",
+                        },
                         "additional_expectations": "Looking for a caring, progressive, and family-oriented partner.",
                     },
                 )
@@ -469,9 +491,23 @@ class Command(BaseCommand):
                         "family_location": details["city"],
                         "about": about_text,
                         "hobbies": hobbies,
+                        "lifestyle": {
+                            "diet": ["Vegetarian", "Non-Vegetarian", "Eggetarian"][idx % 3],
+                            "smoking": "Never",
+                            "drinking": ["Never", "Occasionally", "Socially"][idx % 3],
+                            "fitness": ["Gym & Sports", "Regularly", "Moderate"][idx % 3],
+                        },
+                        "family_expectations": [
+                            "Values family bonding, respects elders, and maintains close family ties.",
+                            "Progressive family outlook with traditional roots and mutual respect.",
+                            "Supportive, close-knit family values with open communication.",
+                        ][idx % 3],
+                        "marriage_timeline": ["Within 6 months", "Within 1 year", "1-2 years"][idx % 3],
+                        "relocation_preference": ["Open to relocation", "Willing to relocate within India", "Prefers current city"][idx % 3],
                         "compatibility": 86 + (idx % 13),
                     },
                 )
+
 
                 MemberPreference.objects.update_or_create(
                     member=member,
@@ -486,6 +522,15 @@ class Command(BaseCommand):
                         "preferred_education": "Bachelors or Masters Degree",
                         "preferred_occupation": "Working Professional / Doctor / Engineer",
                         "preferred_marital_status": "Never Married",
+                        "preferred_family_type": ["Nuclear Family or Joint Family", "Nuclear Family", "Open to all"][idx % 3],
+                        "preferred_marriage_timeline": ["Within 1 year", "1-2 years", "Within 6 months"][idx % 3],
+                        "preferred_relocation": ["Open to relocation", "Flexible", "Willing to discuss"][idx % 3],
+                        "preferred_lifestyle": {
+                            "diet": ["Vegetarian", "Any", "Eggetarian"][idx % 3],
+                            "smoking": "Never",
+                            "drinking": ["Never", "Occasionally"][idx % 2],
+                            "fitness": "Active",
+                        },
                         "additional_expectations": "Looking for a well-educated, respectful and supportive partner.",
                     },
                 )

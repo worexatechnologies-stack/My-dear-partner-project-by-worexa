@@ -997,19 +997,42 @@ class MessageDeleteView(APIView):
 class CompatibilityCheckView(APIView):
     permission_classes = (permissions.IsAuthenticated, IsMember)
 
+    def get(self, request):
+        target_id = request.query_params.get('member_id') or request.query_params.get('profile_id')
+        return self._evaluate(request, target_id)
+
     def post(self, request):
-        target_id = request.data.get('member_id') or request.data.get('profile_id')
+        target_id = request.data.get('member_id') or request.data.get('profile_id') or request.query_params.get('member_id')
+        return self._evaluate(request, target_id)
+
+    def _evaluate(self, request, target_id):
         if not target_id:
             return bad_request('member_id is required.')
-        target = get_object_or_404(Member, pk=target_id, is_active=True, deleted_at__isnull=True)
-        from apps.core.matching import calculate_profile_compatibility
+        # Support both Member pk and MemberProfile pk
+        target = Member.objects.filter(pk=target_id, is_active=True, deleted_at__isnull=True).first()
+        if not target:
+            target = Member.objects.filter(profile__id=target_id, is_active=True, deleted_at__isnull=True).first()
+        if not target:
+            return not_found('Member not found.')
 
+        from apps.core.matching import calculate_profile_compatibility
         compatibility = calculate_profile_compatibility(request.user, target)
         return ApiResponse(
             data={
                 'member_id': str(target.pk),
+                'candidate_id': str(target.pk),
                 'compatibility': compatibility['score'],
-                'explanations': compatibility['explanations'],
+                'compatibility_score': compatibility['score'],
+                'confidence': compatibility.get('confidence', 'medium'),
+                'data_completeness': compatibility.get('data_completeness', 50),
+                'shared_strengths': compatibility.get('shared_strengths', []),
+                'considerations': compatibility.get('considerations', []),
+                'summary': compatibility.get('summary', ''),
+                'explanation': compatibility.get('explanation', ''),
+                'factors': compatibility.get('factors', {}),
+                'explanations': compatibility.get('explanations', []),
+                'ai_generated': compatibility.get('ai_generated', False),
+                'last_calculated': compatibility.get('last_calculated'),
             }
         )
 

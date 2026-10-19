@@ -597,7 +597,10 @@ export default function ProfilePage() {
   const currentSelectedPhoto = photos[safeSelectedIdx] || photos[0];
   const currentSelectedPhotoUrl = currentSelectedPhoto?.image_url || currentSelectedPhoto?.thumbnail_url || profileUser.photo;
   const location = [profile.location?.city, profile.location?.state].filter(Boolean).join(', ') || 'Location private';
-  const matchScore = profile.compatibility_score;
+  const compatInsight = profile.compatibility || profileData?.compatibility;
+  const matchScore = typeof compatInsight?.compatibility_score === 'number'
+    ? compatInsight.compatibility_score
+    : profile.compatibility_score;
   const currentLightboxPhoto = lightboxIndex === null ? null : photos[lightboxIndex];
   const isMatched = interestState === 'ACCEPTED';
   const canViewFullBio = profile.can_view_full_profile !== false && !profile.full_bio_locked;
@@ -1032,11 +1035,28 @@ export default function ProfilePage() {
                     </span>
                   </div>
                 </div>
-                {matchScore !== undefined && matchScore !== null && (
-                  <div className="flex shrink-0 items-center gap-3 rounded-lg border border-[#cfe6dc] bg-[#f1f8f5] px-4 py-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#267255] text-sm font-extrabold text-white">{matchScore}%</div>
-                    <div><p className="text-xs font-extrabold text-[#1f5f47]">Compatibility</p><p className="text-[11px] text-[#4d7665]">Based on preferences</p></div>
-                  </div>
+                {matchScore !== undefined && matchScore !== null && matchScore > 0 && (
+                  <a
+                    href="#compatibility"
+                    className="group flex shrink-0 items-center gap-3 rounded-xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/90 to-teal-50/70 px-4 py-2.5 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-[#267255] to-[#1f5f47] text-sm font-black text-white shadow-xs">
+                      {matchScore}%
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                        Match Score
+                        <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800">
+                          Verified Match
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        {compatInsight?.shared_strengths?.length
+                          ? `${compatInsight.shared_strengths.length} Matched Factors`
+                          : 'Compatibility Analysis'}
+                      </p>
+                    </div>
+                  </a>
                 )}
               </div>
 
@@ -1052,6 +1072,7 @@ export default function ProfilePage() {
 
               <nav className="mt-5 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin" aria-label="Profile sections">
                 {[
+                  ['compatibility', 'Compatibility'],
                   ['about', 'About'],
                   ['career', 'Career & Education'],
                   ['background', 'Family & Background'],
@@ -1085,6 +1106,151 @@ export default function ProfilePage() {
                   <Crown className="h-3.5 w-3.5" /> Upgrade Plan
                 </button>
               </div>
+            )}
+
+            {compatInsight && typeof matchScore === 'number' && matchScore > 0 && (
+              <Section
+                id="compatibility"
+                title="Compatibility & Partner Alignment"
+                description="Comprehensive compatibility analysis evaluated from mutual preferences, lifestyle, marriage expectations, and profile data."
+              >
+                <div className="space-y-5">
+                  {/* Score & Health Bar */}
+                  <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 via-teal-50/50 to-white p-5 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#267255] to-[#1f5f47] text-white shadow-sm font-black text-xl">
+                          {matchScore}%
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-extrabold text-[#17232d]">
+                              {matchScore >= 80 ? 'Strong Match' : matchScore >= 60 ? 'Good Match' : 'Moderate Match'}
+                            </h3>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              compatInsight.confidence === 'high' ? 'bg-emerald-100 text-emerald-800' :
+                              compatInsight.confidence === 'low' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              Confidence: {compatInsight.confidence}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500 font-medium">
+                            Profile completeness: {compatInsight.data_completeness}% • Evaluated from Mutual Preferences
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Completeness progress */}
+                      <div className="w-full sm:w-48 bg-white/80 p-2.5 rounded-xl border border-emerald-100/80">
+                        <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                          <span>Data Completeness</span>
+                          <span className="text-emerald-700">{compatInsight.data_completeness}%</span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
+                            style={{ width: `${compatInsight.data_completeness}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Summary / Explanation */}
+                    {(compatInsight.summary || compatInsight.explanation) && (
+                      <div className="mt-4 pt-4 border-t border-emerald-100/70">
+                        {compatInsight.summary && (
+                          <p className="text-sm font-bold text-emerald-950 mb-1">
+                            {compatInsight.summary}
+                          </p>
+                        )}
+                        {compatInsight.explanation && (
+                          <p className="text-xs sm:text-[13px] leading-relaxed text-slate-600">
+                            {compatInsight.explanation}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Strengths & Considerations Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Shared Strengths */}
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                          Shared Strengths ({compatInsight.shared_strengths?.length || 0})
+                        </h4>
+                      </div>
+                      {compatInsight.shared_strengths && compatInsight.shared_strengths.length > 0 ? (
+                        <ul className="space-y-2">
+                          {compatInsight.shared_strengths.map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs leading-5 text-slate-700 font-medium">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">No strong mutual factors registered yet.</p>
+                      )}
+                    </div>
+
+                    {/* Considerations to Discuss */}
+                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                          <MessageCircle className="h-4 w-4" />
+                        </div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-900">
+                          Points to Discuss ({compatInsight.considerations?.length || 0})
+                        </h4>
+                      </div>
+                      {compatInsight.considerations && compatInsight.considerations.length > 0 ? (
+                        <ul className="space-y-2">
+                          {compatInsight.considerations.map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs leading-5 text-slate-700 font-medium">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">No significant preference conflicts identified.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Factor Breakdown */}
+                  {compatInsight.factors && Object.keys(compatInsight.factors).length > 0 && (
+                    <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                        Compatibility Factor Breakdown
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                        {Object.entries(compatInsight.factors).map(([name, factor]: [string, any]) => (
+                          <div key={name} className="rounded-lg bg-white border border-slate-200/70 p-2.5">
+                            <p className="text-[10px] font-extrabold uppercase text-slate-400 truncate">
+                              {name.replace('_', ' ')}
+                            </p>
+                            <div className="mt-1 flex items-baseline justify-between">
+                              <span className="text-sm font-black text-[#17232d]">{Math.round(factor.score)}%</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                factor.score >= 80 ? 'bg-emerald-50 text-emerald-700' :
+                                factor.score >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {factor.match_type?.replace('_', ' ') || 'aligned'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Section>
             )}
 
             <Section id="about" title="About" description="A personal introduction shared by this member.">

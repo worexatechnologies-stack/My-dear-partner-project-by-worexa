@@ -74,7 +74,15 @@ const profileFromWire = (user: UserWire): Profile => {
     photoVisibility: user.photo_visibility === 'pending_approval' ? 'pending_approval' : photoUrl ? 'visible' : 'unavailable',
     verified: Boolean(user.is_verified),
     premium: Boolean(user.is_premium),
-    compatibility: Number(user.compatibility || 0),
+    compatibility: (() => {
+      if (typeof user.compatibility_score === 'number') return user.compatibility_score;
+      if (typeof user.compatibility === 'number') return user.compatibility;
+      if (user.compatibility && typeof user.compatibility.compatibility_score === 'number') {
+        return user.compatibility.compatibility_score;
+      }
+      return 0;
+    })(),
+    compatibility_data: typeof user.compatibility === 'object' && user.compatibility !== null ? user.compatibility : undefined,
     about: user.about || 'This member has not added an introduction yet.',
     familyType: user.family_type || 'Not specified',
     motherTongue: user.mother_tongue || 'Not specified',

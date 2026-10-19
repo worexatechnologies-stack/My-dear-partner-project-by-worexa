@@ -416,3 +416,121 @@ class DeviceRegistrationAndPushTests(TestCase):
             self.assertIsNone(result)
             self.assertFalse(Device.objects.filter(token="unregistered_token_123").exists())
 
+    def test_send_general_push_payload_and_channel(self):
+        from apps.notifications.push import send_general_push
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/test_general_id_3"
+
+            msg_id = send_general_push(
+                device="test_device_token_gen",
+                title="Profile Approved",
+                body="Your profile photo has been approved.",
+                notification_id="notif_123",
+                notification_type="PHOTO_APPROVED",
+                link_url="/profile",
+                receiver_id="usr_5",
+            )
+
+            self.assertEqual(msg_id, "projects/mydearpartner/messages/test_general_id_3")
+            mock_send.assert_called_once()
+            message_arg = mock_send.call_args[0][0]
+
+            # Verify Android channel and priority
+            self.assertEqual(message_arg.android.notification.channel_id, "mdp_general_v2")
+            self.assertEqual(message_arg.android.priority, "high")
+
+            # Verify Data payload
+            self.assertEqual(message_arg.data["kind"], "notification")
+            self.assertEqual(message_arg.data["notification_type"], "PHOTO_APPROVED")
+            self.assertEqual(message_arg.data["notification_id"], "notif_123")
+            self.assertEqual(message_arg.data["url"], "/profile")
+
+            # Verify APNs payload
+            self.assertTrue(message_arg.apns.payload.aps.mutable_content)
+            self.assertEqual(message_arg.apns.payload.aps.sound, "default")
+            self.assertEqual(message_arg.apns.payload.aps.badge, 1)
+
+    def test_deliver_mobile_notification_push_for_general_notification(self):
+        from apps.core.models import Notification
+        from apps.notifications.models import Device
+        from apps.notifications.push import deliver_mobile_notification_push
+
+        Device.objects.create(user=self.member1, token="device_token_m1", platform="android")
+
+        notif = Notification.objects.create(
+            member_recipient=self.member1,
+            notification_type="SYSTEM_ALERT",
+            title="System Alert",
+            message="Your account is verified.",
+            link_url="/dashboard",
+        )
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/delivered_gen_1"
+
+            deliver_mobile_notification_push(str(notif.pk))
+
+            mock_send.assert_called_once()
+            msg_arg = mock_send.call_args[0][0]
+            self.assertEqual(msg_arg.token, "device_token_m1")
+            self.assertEqual(msg_arg.notification.title, "System Alert")
+            self.assertEqual(msg_arg.notification.body, "Your account is verified.")
+            self.assertEqual(msg_arg.android.notification.channel_id, "mdp_general_v2")
+
+    def test_deliver_mobile_notification_push_for_interest_notification(self):
+        from apps.core.models import Notification
+        from apps.notifications.models import Device
+        from apps.notifications.push import deliver_mobile_notification_push
+
+        Device.objects.create(user=self.member1, token="device_token_m2", platform="ios")
+
+        notif = Notification.objects.create(
+            member_recipient=self.member1,
+            notification_type="INTEREST_RECEIVED",
+            title="New interest received",
+            message="Bob sent you an interest.",
+            related_object_id="interest_789",
+            link_url="/interests/received",
+        )
+
+        with patch("apps.notifications.push.firebase_app") as mock_app, \
+             patch("firebase_admin.messaging.send") as mock_send:
+            mock_app.return_value = object()
+            mock_send.return_value = "projects/mydearpartner/messages/delivered_int_1"
+
+            deliver_mobile_notification_push(str(notif.pk))
+
+            mock_send.assert_called_once()
+            msg_arg = mock_send.call_args[0][0]
+            self.assertEqual(msg_arg.token, "device_token_m2")
+            self.assertEqual(msg_arg.android.notification.channel_id, "mdp_interests_v2")
+            self.assertEqual(msg_arg.data["kind"], "interest")
+            self.assertEqual(msg_arg.data["interest_id"], "interest_789")
+
+    def test_test_push_endpoint_supports_general(self):
+        self.client.force_authenticate(user=self.member1)
+
+        with patch("apps.notifications.views.send_general_push") as mock_gen_push:
+            mock_gen_push.return_value = "msg_gen_test_999"
+
+            response = self.client.post(
+                "/api/v1/devices/test-push/",
+                {
+                    "token": "fcm_token_gen_test",
+                    "type": "general",
+                    "title": "Custom General Title",
+                    "body": "Custom General Body",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.data["success"])
+            self.assertEqual(response.data["data"]["type"], "general")
+            mock_gen_push.assert_called_once()
+
+

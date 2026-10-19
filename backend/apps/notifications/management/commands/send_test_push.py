@@ -1,7 +1,7 @@
 import sys
 from django.core.management.base import BaseCommand
 from apps.notifications.models import Device
-from apps.notifications.push import send_chat_push, send_interest_push
+from apps.notifications.push import send_chat_push, send_interest_push, send_general_push
 
 
 class Command(BaseCommand):
@@ -22,8 +22,8 @@ class Command(BaseCommand):
             "--type",
             type=str,
             default="chat",
-            choices=["chat", "interest"],
-            help="Notification type: 'chat' (channel mdp_messages_v2) or 'interest' (channel mdp_interests_v2)",
+            choices=["chat", "interest", "general"],
+            help="Notification type: 'chat' (channel mdp_messages_v2), 'interest' (channel mdp_interests_v2), or 'general' (channel mdp_general_v2)",
         )
         parser.add_argument(
             "--title",
@@ -79,6 +79,17 @@ class Command(BaseCommand):
                     receiver_id=user_id or "target",
                     title=title or "New Interest",
                     body=body or "Someone sent you an interest",
+                )
+            elif push_type == "general":
+                msg_id = send_general_push(
+                    device=target_token,
+                    title=title or "Test Notification",
+                    body=body or "This is a test notification from MyDearPartner",
+                    notification_id="test-cmd-001",
+                    notification_type="TEST",
+                    link_url="/notifications",
+                    receiver_id=user_id or "target",
+                    channel_id="mdp_general_v2",
                 )
             else:
                 msg_id = send_chat_push(

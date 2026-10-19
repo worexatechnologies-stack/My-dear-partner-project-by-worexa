@@ -1,0 +1,99 @@
+name: CD Pipeline (Production Deployment)
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: 'Deployment Strategy (docker or systemd)'
+        required: true
+        default: 'docker'
+        type: choice
+        options:
+          - 'docker'
+          - 'systemd'
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          timeout: 600s
+          script: |
+            set -e
+            APP_DIR="/opt/mydearpartner"
+            DEPLOY_MODE="${{ github.event.inputs.deploy_mode || 'docker' }}"
+
+            echo "========================================================"
+            echo "Starting MyDearPartner automated deployment on VPS..."
+            echo "Target Directory: $APP_DIR"
+            echo "Mode: $DEPLOY_MODE"
+            echo "Timestamp: $(date -u)"
+            echo "========================================================"
+
+            # 1. Ensure project directory exists
+            if [ ! -d "$APP_DIR" ]; then
+              echo "Creating $APP_DIR and cloning repository..."
+              git clone https://github.com/${{ github.repository }}.git "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            # 2. Sync to latest commit on main
+            echo "Fetching latest changes from origin/main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 3. Deployment strategy execution
+            if [ "$DEPLOY_MODE" = "docker" ]; then
+              echo "Deploying via Docker Compose..."
+              
+              # Pull/rebuild images
+              docker compose build backend nextjs
+              
+              # Run migrations and superadmin sync through the migrate service
+              docker compose run --rm migrate
+              
+              # Start all active services with zero downtime restart
+              docker compose up -d --remove-orphans
+              
+              # Reload Nginx inside container or host
+              if docker compose ps | grep -q nginx; then
+                docker compose exec -T nginx nginx -s reload || true
+              fi
+            else
+              echo "Deploying via Systemd / deploy.sh script..."
+              chmod +x deploy.sh
+              ./deploy.sh
+            fi
+
+            # 4. Post-deployment Health Check
+            echo "Running deployment health check..."
+            sleep 5
+            
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/ || echo "000")
+            echo "HTTP Health Check Status Code: $HEALTH_STATUS"
+
+            if [ "$HEALTH_STATUS" -ge 200 ] && [ "$HEALTH_STATUS" -lt 400 ]; then
+              echo "Deployment succeeded! Health check passed ($HEALTH_STATUS)."
+            else
+              echo "WARNING: Health check returned status $HEALTH_STATUS. Please verify logs."
+            fi
+
+            echo "========================================================"
+            echo "Deployment finished successfully."
+            echo "========================================================"

@@ -815,6 +815,12 @@ function ProfileCard({
           Online
         </span>
         <div className="flex items-center gap-1.5">
+          {profile.compatibility > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/95 text-white font-extrabold text-[11px] px-2.5 py-0.5 shadow-sm backdrop-blur-xs tracking-tight">
+              <ShieldCheck size={13} strokeWidth={2.5} />
+              {profile.compatibility}% Match
+            </span>
+          )}
           {profile.premium && (
             <span className="pc-premium-badge">
               <Crown size={13} fill="currentColor" strokeWidth={1.4} />

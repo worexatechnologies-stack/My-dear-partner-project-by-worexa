@@ -197,7 +197,7 @@ def create_notification(recipient, *, type, title, body, link_url='', related_ob
 def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
     try:
         from apps.notifications.models import Device
-        from apps.notifications.push import send_chat_push
+        from apps.notifications.push import deliver_chat_push_task, send_chat_push
 
         devices = list(Device.objects.filter(user=recipient_user, active=True))
         if not devices:
@@ -212,6 +212,7 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
         message_id = str(chat_msg.pk)
         sender_id = str(sender_user.pk)
         receiver_id = str(recipient_user.pk)
+        title = f"New message from {sender_name}"
 
         logger.info(
             "Dispatching mobile chat push: recipient_user_id=%s active_tokens=%d sender_id=%s conversation_id=%s",
@@ -221,18 +222,30 @@ def _send_mobile_chat_push(recipient_user, sender_user, chat_msg):
             conversation_id,
         )
 
-        for device in devices:
-            send_chat_push(
-                device=device,
+        try:
+            deliver_chat_push_task.delay(
+                receiver_id,
                 sender_name=sender_name,
                 encrypted_text=clean_text,
                 message_id=message_id,
                 conversation_id=conversation_id,
                 sender_id=sender_id,
-                receiver_id=receiver_id,
-                title=f"New message from {sender_name}",
+                title=title,
                 body=body,
             )
+        except Exception:
+            for device in devices:
+                send_chat_push(
+                    device=device,
+                    sender_name=sender_name,
+                    encrypted_text=clean_text,
+                    message_id=message_id,
+                    conversation_id=conversation_id,
+                    sender_id=sender_id,
+                    receiver_id=receiver_id,
+                    title=title,
+                    body=body,
+                )
     except Exception:
         logger.exception("Failed to dispatch mobile FCM chat push")
 

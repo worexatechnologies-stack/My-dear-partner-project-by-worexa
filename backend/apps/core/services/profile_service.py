@@ -454,10 +454,7 @@ class ProfileService:
                 'profile': member,  # Serialized by view
                 'blocked_by_me': viewer_blocked_target,
                 'blocked_by_user': False,
-                'compatibility': {
-                    'score': compatibility['score'],
-                    'explanations': compatibility['explanations'],
-                },
+                'compatibility': compatibility,
                 'interest': interest_info,
                 'access': {
                     'plan': plan.name if plan else 'Free',

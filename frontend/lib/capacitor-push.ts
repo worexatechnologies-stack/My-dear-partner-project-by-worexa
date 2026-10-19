@@ -12,6 +12,7 @@
 export const CHANNELS = {
   MESSAGES: 'mdp_messages_v2',
   INTERESTS: 'mdp_interests_v2',
+  GENERAL: 'mdp_general_v2',
 } as const;
 
 export async function isCapacitorNative(): Promise<boolean> {
@@ -66,6 +67,16 @@ export async function initCapacitorPush(apiBaseUrl: string = '/api/v1') {
         sound: 'default',
         vibration: true,
       });
+
+      await PushNotifications.createChannel({
+        id: CHANNELS.GENERAL,
+        name: 'Updates & Alerts',
+        description: 'Instant notifications for matches, profile updates, and alerts',
+        importance: 4,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+      });
       console.log('[CapacitorPush] Android channels created:', CHANNELS);
     }
 
@@ -110,6 +121,10 @@ export async function initCapacitorPush(apiBaseUrl: string = '/api/v1') {
         window.location.href = `/messages/${encodeURIComponent(data.conversation_id)}`;
       } else if (data?.kind === 'interest') {
         window.location.href = '/interests/received';
+      } else if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        window.location.href = '/notifications';
       }
     });
 

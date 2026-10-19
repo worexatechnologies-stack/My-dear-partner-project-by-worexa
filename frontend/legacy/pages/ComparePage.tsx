@@ -45,7 +45,11 @@ function wireToProfile(user: any): Profile {
     photo: photoUrl,
     verified: Boolean(user.is_verified),
     premium: Boolean(user.is_premium),
-    compatibility: Number(user.compatibility_score || user.compatibility || 0),
+    compatibility: Number(
+      user.compatibility_score ||
+      (typeof user.compatibility === 'object' && user.compatibility !== null ? user.compatibility.compatibility_score : user.compatibility) ||
+      0
+    ),
     about: user.about || '',
     familyType: user.family_type || 'Not specified',
     motherTongue: user.mother_tongue || 'Not specified',
@@ -119,7 +123,17 @@ export default function ComparePage() {
     const fullProfile = await fetchCandidatePhoto(profile);
     try {
       const result = await checkCompatibility({ member_id: fullProfile.id });
-      return { ...fullProfile, compatibility: Number(result.compatibility ?? fullProfile.compatibility ?? 0) };
+      const score = Number(
+        result.compatibility_score ??
+        (typeof result.compatibility === 'object' && result.compatibility !== null ? result.compatibility.compatibility_score : result.compatibility) ??
+        fullProfile.compatibility ??
+        0
+      );
+      return {
+        ...fullProfile,
+        compatibility: score,
+        compatibility_data: typeof result.compatibility === 'object' ? result.compatibility : (result.data || result),
+      };
     } catch {
       return fullProfile;
     }

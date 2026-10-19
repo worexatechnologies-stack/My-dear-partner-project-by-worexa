@@ -371,6 +371,236 @@ def send_interest_push_to_user(
     return results
 
 
+def send_general_push(
+    device,
+    title="My Dear Partner",
+    body="You have a new notification",
+    notification_id="",
+    notification_type="GENERAL",
+    link_url="/notifications",
+    receiver_id="",
+    channel_id="mdp_general_v2",
+    priority="high",
+    extra_data=None,
+):
+    """Send FCM/APNs push notification for general notifications, status updates, and system events.
+
+    Android uses channel 'mdp_general_v2' (or fallback) with high priority.
+    iOS uses APNs priority 10, sound default, badge 1, mutable-content 1.
+    """
+    app = firebase_app()
+    if not app:
+        return None
+
+    token = getattr(device, 'token', device)
+    user_id = getattr(device, 'user_id', receiver_id)
+
+    data = {
+        "kind": "notification",
+        "notification_id": str(notification_id or ""),
+        "notification_type": str(notification_type or "GENERAL"),
+        "url": str(link_url or "/notifications"),
+    }
+    if extra_data and isinstance(extra_data, dict):
+        for k, v in extra_data.items():
+            if v is not None:
+                data[str(k)] = str(v)
+
+    android = messaging.AndroidConfig(
+        priority="high",
+        notification=messaging.AndroidNotification(
+            channel_id=channel_id or "mdp_general_v2",
+            sound="default",
+        ),
+    )
+
+    apns = messaging.APNSConfig(
+        headers={
+            "apns-priority": "10",
+        },
+        payload=messaging.APNSPayload(
+            aps=messaging.Aps(
+                sound="default",
+                badge=1,
+                mutable_content=True,
+            )
+        ),
+    )
+
+    msg = messaging.Message(
+        token=token,
+        notification=messaging.Notification(
+            title=title or "My Dear Partner",
+            body=body or "You have a new notification",
+        ),
+        data=data,
+        android=android,
+        apns=apns,
+    )
+
+    try:
+        response = messaging.send(msg)
+        logger.info(
+            "Firebase general notification delivered: message_id=%s recipient_user_id=%s token=%s...",
+            response,
+            user_id,
+            token[:15],
+        )
+        return response
+    except Exception as exc:
+        logger.error(
+            "Firebase delivery error for recipient_user_id=%s token=%s...: %s",
+            user_id,
+            token[:15],
+            exc,
+        )
+        _handle_token_error(token, user_id, exc)
+        return None
+
+
+def send_general_push_to_user(
+    recipient_user,
+    title="My Dear Partner",
+    body="You have a new notification",
+    notification_id="",
+    notification_type="GENERAL",
+    link_url="/notifications",
+    channel_id="mdp_general_v2",
+    extra_data=None,
+):
+    """Dispatch general push notification to all active devices of a recipient user."""
+    from apps.notifications.models import Device
+
+    recipient_id = getattr(recipient_user, 'pk', recipient_user)
+    devices = list(Device.objects.filter(user=recipient_user, active=True))
+    logger.info(
+        "Preparing general push dispatch: recipient_user_id=%s token_count=%d type=%s",
+        recipient_id,
+        len(devices),
+        notification_type,
+    )
+    results = []
+    for dev in devices:
+        res = send_general_push(
+            device=dev,
+            title=title,
+            body=body,
+            notification_id=notification_id,
+            notification_type=notification_type,
+            link_url=link_url,
+            receiver_id=recipient_id,
+            channel_id=channel_id,
+            extra_data=extra_data,
+        )
+        results.append(res)
+    return results
+
+
+@shared_task(ignore_result=True, autoretry_for=(), retry_backoff=False)
+def deliver_chat_push_task(
+    recipient_id,
+    sender_name="Member",
+    encrypted_text="",
+    message_id="",
+    conversation_id="",
+    sender_id="",
+    title="New message",
+    body="You have a new message",
+):
+    """Celery background task for mobile chat push notifications."""
+    from apps.notifications.models import Device
+
+    devices = list(Device.objects.filter(user_id=recipient_id, active=True))
+    if not devices:
+        return
+
+    app = firebase_app()
+    if not app:
+        return
+
+    for dev in devices:
+        send_chat_push(
+            device=dev,
+            sender_name=sender_name,
+            encrypted_text=encrypted_text,
+            message_id=message_id,
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            receiver_id=recipient_id,
+            title=title,
+            body=body,
+        )
+
+
+@shared_task(ignore_result=True, autoretry_for=(), retry_backoff=False)
+def deliver_mobile_notification_push(notification_id):
+    """Deliver a persisted notification to active mobile devices (iOS / Android FCM)."""
+    from apps.core.models import Notification
+    from apps.notifications.models import Device
+
+    notification = (
+        Notification.objects.select_related('member_recipient')
+        .filter(pk=notification_id, member_recipient__isnull=False)
+        .first()
+    )
+    if notification is None:
+        return
+
+    # Chat messages have dedicated real-time dispatch with conversation payload via _send_mobile_chat_push
+    if str(notification.notification_type or '').upper() == 'CHAT_MESSAGE':
+        return
+
+    recipient = notification.member_recipient
+    devices = list(Device.objects.filter(user=recipient, active=True))
+    if not devices:
+        return
+
+    app = firebase_app()
+    if not app:
+        return
+
+    notif_type = str(notification.notification_type or '').upper()
+    title = str(notification.title or 'My Dear Partner')[:120]
+    body = str(notification.message or 'You have a new notification')[:180]
+    link_url = _safe_link_url(notification.link_url)
+
+    logger.info(
+        "Dispatching mobile FCM notification: notification_id=%s recipient_user_id=%s type=%s devices=%d",
+        notification_id,
+        recipient.pk,
+        notif_type,
+        len(devices),
+    )
+
+    if notif_type.startswith('INTEREST_'):
+        for dev in devices:
+            send_interest_push(
+                device=dev,
+                sender_name=title.replace("New interest from ", "").replace("New interest received", "").strip() or "Someone",
+                interest_id=str(notification.related_object_id or ""),
+                receiver_id=str(recipient.pk),
+                title=title,
+                body=body,
+            )
+    else:
+        for dev in devices:
+            send_general_push(
+                device=dev,
+                title=title,
+                body=body,
+                notification_id=str(notification.pk),
+                notification_type=notif_type,
+                link_url=link_url,
+                receiver_id=str(recipient.pk),
+                channel_id="mdp_general_v2",
+                extra_data={
+                    "related_object_type": str(notification.related_object_type or ""),
+                    "related_object_id": str(notification.related_object_id or ""),
+                    "priority": str(notification.priority or "NORMAL"),
+                },
+            )
+
+
 # ---------------------------------------------------------------------------
 # Web Push (VAPID / Browser)
 # ---------------------------------------------------------------------------
@@ -463,9 +693,22 @@ def deliver_notification_push(notification_id):
 
 def queue_notification_push(notification):
     """Queue delivery without allowing device provider failures to affect the API."""
-    if not push_is_configured() or not notification.member_recipient_id:
+    if not notification or not notification.member_recipient_id:
         return
+
+    # 1. Enqueue Web Push if VAPID keys are configured
+    if push_is_configured():
+        try:
+            deliver_notification_push.delay(str(notification.pk))
+        except Exception:
+            logger.exception('Could not enqueue Web Push notification=%s', notification.pk)
+
+    # 2. Enqueue Mobile FCM Push for native devices (iOS / Android)
     try:
-        deliver_notification_push.delay(str(notification.pk))
+        deliver_mobile_notification_push.delay(str(notification.pk))
     except Exception:
-        logger.exception('Could not enqueue Web Push notification=%s', notification.pk)
+        # If Celery worker/broker is unavailable, try synchronous fallback
+        try:
+            deliver_mobile_notification_push(str(notification.pk))
+        except Exception:
+            logger.exception('Could not dispatch mobile push notification=%s', notification.pk)
