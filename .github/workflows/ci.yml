@@ -51,7 +51,8 @@ jobs:
       run:
         working-directory: backend
     env:
-      DJANGO_ENV: production
+      DJANGO_ENV: local
+      DJANGO_SETTINGS_MODULE: config.settings.local
       SECRET_KEY: ci-build-verification-secret-key-1234567890
       ALLOWED_HOSTS: localhost,127.0.0.1,testserver
       DB_ENGINE: django.db.backends.sqlite3
