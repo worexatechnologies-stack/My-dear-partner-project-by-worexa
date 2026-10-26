@@ -23,10 +23,10 @@ NODE_ENV=production
 INTERNAL_API_BASE_URL=http://backend:8000/api/v1   # server-side proxy target
 AUTH_COOKIE_SECURE=true
 NEXT_PUBLIC_APP_NAME=My Dear Partner
-NEXT_PUBLIC_APP_URL=https://mydearpartner.com
+NEXT_PUBLIC_APP_URL=https://mydearpartner.in
 NEXT_PUBLIC_API_BASE_URL=/api/v1                    # SPA base for REST
-NEXT_PUBLIC_WS_BASE_URL=wss://mydearpartner.com     # WebSocket for chat
-NEXT_PUBLIC_MEDIA_BASE_URL=https://mydearpartner.com/media
+NEXT_PUBLIC_WS_BASE_URL=wss://mydearpartner.in     # WebSocket for chat
+NEXT_PUBLIC_MEDIA_BASE_URL=https://mydearpartner.in/media
 NEXT_PUBLIC_ENABLE_ADMIN_PORTAL=true
 ```
 
@@ -182,7 +182,7 @@ npx cap add ios
 npx cap sync
 
 # 6) Point at your live HTTPS host for release
-$env:CAPACITOR_SERVER_URL="https://mydearpartner.com"   # PowerShell
+$env:CAPACITOR_SERVER_URL="https://mydearpartner.in"   # PowerShell
 
 ## 7. Docker Deploy (current running environment)
 
@@ -222,7 +222,7 @@ https://192.168.0.64           # LAN (for testing on another device)
 - iOS signing and a paid Apple Developer account are required to ship via the App Store.
 - Razorpay checkout and Firebase are configured in the stack; native push (FCM) would need additional `@capacitor/push-notifications` wiring (not currently installed).
 
-export CAPACITOR_SERVER_URL="https://mydearpartner.com" # bash/mac
+export CAPACITOR_SERVER_URL="https://mydearpartner.in" # bash/mac
 npx cap sync
 ```
 

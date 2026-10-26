@@ -54,6 +54,64 @@ jobs:
 
             cd "$APP_DIR"
 
+            # Keep the app's public URLs aligned with the live domain served
+            # by the mounted TLS certificate. Preserve all unrelated secrets.
+            python3 - <<'PY'
+            from pathlib import Path
+
+            interpolation_env = Path(".env")
+            if not interpolation_env.is_file():
+                raise SystemExit("Deployment .env file is missing")
+
+            values = {
+                "APP_URL": "https://mydearpartner.in",
+                "FRONTEND_URL": "https://mydearpartner.in",
+                "BACKEND_URL": "https://mydearpartner.in",
+                "CORS_ALLOWED_ORIGINS": "https://mydearpartner.in,https://www.mydearpartner.in",
+                "CSRF_TRUSTED_ORIGINS": "https://mydearpartner.in,https://www.mydearpartner.in",
+                "NEXT_PUBLIC_APP_URL": "https://mydearpartner.in",
+                "NEXT_PUBLIC_WS_BASE_URL": "wss://mydearpartner.in",
+                "NEXT_PUBLIC_MEDIA_BASE_URL": "https://mydearpartner.in/media",
+                "NGINX_TLS_SERVER_NAME": "mydearpartner.in",
+            }
+            env_paths = [interpolation_env, Path(".env.production")]
+            for line in interpolation_env.read_text().splitlines():
+                key, separator, value = line.partition("=")
+                if separator and key == "APP_ENV_FILE":
+                    configured_env = Path(value.strip().strip("'\""))
+                    if configured_env.is_file():
+                        env_paths.append(configured_env)
+
+            for env_path in dict.fromkeys(path for path in env_paths if path.is_file()):
+                lines = env_path.read_text().splitlines()
+                found = set()
+                updated = []
+                for line in lines:
+                    key = line.partition("=")[0]
+                    if key in values:
+                        updated.append(f"{key}={values[key]}")
+                        found.add(key)
+                    elif key == "ALLOWED_HOSTS":
+                        hosts = [host.strip() for host in line.partition("=")[2].split(",") if host.strip()]
+                        hosts = [
+                            "mydearpartner.in" if host == "mydearpartner.com" else
+                            "www.mydearpartner.in" if host == "www.mydearpartner.com" else host
+                            for host in hosts
+                        ]
+                        hosts = [host for host in hosts if host not in {"mydearpartner.com", "www.mydearpartner.com"}]
+                        for host in ("mydearpartner.in", "www.mydearpartner.in", "backend", "nextjs", "nginx"):
+                            if host not in hosts:
+                                hosts.append(host)
+                        updated.append(f"ALLOWED_HOSTS={','.join(hosts)}")
+                        found.add(key)
+                    else:
+                        updated.append(line)
+                updated.extend(f"{key}={value}" for key, value in values.items() if key not in found)
+                if "ALLOWED_HOSTS" not in found:
+                    updated.append("ALLOWED_HOSTS=mydearpartner.in,www.mydearpartner.in,backend,nextjs,nginx")
+                env_path.write_text("\n".join(updated) + "\n")
+            PY
+
             # 2. Sync to latest commit on main
             echo "Fetching latest changes from origin/main..."
             git fetch origin main
@@ -82,17 +140,43 @@ jobs:
               ./deploy.sh
             fi
 
-            # 4. Post-deployment Health Check
+            # 4. Verify app routes over HTTPS with the configured certificate.
             echo "Running deployment health check..."
-            sleep 5
-            
-            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/ || echo "000")
-            echo "HTTP Health Check Status Code: $HEALTH_STATUS"
+            if [ "$DEPLOY_MODE" = "docker" ]; then
+              TLS_HOST=$(docker compose exec -T nginx printenv NGINX_TLS_SERVER_NAME | tr -d '\r')
+              if [ -z "$TLS_HOST" ]; then
+                echo "ERROR: Nginx TLS hostname is empty."
+                exit 1
+              fi
 
-            if [ "$HEALTH_STATUS" -ge 200 ] && [ "$HEALTH_STATUS" -lt 400 ]; then
-              echo "Deployment succeeded! Health check passed ($HEALTH_STATUS)."
+              for HEALTH_PATH in /api/v1/health/ /; do
+                HEALTH_STATUS=$(curl --silent --show-error --output /dev/null \
+                  --write-out "%{http_code}" --max-time 20 \
+                  --resolve "${TLS_HOST}:443:127.0.0.1" \
+                  "https://${TLS_HOST}${HEALTH_PATH}") || {
+                    echo "ERROR: HTTPS health request failed for ${HEALTH_PATH}."
+                    exit 1
+                  }
+                if [ "$HEALTH_STATUS" != "200" ]; then
+                  echo "ERROR: ${HEALTH_PATH} returned HTTP ${HEALTH_STATUS}; expected 200."
+                  exit 1
+                fi
+                echo "HTTPS health check passed: ${HEALTH_PATH} returned 200."
+              done
             else
-              echo "WARNING: Health check returned status $HEALTH_STATUS. Please verify logs."
+              for HEALTH_PATH in /api/v1/health/ /; do
+                HEALTH_STATUS=$(curl --silent --show-error --output /dev/null \
+                  --write-out "%{http_code}" --max-time 20 \
+                  "http://127.0.0.1:8000${HEALTH_PATH}") || {
+                    echo "ERROR: health request failed for ${HEALTH_PATH}."
+                    exit 1
+                  }
+                if [ "$HEALTH_STATUS" != "200" ]; then
+                  echo "ERROR: ${HEALTH_PATH} returned HTTP ${HEALTH_STATUS}; expected 200."
+                  exit 1
+                fi
+                echo "Health check passed: ${HEALTH_PATH} returned 200."
+              done
             fi
 
             echo "========================================================"
