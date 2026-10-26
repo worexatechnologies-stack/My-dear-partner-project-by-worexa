@@ -612,7 +612,6 @@ class MemberLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        member = _reset_login_state(member)
         if member.account_status == Member.AccountStatus.DELETION_PENDING:
             if member.recovery_until and member.recovery_until > timezone.now():
                 record_login_activity(
@@ -667,26 +666,36 @@ class MemberLoginView(APIView):
             )
             return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
 
-        tokens = issue_account_tokens(member, request=request)
-        record_login_activity(
-            account_type=AccountType.MEMBER,
-            account=member,
-            identifier=identifier,
-            login_status=LoginStatus.SUCCESS,
-            request=request,
-            session_id=tokens['session_id'],
-        )
-        record_security_audit_event('LOGIN_SUCCESS', request=request, account=member, session_id=tokens['session_id'])
+        if not member.mobile_number:
+            return ApiResponse(
+                success=False,
+                message='Add a mobile number to your account before signing in.',
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-        payload = {
-            'user': _account_payload(member, request),
-            'session_expires_at': tokens['session_expires_at'],
-            'session_id': tokens['session_id'],
-            'access': tokens['access'],
-            'refresh': tokens['refresh'],
-        }
-        res = ApiResponse(data=payload, message='Login successful.')
-        return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
+        _code, delivered = _issue_challenge(
+            account_type=AccountType.MEMBER,
+            identifier=member.mobile_number,
+            purpose=AuthChallenge.Purpose.TWO_FACTOR,
+            request=request,
+            lifetime_minutes=5,
+        )
+        if not delivered:
+            return ApiResponse(
+                success=False,
+                message='Unable to send the sign-in verification code. Please try again shortly.',
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return ApiResponse(
+            data={
+                'requires_two_factor': True,
+                'mobile_number': member.mobile_number,
+                'expires_in': 300,
+            },
+            message='A sign-in verification code was sent to your registered mobile number.',
+            status=status.HTTP_202_ACCEPTED,
+        )
+
 
 
 class MemberAccountDeletionView(APIView):
@@ -1732,7 +1741,7 @@ class MemberOtpVerifyView(APIView):
         member = _member_for_identifier(identifier)
         if member is None:
             return ApiResponse(success=False, message='Member not found.', status=status.HTTP_404_NOT_FOUND)
-        if purpose == AuthChallenge.Purpose.PASSWORDLESS_LOGIN and (
+        if purpose in {AuthChallenge.Purpose.PASSWORDLESS_LOGIN, AuthChallenge.Purpose.TWO_FACTOR} and (
             not member.is_active or member.deleted_at is not None or
             member.account_status != Member.AccountStatus.ACTIVE
         ):
@@ -1750,7 +1759,8 @@ class MemberOtpVerifyView(APIView):
         update_fields = ('is_mobile_verified', 'updated_at')
         member.save(update_fields=update_fields)
         data = {'verified': True, 'user': _account_payload(member, request)}
-        if purpose == AuthChallenge.Purpose.PASSWORDLESS_LOGIN:
+        if purpose in {AuthChallenge.Purpose.PASSWORDLESS_LOGIN, AuthChallenge.Purpose.TWO_FACTOR}:
+            member = _reset_login_state(member)
             tokens = issue_account_tokens(member, request=request)
             data['session_expires_at'] = tokens['session_expires_at']
             record_login_activity(
@@ -1761,8 +1771,10 @@ class MemberOtpVerifyView(APIView):
                 request=request,
                 session_id=tokens['session_id'],
             )
-            record_security_audit_event('OTP_LOGIN_SUCCESS', request=request, account=member, session_id=tokens['session_id'])
-            res = ApiResponse(data=data, message='Verification successful.')
+            event_name = 'LOGIN_SUCCESS' if purpose == AuthChallenge.Purpose.TWO_FACTOR else 'OTP_LOGIN_SUCCESS'
+            record_security_audit_event(event_name, request=request, account=member, session_id=tokens['session_id'])
+            message = 'Login successful.' if purpose == AuthChallenge.Purpose.TWO_FACTOR else 'Verification successful.'
+            res = ApiResponse(data=data, message=message)
             return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
         return ApiResponse(data=data, message='Verification successful.')
 

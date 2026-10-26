@@ -12,6 +12,8 @@ import { ApiError } from '../services/apiClient';
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [pendingMobile, setPendingMobile] = useState('');
+  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +22,7 @@ export default function LoginPage() {
   const [recoveryTicket, setRecoveryTicket] = useState('');
   const [recoveryBusy, setRecoveryBusy] = useState(false);
 
-  const { login, recoverAccount, isAuthenticated, user } = useAuth();
+  const { login, verifyLoginOtp, recoverAccount, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requested = searchParams.get('next');
@@ -57,6 +59,22 @@ export default function LoginPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (pendingMobile) {
+      if (!otp.trim()) {
+        setError('Please enter the verification code sent to your mobile number.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await verifyLoginOtp(pendingMobile, otp.trim());
+        navigate(destination, { replace: true });
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Unable to verify the code. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (!identifier.trim()) {
       setError('Please enter your email or mobile number.');
       return;
@@ -67,7 +85,11 @@ export default function LoginPage() {
     }
     setSubmitting(true);
     try {
-      await login(identifier.trim(), password, 'MEMBER');
+      const result = await login(identifier.trim(), password, 'MEMBER');
+      if ('requires_two_factor' in result && result.requires_two_factor === true && typeof result.mobile_number === 'string') {
+        setPendingMobile(result.mobile_number);
+        return;
+      }
       navigate(destination, { replace: true });
     } catch (caught) {
       const pendingRecovery = caught instanceof ApiError
@@ -201,13 +223,12 @@ export default function LoginPage() {
                 Member Sign In
               </div>
               <h1 style={{ fontSize: 38, fontWeight: 900, color: '#0f0f10', lineHeight: 1.15, letterSpacing: '-1px', margin: 0 }}>
-                Sign In
+                {pendingMobile ? 'Verify your number' : 'Sign In'}
               </h1>
               <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>
-                New to MyDearPartner?{' '}
-                <Link to="/register" style={{ color: '#e11d48', fontWeight: 800, textDecoration: 'none' }}>
-                  Create free account →
-                </Link>
+                {pendingMobile
+                  ? `Enter the verification code sent to ${pendingMobile.replace(/.(?=.{4})/g, '•')}.`
+                  : <>New to MyDearPartner?{' '}<Link to="/register" style={{ color: '#e11d48', fontWeight: 800, textDecoration: 'none' }}>Create free account →</Link></>}
               </p>
             </div>
 
@@ -232,7 +253,7 @@ export default function LoginPage() {
             {/* Form */}
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }} noValidate>
 
-              {/* Email / phone field */}
+              {!pendingMobile && <>{/* Email / phone field */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label htmlFor="member-identifier" style={{ fontSize: 11, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Email or Mobile Number
@@ -288,7 +309,13 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
                   </button>
                 </div>
-              </div>
+              </div></>}
+
+              {pendingMobile && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="member-login-otp" style={{ fontSize: 11, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>One-time code</label>
+                <input id="member-login-otp" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter the 6-digit code" required autoFocus style={{ width: '100%', padding: '15px 14px', borderRadius: 12, background: '#f9f1f4', border: '1.5px solid #f3d5de', outline: 'none', fontSize: 18, fontWeight: 700, letterSpacing: '0.2em', color: '#2c2928' }} />
+                <button type="button" onClick={() => { setPendingMobile(''); setOtp(''); setError(''); }} style={{ alignSelf: 'flex-start', padding: 0, border: 0, background: 'transparent', color: '#e11d48', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Back to password sign in</button>
+              </div>}
 
               {/* Submit button */}
               <button
@@ -321,14 +348,14 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    Sign In to My Account
+                    {pendingMobile ? 'Verify code and sign in' : 'Sign In to My Account'}
                     <ArrowRight style={{ width: 16, height: 16 }} />
                   </>
                 )}
               </button>
             </form>
 
-            <Link
+            {!pendingMobile && <Link
               to="/verify-otp"
               style={{
                 display: 'inline-flex',
@@ -341,7 +368,7 @@ export default function LoginPage() {
               }}
             >
               Sign in with a one-time code <ArrowRight style={{ width: 14, height: 14, marginLeft: 4 }} />
-            </Link>
+            </Link>}
 
           </div>
         </div>

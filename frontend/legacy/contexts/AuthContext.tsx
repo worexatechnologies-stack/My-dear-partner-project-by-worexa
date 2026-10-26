@@ -59,6 +59,14 @@ interface LoginResponse {
   access?: string;
   user?: UserType;
   requires_two_factor?: boolean;
+  mobile_number?: string;
+  expires_in?: number;
+}
+
+export interface LoginChallenge {
+  requires_two_factor: true;
+  mobile_number: string;
+  expires_in: number;
 }
 
 export class TwoFactorRequiredError extends Error {
@@ -73,7 +81,8 @@ interface AuthContextType {
   user: UserType | null;
   accountType: AccountType | null;
   loading: boolean;
-  login: (identifier: string, password: string, accountType?: AccountType, otp?: string) => Promise<UserType>;
+  login: (identifier: string, password: string, accountType?: AccountType, otp?: string) => Promise<UserType | LoginChallenge>;
+  verifyLoginOtp: (identifier: string, otp: string) => Promise<void>;
   registerMember: (input: MemberRegistrationInput) => Promise<UserType>;
   requestOtp: (identifier: string, purpose?: string) => Promise<{ expires_in: number }>;
   loginWithOtp: (identifier: string, otp: string) => Promise<void>;
@@ -261,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return sessionVersion.current;
   };
 
-  const login = async (identifier: string, password: string, type: AccountType = 'MEMBER', otp?: string) => {
+  const login = async (identifier: string, password: string, type: AccountType = 'MEMBER', otp?: string): Promise<UserType | LoginChallenge> => {
     setLoading(true);
     const version = startNewSession();
     try {
@@ -271,8 +280,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchApi<LoginResponse>(`/${authNamespace(type)}/login/`, {
         method: 'POST', body: JSON.stringify(body), skipAuthRefresh: true,
       });
+      if (type === 'MEMBER' && data.requires_two_factor && data.mobile_number) {
+        return {
+          requires_two_factor: true,
+          mobile_number: data.mobile_number,
+          expires_in: data.expires_in ?? 300,
+        };
+      }
       if (data.requires_two_factor) throw new TwoFactorRequiredError();
       return await commitSession(type, version);
+    } catch (error) {
+      if (mountedRef.current) clearSessionLocal();
+      throw error;
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
+  const verifyLoginOtp = async (identifier: string, otp: string) => {
+    setLoading(true);
+    const version = startNewSession();
+    try {
+      await fetchApi<LoginResponse>('/member-auth/otp/verify/', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, code: otp, purpose: 'TWO_FACTOR' }),
+        skipAuthRefresh: true,
+      });
+      await commitSession('MEMBER', version);
     } catch (error) {
       if (mountedRef.current) clearSessionLocal();
       throw error;
@@ -381,7 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return <AuthContext.Provider value={{
     isAuthenticated, user, accountType, loading, login, registerMember, requestOtp,
-    loginWithOtp, recoverAccount, logout, logoutAll, updateUser, hasAdminPermission, hasAnyAdminPermission,
+    loginWithOtp, verifyLoginOtp, recoverAccount, logout, logoutAll, updateUser, hasAdminPermission, hasAnyAdminPermission,
   }}>{children}</AuthContext.Provider>;
 }
 
