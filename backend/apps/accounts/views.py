@@ -1763,6 +1763,11 @@ class MemberOtpVerifyView(APIView):
             member = _reset_login_state(member)
             tokens = issue_account_tokens(member, request=request)
             data['session_expires_at'] = tokens['session_expires_at']
+            if purpose == AuthChallenge.Purpose.TWO_FACTOR and (
+                request.headers.get('X-MDP-Client', '').strip().lower() == 'native'
+            ):
+                data['access'] = tokens['access']
+                data['refresh'] = tokens['refresh']
             record_login_activity(
                 account_type=AccountType.MEMBER,
                 account=member,

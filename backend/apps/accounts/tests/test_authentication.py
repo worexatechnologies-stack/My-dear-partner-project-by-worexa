@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth.hashers import make_password
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
@@ -9,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from apps.accounts.models import (
     AccountType,
     AdminLoginActivity,
+    AuthChallenge,
     AuthSession,
     MemberLoginActivity,
     StaffLoginActivity,
@@ -20,6 +22,76 @@ from apps.conftest import PASSWORD
 
 
 pytestmark = pytest.mark.django_db
+
+
+def _create_two_factor_challenge(member, *, code='123456', expires_at=None):
+    return AuthChallenge.objects.create(
+        account_type=AccountType.MEMBER,
+        identifier=member.mobile_number,
+        purpose=AuthChallenge.Purpose.TWO_FACTOR,
+        code_digest=make_password(code),
+        expires_at=expires_at or timezone.now() + timedelta(minutes=5),
+    )
+
+
+def test_two_factor_native_otp_returns_tokens_identity_and_cookies(api_client, member):
+    _create_two_factor_challenge(member)
+    api_client.credentials(HTTP_X_MDP_CLIENT='native')
+
+    response = api_client.post(
+        '/api/v1/member-auth/otp/verify/',
+        {'identifier': member.mobile_number, 'code': '123456', 'purpose': 'TWO_FACTOR'},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    data = response.data['data']
+    assert data['access']
+    assert data['refresh']
+    assert data['user']['id'] == str(member.pk)
+    assert data['user']['email'] == member.email
+    assert response.cookies['access_token']['httponly'] is True
+    assert response.cookies['refresh_token']['httponly'] is True
+
+
+@pytest.mark.parametrize(
+    ('code', 'expired'),
+    (
+        ('654321', False),
+        ('123456', True),
+    ),
+    ids=('incorrect-code', 'expired-code'),
+)
+def test_two_factor_otp_rejects_incorrect_or_expired_code(api_client, member, code, expired):
+    expires_at = timezone.now() - timedelta(seconds=1) if expired else None
+    _create_two_factor_challenge(member, expires_at=expires_at)
+
+    response = api_client.post(
+        '/api/v1/member-auth/otp/verify/',
+        {'identifier': member.mobile_number, 'code': code, 'purpose': 'TWO_FACTOR'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert 'Invalid or expired' in response.data['message']
+
+
+def test_two_factor_web_otp_keeps_tokens_out_of_json_and_sets_httponly_cookies(api_client, member):
+    _create_two_factor_challenge(member)
+
+    response = api_client.post(
+        '/api/v1/member-auth/otp/verify/',
+        {'identifier': member.mobile_number, 'code': '123456', 'purpose': 'TWO_FACTOR'},
+        format='json',
+    )
+
+    assert response.status_code == 200
+    data = response.data['data']
+    assert 'access' not in data
+    assert 'refresh' not in data
+    assert 'user' in data
+    assert response.cookies['access_token']['httponly'] is True
+    assert response.cookies['refresh_token']['httponly'] is True
 
 
 def test_member_can_login_with_email_or_mobile(api_client, member):
