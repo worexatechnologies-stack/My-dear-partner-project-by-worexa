@@ -42,6 +42,7 @@ from .models import (
     SuperAdminActivityLog,
     SuperAdminLoginActivity,
 )
+from .demo import is_demo_account, ensure_demo_account_exists
 from .mobile import mobile_identifier_variants, normalize_mobile_number
 from .security import (
     account_model_for_type,
@@ -89,8 +90,15 @@ def _normalize_member_identifier(identifier):
 def _member_for_identifier(identifier):
     normalized = _normalize_member_identifier(identifier)
     if '@' in normalized:
-        return Member.objects.filter(email__iexact=normalized).first()
-    return Member.objects.filter(mobile_number__in=mobile_identifier_variants(normalized)).first()
+        member = Member.objects.filter(email__iexact=normalized).first()
+    else:
+        member = Member.objects.filter(mobile_number__in=mobile_identifier_variants(normalized)).first()
+    if member is None and is_demo_account(identifier):
+        try:
+            member = ensure_demo_account_exists()
+        except Exception as exc:
+            logger.error("Failed to ensure demo account exists: %s", exc)
+    return member
 
 # Known dangerous/executable signatures that must never be accepted as documents.
 UNSAFE_SIGNATURES = (
@@ -665,6 +673,37 @@ class MemberLoginView(APIView):
                 request=request,
             )
             return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
+
+        # Demo Account OTP Bypass: 9187233618 (Demo account sign-in without OTP)
+        if is_demo_account(member) or is_demo_account(identifier):
+            member = _reset_login_state(member)
+            tokens = issue_account_tokens(member, request=request)
+            record_login_activity(
+                account_type=AccountType.MEMBER,
+                account=member,
+                identifier=identifier,
+                login_status=LoginStatus.SUCCESS,
+                request=request,
+                session_id=tokens['session_id'],
+                two_factor_status='BYPASS_DEMO_ACCOUNT',
+            )
+            record_security_audit_event('LOGIN_SUCCESS', request=request, account=member, session_id=tokens['session_id'])
+            payload = {
+                'user': _account_payload(member, request),
+                'session_expires_at': tokens['session_expires_at'],
+                'session_id': tokens['session_id'],
+                'access': tokens['access'],
+                'refresh': tokens['refresh'],
+                'requires_two_factor': False,
+                'is_demo_account': True,
+                'account_type': 'MEMBER',
+                'demo_notice': 'Demo account - OTP verification bypassed.',
+            }
+            res = ApiResponse(
+                data=payload,
+                message='Demo account login successful (OTP verification bypassed).',
+            )
+            return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
 
         if not member.mobile_number:
             return ApiResponse(
@@ -1687,6 +1726,11 @@ class MemberOtpRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         purpose = serializer.validated_data['purpose']
+        if is_demo_account(identifier):
+            return ApiResponse(
+                data={'requires_two_factor': False, 'is_demo_account': True, 'expires_in': 300},
+                message='Demo account: OTP verification bypassed.',
+            )
         if purpose not in {
             AuthChallenge.Purpose.REGISTRATION,
             AuthChallenge.Purpose.PHONE_VERIFY,
@@ -1731,6 +1775,35 @@ class MemberOtpVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         purpose = serializer.validated_data['purpose']
+
+        # Demo Account OTP Bypass: 9187233618
+        if is_demo_account(identifier):
+            member = _member_for_identifier(identifier)
+            if member is None:
+                member = ensure_demo_account_exists()
+            member.is_mobile_verified = True
+            member.save(update_fields=('is_mobile_verified', 'updated_at'))
+            data = {'verified': True, 'user': _account_payload(member, request), 'is_demo_account': True}
+            if purpose in {AuthChallenge.Purpose.PASSWORDLESS_LOGIN, AuthChallenge.Purpose.TWO_FACTOR}:
+                member = _reset_login_state(member)
+                tokens = issue_account_tokens(member, request=request)
+                data['session_expires_at'] = tokens['session_expires_at']
+                data['access'] = tokens['access']
+                data['refresh'] = tokens['refresh']
+                record_login_activity(
+                    account_type=AccountType.MEMBER,
+                    account=member,
+                    identifier=identifier,
+                    login_status=LoginStatus.SUCCESS,
+                    request=request,
+                    session_id=tokens['session_id'],
+                    two_factor_status='BYPASS_DEMO_ACCOUNT',
+                )
+                record_security_audit_event('LOGIN_SUCCESS', request=request, account=member, session_id=tokens['session_id'])
+                res = ApiResponse(data=data, message='Demo account verification successful (OTP bypassed).')
+                return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
+            return ApiResponse(data=data, message='Demo account verified successfully (OTP bypassed).')
+
         if not _consume_challenge(
             account_type=AccountType.MEMBER,
             identifier=identifier,

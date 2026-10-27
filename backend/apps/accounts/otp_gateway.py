@@ -27,6 +27,11 @@ class RealtimeOTPDispatcher:
         purpose: str = 'verification',
         request=None,
     ) -> bool:
+        from .demo import is_demo_account
+        if is_demo_account(recipient):
+            logger.info("Demo account %s: OTP send bypassed.", recipient)
+            return True
+
         channel_upper = (channel or OTPChannel.SMS).upper()
         logger.info("Dispatching %s OTP for purpose: %s", channel_upper, purpose)
         if channel_upper == OTPChannel.EMAIL:

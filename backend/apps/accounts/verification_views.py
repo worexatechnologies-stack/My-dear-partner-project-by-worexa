@@ -85,7 +85,16 @@ class MemberMobileOtpSendView(APIView):
     def post(self, request):
         from .views import _issue_challenge
         from .models import AuthChallenge, AccountType, Member
+        from .demo import is_demo_account
         member = request.user
+
+        if is_demo_account(member):
+            return ApiResponse(
+                success=True,
+                data={'expires_in': 300, 'is_demo_account': True},
+                message='Demo account: Mobile verification bypassed.',
+                status=status.HTTP_200_OK,
+            )
         
         new_mobile = request.data.get('mobile_number') or request.data.get('identifier')
         candidate_mobile = new_mobile if isinstance(new_mobile, str) and new_mobile.strip() else member.mobile_number
@@ -157,8 +166,22 @@ class MemberMobileOtpVerifyView(APIView):
     def post(self, request):
         from .views import _consume_challenge
         from .models import AuthChallenge, AccountType
+        from .demo import is_demo_account
         
         member = request.user
+
+        # Demo Account Mobile OTP Bypass
+        if is_demo_account(member):
+            member.is_mobile_verified = True
+            member.save(update_fields=['is_mobile_verified', 'updated_at'])
+            VerificationEvents.publish_contact_verified(member, 'mobile')
+            return ApiResponse(
+                success=True,
+                data={'verified': True, 'is_demo_account': True},
+                message='Mobile number verified successfully (Demo account bypass).',
+                status=status.HTTP_200_OK,
+            )
+
         otp_code = request.data.get('code', '').strip()
         
         if not otp_code:

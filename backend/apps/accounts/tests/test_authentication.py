@@ -404,3 +404,25 @@ def test_logout_all_rejects_a_token_from_another_namespace(authenticated_client,
     assert response.status_code == 403
     member.refresh_from_db()
     assert member.token_version == original_version
+
+
+def test_demo_account_bypasses_otp_verification(api_client):
+    from apps.accounts.demo import ensure_demo_account_exists, DEMO_ACCOUNT_MOBILE, DEMO_ACCOUNT_PASSWORD
+
+    demo_member = ensure_demo_account_exists()
+    assert demo_member.mobile_number == DEMO_ACCOUNT_MOBILE
+
+    response = api_client.post(
+        '/api/v1/member-auth/login/',
+        {'identifier': DEMO_ACCOUNT_MOBILE, 'password': DEMO_ACCOUNT_PASSWORD},
+        format='json',
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data['success'] is True
+    assert response.data['data']['requires_two_factor'] is False
+    assert response.data['data']['is_demo_account'] is True
+    assert 'access' in response.data['data']
+    assert 'refresh' in response.data['data']
+    assert 'access_token' in response.cookies
+

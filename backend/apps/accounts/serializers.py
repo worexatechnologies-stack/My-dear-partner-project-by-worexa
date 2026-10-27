@@ -44,6 +44,8 @@ class MemberSerializer(serializers.ModelSerializer):
     photo = serializers.SerializerMethodField()
     photos = serializers.SerializerMethodField()
     documents = serializers.SerializerMethodField()
+    is_demo = serializers.SerializerMethodField()
+    is_demo_account = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -51,6 +53,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'id', 'email', 'mobile_number', 'first_name', 'last_name', 'full_name',
             'gender', 'date_of_birth', 'age', 'profile_created_by', 'is_email_verified',
             'is_mobile_verified', 'is_verified', 'is_fully_verified', 'is_active', 'is_premium',
+            'is_demo', 'is_demo_account',
             'profile_status', 'photo_status', 'document_status', 'last_login',
             'password_changed_at', 'created_at', 'updated_at', 'date_joined', 'account_type',
             'admin_role', 'admin_role_display', 'admin_permissions', 'photo',
@@ -58,6 +61,14 @@ class MemberSerializer(serializers.ModelSerializer):
             'chat_public_key', 'deleted_at', 'is_deleted', 'account_status',
             'recovery_until', 'deleted_by', 'terms_accepted_at', 'is_hidden',
         )
+
+    def get_is_demo(self, obj):
+        from .demo import is_demo_account
+        return is_demo_account(obj)
+
+    def get_is_demo_account(self, obj):
+        from .demo import is_demo_account
+        return is_demo_account(obj)
 
     def get_admin_role(self, obj):
         return None

@@ -68,6 +68,9 @@ python manage.py migrate --settings=config.settings.production
 echo "--- Synchronizing the configured Super Admin..."
 python manage.py sync_super_admin_from_env --settings=config.settings.production
 
+echo "--- Setting up demo account..."
+python manage.py setup_demo_account --settings=config.settings.production || true
+
 echo "--- Collecting static files..."
 python manage.py collectstatic --noinput --settings=config.settings.production
 
