@@ -240,68 +240,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Demo Account Callout */}
-            {!pendingMobile && (
-              <div
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        padding: '2px 7px',
-                        borderRadius: 999,
-                        background: '#16a34a',
-                        color: 'white',
-                        fontSize: 10,
-                        fontWeight: 800,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      Demo Acc
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
-                      9187233618
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 11, color: '#15803d' }}>
-                    OTP verification bypassed for this account
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdentifier('9187233618');
-                    setPassword('Kvenki@2002');
-                    setError('');
-                  }}
-                  style={{
-                    border: '1px solid #86efac',
-                    borderRadius: 10,
-                    padding: '6px 12px',
-                    background: '#ffffff',
-                    color: '#15803d',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  }}
-                >
-                  Use Demo Acc
-                </button>
-              </div>
-            )}
-
             {recoveryOpen && (
               <div style={{ padding: '16px', borderRadius: 14, background: '#fff6f7', border: '1px solid #edcbd3' }}>
                 <div style={{ color: '#702d45', fontSize: 13, fontWeight: 800 }}>Recover your account</div>
@@ -335,12 +273,6 @@ export default function LoginPage() {
                     style={{ width: '100%', paddingLeft: 42, paddingRight: 14, paddingTop: 15, paddingBottom: 15, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#2c2928', borderRadius: 12 }}
                   />
                 </div>
-                {identifier.includes('9187233618') && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 12, color: '#15803d', fontWeight: 600 }}>
-                    <CheckCircle2 style={{ width: 14, height: 14, color: '#16a34a' }} />
-                    Demo account detected: OTP verification is bypassed.
-                  </div>
-                )}
               </div>
 
               {/* Password field */}

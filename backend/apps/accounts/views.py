@@ -701,7 +701,7 @@ class MemberLoginView(APIView):
             }
             res = ApiResponse(
                 data=payload,
-                message='Demo account login successful (OTP verification bypassed).',
+                message='Login successful.',
             )
             return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
 
@@ -1800,9 +1800,9 @@ class MemberOtpVerifyView(APIView):
                     two_factor_status='BYPASS_DEMO_ACCOUNT',
                 )
                 record_security_audit_event('LOGIN_SUCCESS', request=request, account=member, session_id=tokens['session_id'])
-                res = ApiResponse(data=data, message='Demo account verification successful (OTP bypassed).')
+                res = ApiResponse(data=data, message='Login successful.')
                 return attach_auth_cookies(res, tokens['access'], tokens['refresh'])
-            return ApiResponse(data=data, message='Demo account verified successfully (OTP bypassed).')
+            return ApiResponse(data=data, message='Verification successful.')
 
         if not _consume_challenge(
             account_type=AccountType.MEMBER,
