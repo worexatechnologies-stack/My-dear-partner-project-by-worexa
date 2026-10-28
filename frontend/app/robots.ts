@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{
       userAgent: '*',
-      allow: ['/', '/about', '/contact', '/membership', '/faq', '/help'],
+      allow: ['/', '/about', '/contact', '/membership', '/faq', '/help', '/privacy', '/terms', '/child-safety', '/refund-policy'],
       disallow: ['/api/', '/admin/', '/super-admin/', '/staff/', '/support/', '/dashboard', '/profile/', '/search', '/messages', '/tickets', '/notifications', '/settings', '/payment', '/members'],
     }],
     sitemap: `${base}/sitemap.xml`,

@@ -23,6 +23,9 @@ const footerLinks = [
   { href: '/membership', label: 'Membership' },
   { href: '/contact', label: 'Contact' },
   { href: '/faq', label: 'FAQ' },
+  { href: '/terms', label: 'Terms of Service' },
+  { href: '/privacy', label: 'Privacy Policy' },
+  { href: '/child-safety', label: 'Child Safety Standards' },
 ];
 
 export default function PublicSiteShell({ children }: { children: ReactNode }) {

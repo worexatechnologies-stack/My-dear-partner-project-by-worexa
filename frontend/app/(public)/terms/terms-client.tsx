@@ -127,6 +127,22 @@ export default function TermsClient() {
       border: '#e2e8f0',
       content: 'These Terms & Conditions shall be governed by and interpreted in accordance with the laws of India. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the competent courts located in Bengaluru, Karnataka, unless otherwise required by applicable law.',
       bullets: []
+    },
+    {
+      num: 11,
+      title: 'Child Safety Standards & CSAE Prohibition',
+      icon: ShieldAlert,
+      gradient: 'from-red-600 to-rose-900',
+      color: '#dc2626',
+      bg: '#fef2f2',
+      border: '#fecaca',
+      content: 'Worexa Technologies and My Dear Partner enforce an absolute zero-tolerance policy against Child Sexual Abuse and Exploitation (CSAE) and Child Sexual Abuse Material (CSAM). Minors under 18 years of age are strictly prohibited from using the platform. Any violation results in immediate permanent termination and mandatory reporting to NCMEC and law enforcement agencies. Full standards are published at /child-safety.',
+      bullets: [
+        'Explicit CSAE & CSAM Prohibition: Zero tolerance for any content or communication depicting, facilitating, or encouraging child sexual abuse, exploitation, or grooming.',
+        'Strict Age Restriction: The platform is exclusively for adults eligible for legal marriage (18+ for females, 21+ for males under Indian law). Underage registration is barred.',
+        'Mandatory Law Enforcement Reporting: Immediate escalation to NCMEC (CyberTipline) and national cyber crime portals.',
+        'Dedicated Safety Officer: Inquiries and reports should be sent to child-safety@mydearpartner.in.'
+      ]
     }
   ];
 
@@ -353,7 +369,7 @@ export default function TermsClient() {
 
             {/* Contact Us Section */}
             <div 
-              id="section-11"
+              id="section-contact"
               className="relative overflow-hidden bg-[#2c2928] p-7 text-white sm:p-9"
             >
               {/* Subtle Ambient Radial */}
