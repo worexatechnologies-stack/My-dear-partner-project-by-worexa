@@ -131,11 +131,11 @@ export default function PrivacyClient() {
       color: '#ef4444',
       bg: '#fef2f2',
       border: '#fee2e2',
-      content: 'My Dear Partner, operated by Worexa Technologies, is exclusively for legal adults (18+). We maintain an absolute zero-tolerance policy against Child Sexual Abuse and Exploitation (CSAE) and Child Sexual Abuse Material (CSAM). We do not knowingly collect personal information from individuals under the age of 18. If any minor account is discovered, all associated data is immediately deleted and reported to law enforcement where required by law. For full standards, see our published Child Safety Standards at /child-safety or contact child-safety@mydearpartner.in.',
+      content: 'My Dear Partner, operated by Worexa Technologies, is exclusively for legal adults (18+). We maintain an absolute zero-tolerance policy against Child Sexual Abuse and Exploitation (CSAE) and Child Sexual Abuse Material (CSAM). We do not knowingly collect personal information from individuals under the age of 18. If any minor account is discovered, all associated data is immediately deleted and reported to law enforcement where required by law. For full standards, see our published Child Safety Standards at /child-safety or contact info.mydearpartnersupport@gmail.com.',
       bullets: [
         'Strict Age Restriction: Registration is barred for anyone under 18 years of age.',
         'Zero Tolerance for CSAE/CSAM: Any child exploitation or abuse material is immediately removed and reported to NCMEC and cybercrime authorities.',
-        'Dedicated Safety Contact: Contact our Child Safety Officer at child-safety@mydearpartner.in.'
+        'Dedicated Safety Contact: Contact our Child Safety Officer at info.mydearpartnersupport@gmail.com.'
       ]
     },
     {

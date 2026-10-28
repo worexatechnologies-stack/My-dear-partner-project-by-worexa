@@ -141,7 +141,7 @@ export default function TermsClient() {
         'Explicit CSAE & CSAM Prohibition: Zero tolerance for any content or communication depicting, facilitating, or encouraging child sexual abuse, exploitation, or grooming.',
         'Strict Age Restriction: The platform is exclusively for adults eligible for legal marriage (18+ for females, 21+ for males under Indian law). Underage registration is barred.',
         'Mandatory Law Enforcement Reporting: Immediate escalation to NCMEC (CyberTipline) and national cyber crime portals.',
-        'Dedicated Safety Officer: Inquiries and reports should be sent to child-safety@mydearpartner.in.'
+        'Dedicated Safety Officer: Inquiries and reports should be sent to info.mydearpartnersupport@gmail.com.'
       ]
     }
   ];

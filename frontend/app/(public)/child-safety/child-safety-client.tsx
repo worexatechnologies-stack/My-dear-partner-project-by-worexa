@@ -109,8 +109,8 @@ export default function ChildSafetyClient() {
       points: [
         'Designated Role: Child Safety & Grievance Officer',
         'Responsible Entity: Worexa Technologies (Developer of My Dear Partner)',
-        'Dedicated Child Safety Email: child-safety@mydearpartner.in',
-        'Support & Alternate Inquiries: worexatechnologies@gmail.com / info.mydearpartnersupport@gmail.com',
+        'Dedicated Child Safety Email: info.mydearpartnersupport@gmail.com',
+        'Support & Alternate Inquiries: worexatechnologies@gmail.com',
         'Response Timeframe: Child safety reports are reviewed 24/7/365, with initial action taken within 24 hours of receipt.',
         'Physical Address: Worexa Technologies, 3rd Phase, Banashankari 3rd Stage, Banashankari, Bengaluru, Karnataka 560085, India.',
       ],
@@ -257,10 +257,10 @@ export default function ChildSafetyClient() {
                   <span className="text-xs font-bold uppercase tracking-wider">Dedicated Safety Email</span>
                 </div>
                 <a
-                  href="mailto:child-safety@mydearpartner.in"
+                  href="mailto:info.mydearpartnersupport@gmail.com"
                   className="text-sm font-bold text-white hover:text-[#e8bd7e] transition-colors break-all underline underline-offset-2"
                 >
-                  child-safety@mydearpartner.in
+                  info.mydearpartnersupport@gmail.com
                 </a>
                 <p className="text-[11px] text-slate-400 mt-1">24/7 Monitoring • Rapid Response</p>
               </div>
@@ -311,3 +311,4 @@ export default function ChildSafetyClient() {
     </main>
   );
 }
+
