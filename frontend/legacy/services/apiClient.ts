@@ -10,6 +10,7 @@ import {
   applyRetryAfter,
   resetAllThrottles,
 } from '@/lib/request-throttle';
+import { Capacitor } from '@capacitor/core';
 
 export type AccountType = 'MEMBER' | 'SUPER_ADMIN' | 'ADMIN';
 
@@ -273,6 +274,7 @@ export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}):
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json');
   if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  if (Capacitor.isNativePlatform()) headers.set('X-MDP-Client', 'native');
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {

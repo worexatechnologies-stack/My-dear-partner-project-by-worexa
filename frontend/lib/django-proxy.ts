@@ -168,7 +168,8 @@ function extractAccess(payload: unknown): string | null {
   return typeof data.access === "string" ? data.access : null;
 }
 
-function stripRefresh(payload: unknown) {
+function stripRefresh(payload: unknown, preserveTokens = false) {
+  if (preserveTokens) return payload;
   if (!payload || typeof payload !== "object") return payload;
   const envelope = payload as Record<string, unknown>;
   const rootData = envelope.data && typeof envelope.data === "object"
@@ -258,6 +259,7 @@ export async function forwardToDjango(request: NextRequest, segments: string[]) 
     "authorization",
     "if-none-match",
     "x-request-id",
+    "x-mdp-client",
     "x-csrftoken",
     "user-agent",
     "x-forwarded-for",
@@ -408,7 +410,9 @@ export async function forwardToDjango(request: NextRequest, segments: string[]) 
     upstream.status === 204 || upstream.status === 304
       ? null
       : isJson
-        ? JSON.stringify(tokenResponsePath.test(`/${path}`) ? stripRefresh(payload) : payload)
+        ? JSON.stringify(tokenResponsePath.test(`/${path}`)
+          ? stripRefresh(payload, request.headers.get("x-mdp-client")?.trim().toLowerCase() === "native")
+          : payload)
         : raw,
     { status: upstream.status, headers: responseHeaders },
   );

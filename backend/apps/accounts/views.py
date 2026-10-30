@@ -537,6 +537,9 @@ class MemberRegisterView(APIView):
             'session_expires_at': tokens['session_expires_at'],
             'session_id': tokens['session_id'],
         }
+        if request.headers.get('X-MDP-Client', '').strip().lower() == 'native':
+            payload['access'] = tokens['access']
+            payload['refresh'] = tokens['refresh']
         res = ApiResponse(
             data=payload,
             message='Registration successful.',

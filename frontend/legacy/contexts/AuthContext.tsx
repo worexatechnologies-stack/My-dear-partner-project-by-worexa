@@ -141,8 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const commitSession = useCallback(async (type: AccountType, version: number) => {
-    storeClientAuthState(type, '');
+  const commitSession = useCallback(async (type: AccountType, version: number, access?: string) => {
+    storeClientAuthState(type, access ?? '');
     const freshUser = await fetchApi<UserType>(`/${authNamespace(type)}/me/`, { skipAuthRefresh: true });
     if (!mountedRef.current || version !== sessionVersion.current) {
       throw new DOMException('A newer session replaced this request.', 'AbortError');
@@ -322,7 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchApi<LoginResponse & { user?: { id: string } }>('/member-auth/register/', {
         method: 'POST', body: JSON.stringify(input), skipAuthRefresh: true,
       });
-      const registered = await commitSession('MEMBER', version);
+      const registered = await commitSession('MEMBER', version, data.access);
       if (data.user && String(data.user.id) !== String(registered.id)) {
         throw new Error('Registration returned a mismatching session.');
       }
