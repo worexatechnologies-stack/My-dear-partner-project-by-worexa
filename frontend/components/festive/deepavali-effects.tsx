@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Sparkles, X, Volume2, VolumeX } from 'lucide-react';
+import { X, Volume2, VolumeX } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 interface Particle {
   x: number;
@@ -75,8 +76,7 @@ export function DeepavaliBanner() {
             onClick={triggerDeepavaliCelebration}
             className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 px-3 py-0.5 text-xs font-bold text-[#420a16] shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer"
           >
-            <Sparkles className="h-3 w-3 text-[#420a16]" />
-            Celebrate ✨
+            Celebrate
           </button>
         </div>
 
@@ -95,6 +95,7 @@ export function DeepavaliBanner() {
 }
 
 export default function DeepavaliEffects() {
+  const pathname = usePathname();
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [isCelebrationActive, setIsCelebrationActive] = useState<boolean>(false);
   const [floatingDiyas, setFloatingDiyas] = useState<FloatingDiya[]>([]);
@@ -106,44 +107,95 @@ export default function DeepavaliEffects() {
   const animationFrameRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Play pleasant celebratory chime using Web Audio API
-  const playFestiveChime = useCallback(() => {
-    if (!soundEnabled) return;
+  const getAudioContext = useCallback(() => {
+    if (typeof window === 'undefined') return null;
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current = new AudioCtx();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
-      // Pentatonic celebratory chime sequence
-      const notes = [523.25, 659.25, 783.99, 1046.50];
-      notes.forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
-
-        gain.gain.setValueAtTime(0.001, ctx.currentTime + idx * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + idx * 0.08 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.08 + 0.35);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(ctx.currentTime + idx * 0.08);
-        osc.stop(ctx.currentTime + idx * 0.08 + 0.4);
-      });
+      if (!AudioCtx) return null;
+      audioCtxRef.current ??= new AudioCtx();
+      return audioCtxRef.current;
     } catch {
-      // Audio autoplay restrictions
+      return null;
     }
-  }, [soundEnabled]);
+  }, []);
+
+  const playRocketLaunchSound = useCallback(() => {
+    if (!soundEnabled) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
+
+    const whistle = ctx.createOscillator();
+    const whistleGain = ctx.createGain();
+    whistle.type = 'triangle';
+    whistle.frequency.setValueAtTime(380, now);
+    whistle.frequency.exponentialRampToValueAtTime(1180, now + 0.85);
+    whistle.frequency.exponentialRampToValueAtTime(720, now + 1.05);
+    whistleGain.gain.setValueAtTime(0.0001, now);
+    whistleGain.gain.exponentialRampToValueAtTime(0.035, now + 0.08);
+    whistleGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.08);
+    whistle.connect(whistleGain).connect(ctx.destination);
+    whistle.start(now);
+    whistle.stop(now + 1.1);
+
+    const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.05), ctx.sampleRate);
+    const noise = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
+    const source = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const noiseGain = ctx.createGain();
+    source.buffer = noiseBuffer;
+    filter.type = 'bandpass';
+    filter.Q.value = 0.8;
+    filter.frequency.setValueAtTime(650, now);
+    filter.frequency.exponentialRampToValueAtTime(2600, now + 0.8);
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.045, now + 0.15);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.02);
+    source.connect(filter).connect(noiseGain).connect(ctx.destination);
+    source.start(now);
+    source.stop(now + 1.05);
+  }, [getAudioContext, soundEnabled]);
+
+  const playFireworkExplosion = useCallback(() => {
+    if (!soundEnabled) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
+
+    const duration = 0.72;
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+
+    const burst = ctx.createBufferSource();
+    const lowPass = ctx.createBiquadFilter();
+    const burstGain = ctx.createGain();
+    burst.buffer = buffer;
+    lowPass.type = 'lowpass';
+    lowPass.frequency.setValueAtTime(5200, now);
+    lowPass.frequency.exponentialRampToValueAtTime(180, now + duration);
+    burstGain.gain.setValueAtTime(0.0001, now);
+    burstGain.gain.exponentialRampToValueAtTime(0.24, now + 0.012);
+    burstGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    burst.connect(lowPass).connect(burstGain).connect(ctx.destination);
+    burst.start(now);
+    burst.stop(now + duration);
+
+    const boom = ctx.createOscillator();
+    const boomGain = ctx.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(105, now);
+    boom.frequency.exponentialRampToValueAtTime(34, now + 0.42);
+    boomGain.gain.setValueAtTime(0.0001, now);
+    boomGain.gain.exponentialRampToValueAtTime(0.32, now + 0.01);
+    boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+    boom.connect(boomGain).connect(ctx.destination);
+    boom.start(now);
+    boom.stop(now + 0.48);
+  }, [getAudioContext, soundEnabled]);
 
   // Burst firework particles at given coordinate
   const createExplosion = useCallback((x: number, y: number, count = 65) => {
@@ -192,44 +244,18 @@ export default function DeepavaliEffects() {
       vy: -(Math.random() * 4 + 9),
       color: '#FFD700',
     });
-  }, []);
+    playRocketLaunchSound();
+  }, [playRocketLaunchSound]);
 
-  // Subtle click sparkler anywhere on the page
   useEffect(() => {
-    const handlePointerDown = (e: PointerEvent) => {
-      // Don't trigger when clicking form inputs or dialogs
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT' ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-
-      // Add 8 golden sparks at click point
-      const colors = ['#FFD700', '#FFA500', '#FFF8DC', '#FF69B4'];
-      for (let i = 0; i < 8; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 3.5 + 1;
-        particlesRef.current.push({
-          x: e.clientX,
-          y: e.clientY,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed - 0.5,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          size: Math.random() * 2 + 1,
-          alpha: 0.9,
-          decay: 0.03,
-          twinkle: true,
-        });
-      }
+    if (!soundEnabled) return;
+    const unlockAudio = () => {
+      const ctx = getAudioContext();
+      if (ctx?.state === 'suspended') void ctx.resume().catch(() => {});
     };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    return () => window.removeEventListener('pointerdown', handlePointerDown);
-  }, []);
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    return () => window.removeEventListener('pointerdown', unlockAudio);
+  }, [getAudioContext, soundEnabled]);
 
   // Main canvas animation loop
   useEffect(() => {
@@ -276,7 +302,7 @@ export default function DeepavaliEffects() {
 
         if (rocket.y <= rocket.targetY) {
           createExplosion(rocket.x, rocket.y, 80);
-          playFestiveChime();
+          playFireworkExplosion();
           rocketsRef.current.splice(i, 1);
         }
       }
@@ -318,13 +344,11 @@ export default function DeepavaliEffects() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [createExplosion, playFestiveChime]);
+  }, [createExplosion, playFireworkExplosion]);
 
   // Grand celebration trigger
   const triggerGrandCelebration = useCallback(() => {
     setIsCelebrationActive(true);
-    playFestiveChime();
-
     // Launch multiple celebratory rockets
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
@@ -350,7 +374,7 @@ export default function DeepavaliEffects() {
       setIsCelebrationActive(false);
       setFloatingDiyas([]);
     }, 8000);
-  }, [launchRocket, playFestiveChime]);
+  }, [launchRocket]);
 
   // Listen for the global celebration custom event
   useEffect(() => {
@@ -378,19 +402,19 @@ export default function DeepavaliEffects() {
     return () => clearInterval(interval);
   }, [floatingDiyas]);
 
-  // Gentle welcome rocket on mount
+  // A gentle firework on each route keeps the celebration visible throughout the app.
   useEffect(() => {
     const welcomeTimer = setTimeout(() => {
       if (typeof window !== 'undefined') {
         launchRocket(window.innerWidth * 0.5, window.innerHeight * 0.32);
       }
-    }, 1400);
+    }, 700);
     return () => clearTimeout(welcomeTimer);
-  }, [launchRocket]);
+  }, [launchRocket, pathname]);
 
   return (
     <>
-      {/* Fullscreen transparent canvas for sparkles & crackers */}
+      {/* Fullscreen transparent canvas for fireworks */}
       <canvas
         ref={canvasRef}
         className="pointer-events-none fixed inset-0 z-[9999]"
@@ -414,7 +438,7 @@ export default function DeepavaliEffects() {
             <div className="relative -mb-1 w-3.5 h-5 rounded-full bg-gradient-to-t from-orange-500 via-amber-300 to-yellow-100 shadow-[0_0_14px_#ff9900] animate-pulse" />
             {/* Diya Base */}
             <div className="w-10 h-5 rounded-b-full bg-gradient-to-b from-amber-700 via-amber-800 to-stone-900 border-t border-amber-400 shadow-md flex items-center justify-center">
-              <span className="text-[9px] text-amber-300">✨</span>
+              <span className="h-1 w-4 rounded-full bg-amber-300/80" />
             </div>
           </div>
         </div>
@@ -422,13 +446,19 @@ export default function DeepavaliEffects() {
 
       {/* Interactive Floating Diya Widget (Bottom Right Corner) */}
       {!diyaHidden && (
-        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end">
+        <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-3 z-50 flex flex-col items-end sm:bottom-5 sm:right-5">
           {/* Controls pill: sound & dismiss */}
           <div className="mb-1.5 flex items-center gap-1 rounded-full bg-stone-900/85 px-2 py-0.5 text-[10px] text-amber-300 backdrop-blur-md border border-amber-500/25 shadow-md">
             <span className="font-semibold hidden sm:inline">Light Diya 🪔</span>
             <button
               type="button"
-              onClick={() => setSoundEnabled((v) => !v)}
+              onClick={() => {
+                if (!soundEnabled) {
+                  const ctx = getAudioContext();
+                  if (ctx?.state === 'suspended') void ctx.resume().catch(() => {});
+                }
+                setSoundEnabled((v) => !v);
+              }}
               title={soundEnabled ? 'Mute sound' : 'Enable sound'}
               className="p-0.5 hover:text-white transition cursor-pointer"
               aria-label="Toggle festive sound"
@@ -452,7 +482,6 @@ export default function DeepavaliEffects() {
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               createExplosion(rect.x + rect.width / 2, rect.y);
-              playFestiveChime();
               triggerGrandCelebration();
             }}
             className="group relative flex flex-col items-center cursor-pointer transition-transform duration-300 hover:scale-110 active:scale-95 focus:outline-none"
@@ -509,10 +538,6 @@ export default function DeepavaliEffects() {
               </defs>
             </svg>
 
-            {/* Sparkle badge */}
-            <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 text-[#420a16] shadow-md animate-bounce">
-              <Sparkles className="h-3 w-3" />
-            </div>
           </button>
         </div>
       )}
