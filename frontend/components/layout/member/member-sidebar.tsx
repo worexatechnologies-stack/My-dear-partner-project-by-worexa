@@ -407,12 +407,13 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
   return (
     <div
       className="member-portal"
-      style={{ height: '100dvh', width: '100%', overflow: 'hidden', background: '#faf8f7', display: 'flex', flexDirection: 'column' }}
+      style={{ height: 'calc(100dvh - 2.25rem)', width: '100%', overflow: 'hidden', background: '#faf8f7', display: 'flex', flexDirection: 'column' }}
     >
       {/* Keep the backdrop mounted so both opening and closing feel smooth. */}
       <div
         className={`member-sidebar-backdrop${mobileOpen ? ' is-open' : ''}`}
         onClick={() => setMobileOpen(false)}
+        style={{ top: '2.25rem' }}
         aria-hidden
       />
 
@@ -421,7 +422,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         className={`member-desktop-sidebar${collapsed ? ' is-collapsed' : ''}`}
         style={{
           position: 'fixed',
-          top: 0,
+          top: '2.25rem',
           left: 0,
           bottom: 0,
           zIndex: 50,
@@ -440,7 +441,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         className={`member-mobile-drawer${mobileOpen ? ' is-open' : ''}`}
         style={{
           position: 'fixed',
-          top: 0,
+          top: '2.25rem',
           left: 0,
           bottom: 0,
           zIndex: 50,
