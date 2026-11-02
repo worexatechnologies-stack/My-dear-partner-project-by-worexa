@@ -2,7 +2,6 @@
 
 This module provides bypass rules and management for the dedicated demo account:
 - Mobile: 9187233618
-- Password: Kvenki@2002
 - Classification: Demo Account (OTP verification bypassed)
 """
 

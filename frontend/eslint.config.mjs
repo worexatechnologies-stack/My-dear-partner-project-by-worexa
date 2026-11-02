@@ -5,7 +5,14 @@ import nextTypescript from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTypescript,
-  globalIgnores([".next/**", "coverage/**", "public/**", "legacy/**/*.test.*"]),
+  globalIgnores([
+    ".next/**",
+    "coverage/**",
+    "public/**",
+    "android/**/build/**",
+    "ios/**/build/**",
+    "legacy/**/*.test.*",
+  ]),
   {
     rules: {
       "react/no-unescaped-entities": "off",

@@ -25,7 +25,11 @@ if [ "${RUN_SUPERADMIN_SYNC:-1}" = "1" ]; then
     python manage.py sync_super_admin_from_env
 fi
 
-python manage.py setup_demo_account || true
+case "${ENABLE_DEVELOPMENT_SEED:-false}" in
+    1|true|True|TRUE|yes|Yes|YES)
+        python manage.py setup_demo_account
+        ;;
+esac
 
 if [ "${RUN_DJANGO_COLLECTSTATIC:-0}" = "1" ]; then
     python manage.py collectstatic --noinput

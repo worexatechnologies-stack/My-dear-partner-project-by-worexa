@@ -93,7 +93,7 @@ def _member_for_identifier(identifier):
         member = Member.objects.filter(email__iexact=normalized).first()
     else:
         member = Member.objects.filter(mobile_number__in=mobile_identifier_variants(normalized)).first()
-    if member is None and is_demo_account(identifier):
+    if member is None and settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(identifier):
         try:
             member = ensure_demo_account_exists()
         except Exception as exc:
@@ -623,6 +623,21 @@ class MemberLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        if not settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(member):
+            record_login_activity(
+                account_type=AccountType.MEMBER,
+                account=member,
+                identifier=identifier,
+                login_status=LoginStatus.BLOCKED,
+                failure_reason='Development demo account disabled',
+                request=request,
+            )
+            return ApiResponse(
+                success=False,
+                message='This account is unavailable.',
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if member.account_status == Member.AccountStatus.DELETION_PENDING:
             if member.recovery_until and member.recovery_until > timezone.now():
                 record_login_activity(
@@ -678,7 +693,7 @@ class MemberLoginView(APIView):
             return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
 
         # Demo Account OTP Bypass: 9187233618 (Demo account sign-in without OTP)
-        if is_demo_account(member) or is_demo_account(identifier):
+        if settings.ALLOW_DEVELOPMENT_SEED and (is_demo_account(member) or is_demo_account(identifier)):
             member = _reset_login_state(member)
             tokens = issue_account_tokens(member, request=request)
             record_login_activity(
@@ -1729,7 +1744,7 @@ class MemberOtpRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         purpose = serializer.validated_data['purpose']
-        if is_demo_account(identifier):
+        if settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(identifier):
             return ApiResponse(
                 data={'requires_two_factor': False, 'is_demo_account': True, 'expires_in': 300},
                 message='Demo account: OTP verification bypassed.',
@@ -1780,7 +1795,7 @@ class MemberOtpVerifyView(APIView):
         purpose = serializer.validated_data['purpose']
 
         # Demo Account OTP Bypass: 9187233618
-        if is_demo_account(identifier):
+        if settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(identifier):
             member = _member_for_identifier(identifier)
             if member is None:
                 member = ensure_demo_account_exists()

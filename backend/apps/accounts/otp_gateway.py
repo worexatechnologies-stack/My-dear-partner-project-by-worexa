@@ -28,7 +28,7 @@ class RealtimeOTPDispatcher:
         request=None,
     ) -> bool:
         from .demo import is_demo_account
-        if is_demo_account(recipient):
+        if settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(recipient):
             logger.info("Demo account %s: OTP send bypassed.", recipient)
             return True
 

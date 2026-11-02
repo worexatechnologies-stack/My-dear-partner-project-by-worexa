@@ -88,7 +88,7 @@ class MemberMobileOtpSendView(APIView):
         from .demo import is_demo_account
         member = request.user
 
-        if is_demo_account(member):
+        if settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(member):
             return ApiResponse(
                 success=True,
                 data={'expires_in': 300, 'is_demo_account': True},
@@ -171,7 +171,7 @@ class MemberMobileOtpVerifyView(APIView):
         member = request.user
 
         # Demo Account Mobile OTP Bypass
-        if is_demo_account(member):
+        if settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(member):
             member.is_mobile_verified = True
             member.save(update_fields=['is_mobile_verified', 'updated_at'])
             VerificationEvents.publish_contact_verified(member, 'mobile')

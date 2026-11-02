@@ -426,3 +426,19 @@ def test_demo_account_bypasses_otp_verification(api_client):
     assert 'refresh' in response.data['data']
     assert 'access_token' in response.cookies
 
+
+def test_demo_account_login_is_blocked_when_development_seed_is_disabled(api_client):
+    from apps.accounts.demo import ensure_demo_account_exists, DEMO_ACCOUNT_MOBILE, DEMO_ACCOUNT_PASSWORD
+
+    ensure_demo_account_exists()
+    with override_settings(ALLOW_DEVELOPMENT_SEED=False):
+        response = api_client.post(
+            '/api/v1/member-auth/login/',
+            {'identifier': DEMO_ACCOUNT_MOBILE, 'password': DEMO_ACCOUNT_PASSWORD},
+            format='json',
+        )
+
+    assert response.status_code == 403
+    assert response.data['success'] is False
+    assert 'access_token' not in response.cookies
+

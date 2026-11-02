@@ -8,6 +8,7 @@ import { Menu, ShieldCheck, X, LayoutDashboard, MapPin, Instagram } from 'lucide
 import { usePathname } from 'next/navigation';
 import WelcomeSplash from '@/components/branding/welcome-splash';
 import SiteLogo from '@/components/branding/site-logo';
+import DeepavaliEffects, { DeepavaliBanner } from '@/components/festive/deepavali-effects';
 
 const links = [
   { href: '/', label: 'Home' },
@@ -59,8 +60,12 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[#fcfbfa] text-[#20111a]">
       {isHome ? <WelcomeSplash /> : null}
 
+      {/* Deepavali Festive Atmosphere, Sparkles & Interactive Diya */}
+      <DeepavaliEffects />
+
       {/* Header Navigation */}
-      <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6">
+      <header className="fixed inset-x-0 top-0 z-50 px-3 pt-2 sm:px-6">
+        <DeepavaliBanner />
         <div
           className={`mx-auto flex h-16 max-w-7xl items-center justify-between px-3 transition-all duration-300 sm:px-5 ${scrolled
               ? 'rounded-2xl border border-[#3b1425]/10 bg-[#fffaf7]/95 text-[#20111a] shadow-[0_12px_34px_rgba(43,16,29,.10)] backdrop-blur-xl'
