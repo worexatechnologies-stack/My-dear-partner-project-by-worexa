@@ -39,18 +39,21 @@ export default function DeepavaliEffects() {
   const particlesRef = useRef<Particle[]>([]);
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
 
     const resize = () => {
-      canvas.width = canvas.clientWidth || window.innerWidth;
-      canvas.height = canvas.clientHeight || window.innerHeight;
+      const bounds = canvas.parentElement?.getBoundingClientRect();
+      canvas.width = Math.round(bounds?.width || window.innerWidth);
+      canvas.height = Math.round(bounds?.height || window.innerHeight);
     };
     resize();
     window.addEventListener('resize', resize);
+    const observer = canvas.parentElement
+      ? new ResizeObserver(resize)
+      : null;
+    if (observer && canvas.parentElement) observer.observe(canvas.parentElement);
 
     let frame = 0;
     const render = () => {
@@ -126,6 +129,7 @@ export default function DeepavaliEffects() {
     frame = window.requestAnimationFrame(render);
     return () => {
       window.removeEventListener('resize', resize);
+      observer?.disconnect();
       window.cancelAnimationFrame(frame);
       rocketsRef.current = [];
       particlesRef.current = [];
@@ -133,7 +137,6 @@ export default function DeepavaliEffects() {
   }, []);
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const timers: number[] = [];
@@ -167,7 +170,7 @@ export default function DeepavaliEffects() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-[2] opacity-80"
+      className="pointer-events-none absolute inset-0 z-[2] h-full w-full opacity-80"
     />
   );
 }
