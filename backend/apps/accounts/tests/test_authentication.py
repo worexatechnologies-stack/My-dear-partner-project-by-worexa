@@ -427,7 +427,7 @@ def test_demo_account_bypasses_otp_verification(api_client):
     assert 'access_token' in response.cookies
 
 
-def test_demo_account_login_is_blocked_when_development_seed_is_disabled(api_client):
+def test_existing_demo_account_can_sign_in_when_development_seed_is_disabled(api_client):
     from apps.accounts.demo import ensure_demo_account_exists, DEMO_ACCOUNT_MOBILE, DEMO_ACCOUNT_PASSWORD
 
     ensure_demo_account_exists()
@@ -438,7 +438,8 @@ def test_demo_account_login_is_blocked_when_development_seed_is_disabled(api_cli
             format='json',
         )
 
-    assert response.status_code == 403
-    assert response.data['success'] is False
-    assert 'access_token' not in response.cookies
+    assert response.status_code == 200, response.data
+    assert response.data['success'] is True
+    assert response.data['data']['is_demo_account'] is True
+    assert 'access_token' in response.cookies
 

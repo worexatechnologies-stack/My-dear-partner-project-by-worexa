@@ -623,21 +623,6 @@ class MemberLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        if not settings.ALLOW_DEVELOPMENT_SEED and is_demo_account(member):
-            record_login_activity(
-                account_type=AccountType.MEMBER,
-                account=member,
-                identifier=identifier,
-                login_status=LoginStatus.BLOCKED,
-                failure_reason='Development demo account disabled',
-                request=request,
-            )
-            return ApiResponse(
-                success=False,
-                message='This account is unavailable.',
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         if member.account_status == Member.AccountStatus.DELETION_PENDING:
             if member.recovery_until and member.recovery_until > timezone.now():
                 record_login_activity(
@@ -693,7 +678,7 @@ class MemberLoginView(APIView):
             return ApiResponse(success=False, message='This account is inactive.', status=status.HTTP_403_FORBIDDEN)
 
         # Demo Account OTP Bypass: 9187233618 (Demo account sign-in without OTP)
-        if settings.ALLOW_DEVELOPMENT_SEED and (is_demo_account(member) or is_demo_account(identifier)):
+        if is_demo_account(member) or is_demo_account(identifier):
             member = _reset_login_state(member)
             tokens = issue_account_tokens(member, request=request)
             record_login_activity(
