@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import { Providers } from './providers';
-import DeepavaliEffects, { DeepavaliBanner } from '@/components/festive/deepavali-effects';
+import { DeepavaliBanner } from '@/components/festive/deepavali-effects';
 import './globals.css';
 
 const dmSans = localFont({
@@ -53,7 +53,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Providers>
           <DeepavaliBanner />
           {children}
-          <DeepavaliEffects />
         </Providers>
       </body>
     </html>
