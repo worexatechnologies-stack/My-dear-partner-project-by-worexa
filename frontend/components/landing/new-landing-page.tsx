@@ -12,7 +12,7 @@ import {
   Crown,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
-import DeepavaliEffects from '@/components/festive/deepavali-effects';
+import DeepavaliExperience from '@/components/festive/deepavali-experience';
 
 const stats = [
   { value: '50K+', label: 'Verified Members' },
@@ -94,13 +94,13 @@ export default function NewLandingPage() {
 
   return (
     <div className="overflow-hidden bg-[#fffefd] text-[#2c2928]">
+      <DeepavaliExperience />
       {/* ── HERO SECTION ────────────────────────────────────────── */}
       <section className="relative isolate min-h-[680px] overflow-hidden bg-[#f7eeea] pb-20 pt-28 sm:min-h-[740px]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_30%,rgba(240,196,197,.56),transparent_25%),radial-gradient(circle_at_86%_18%,rgba(255,255,255,.92),transparent_32%),linear-gradient(105deg,#fffdfb_8%,#f8eee9_52%,#f2dfe1_100%)]" />
         <div className="absolute -left-24 top-1/4 h-96 w-96 rounded-full bg-[#e11d48]/[.07] blur-3xl" />
         <div className="absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-[#d9b36c]/[.12] blur-3xl" />
         <div className="absolute inset-x-0 bottom-0 h-28 bg-[#fffefd] [clip-path:polygon(0_64%,100%_0,100%_100%,0_100%)]" />
-        <DeepavaliEffects />
 
         <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
           <div className="z-10">
