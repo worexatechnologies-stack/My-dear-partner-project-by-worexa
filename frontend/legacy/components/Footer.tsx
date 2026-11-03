@@ -151,6 +151,22 @@ export default function Footer() {
                 </a>
               ))}
             </div>
+
+            {/* Google Play Store Button */}
+            <div className="pt-3">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">Official Mobile App</p>
+              <a
+                href="https://play.google.com/store/apps/details?id=com.mydearpartner&pcampaignid=web_share"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-3 rounded-xl border border-white/20 bg-black/60 px-4 py-2 shadow-md transition-all hover:scale-105 hover:border-amber-400/50 hover:bg-black/90"
+              >
+                <div className="text-left">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">GET IT ON</p>
+                  <p className="text-sm font-bold leading-none text-white">Google Play</p>
+                </div>
+              </a>
+            </div>
           </div>
 
           {/* Links Columns */}
