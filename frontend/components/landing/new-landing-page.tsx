@@ -12,7 +12,6 @@ import {
   Crown,
 } from 'lucide-react';
 import SmartImage from '@/components/shared/smart-image';
-import DeepavaliEffects from '@/components/festive/deepavali-effects';
 
 const stats = [
   { value: '50K+', label: 'Verified Members' },
@@ -100,9 +99,8 @@ export default function NewLandingPage() {
         <div className="absolute -left-24 top-1/4 h-96 w-96 rounded-full bg-[#e11d48]/[.07] blur-3xl" />
         <div className="absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-[#d9b36c]/[.12] blur-3xl" />
         <div className="absolute inset-x-0 bottom-0 h-28 bg-[#fffefd] [clip-path:polygon(0_64%,100%_0,100%_100%,0_100%)]" />
-        <DeepavaliEffects />
 
-        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
           <div className="z-10">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#b64a68]/20 bg-white/70 px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[.14em] text-[#8e3d58] shadow-[0_4px_14px_rgba(142,61,88,.08)] backdrop-blur-md">
               <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-[#e11d48] to-[#b64a68]" />

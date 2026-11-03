@@ -282,6 +282,9 @@ export default function AdminMembershipPlansPage() {
         setPlans((rows) => [...rows, saved]);
         setToast({ message: 'Plan created successfully.', tone: 'success' });
       }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('membership-plans:updated'));
+      }
       setPlanFormOpen(false);
     } catch (err) {
       setToast({ message: messageFrom(err), tone: 'error' });
@@ -302,6 +305,9 @@ export default function AdminMembershipPlansPage() {
         body: JSON.stringify({ is_active: !plan.is_active }),
       });
       setPlans((rows) => rows.map((r) => (r.id === saved.id ? saved : r)));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('membership-plans:updated'));
+      }
       setToast({ message: `Plan ${saved.is_active ? 'activated' : 'deactivated'} successfully.`, tone: 'success' });
     } catch (err) {
       setToast({ message: messageFrom(err), tone: 'error' });

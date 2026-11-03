@@ -145,6 +145,7 @@ export const membershipApi = baseApi.injectEndpoints({
         method: 'GET',
       }),
       providesTags: ['MembershipPlans'],
+      keepUnusedDataFor: 0,
     }),
 
     createMembershipOrder: builder.mutation<RazorpayOrder, { plan_id: string; duration_days?: number }>({

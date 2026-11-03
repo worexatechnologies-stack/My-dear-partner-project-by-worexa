@@ -477,14 +477,26 @@
   color: #fff;
 }
 
+@keyframes diwali-glow {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.28), 0 18px 46px rgba(113, 48, 73, 0.17);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(245, 158, 11, 0.52), 0 22px 52px rgba(113, 48, 73, 0.28);
+  }
+}
+
 .mp-plan-card--featured {
   border-color: #8d3c58;
   box-shadow: 0 0 0 1px rgba(141, 60, 88, 0.38), 0 18px 46px rgba(113, 48, 73, 0.17);
   transform: translateY(-8px);
+  animation: diwali-glow 3.5s ease-in-out infinite;
 }
 
 .mp-plan-card--featured:hover {
   transform: translateY(-13px);
+  animation: none;
+  box-shadow: 0 0 36px rgba(245, 158, 11, 0.6), 0 26px 56px rgba(113, 48, 73, 0.3);
 }
 
 .mp-plan-badge {

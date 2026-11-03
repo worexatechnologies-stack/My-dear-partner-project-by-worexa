@@ -8,6 +8,8 @@ import { Menu, ShieldCheck, X, LayoutDashboard, MapPin, Instagram } from 'lucide
 import { usePathname } from 'next/navigation';
 import WelcomeSplash from '@/components/branding/welcome-splash';
 import SiteLogo from '@/components/branding/site-logo';
+import NavbarDiwaliEffects from '@/components/festive/navbar-diwali-effects';
+import NavbarDeepam from '@/components/festive/navbar-deepam';
 
 const links = [
   { href: '/', label: 'Home' },
@@ -60,21 +62,33 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
       {isHome ? <WelcomeSplash /> : null}
 
       {/* Header Navigation */}
-      <header className="fixed inset-x-0 top-9 z-50 px-3 pt-2 sm:px-6">
+      <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6">
         <div
-          className={`mx-auto flex h-16 max-w-7xl items-center justify-between px-3 transition-all duration-300 sm:px-5 ${scrolled
-              ? 'rounded-2xl border border-[#3b1425]/10 bg-[#fffaf7]/95 text-[#20111a] shadow-[0_12px_34px_rgba(43,16,29,.10)] backdrop-blur-xl'
-              : 'rounded-2xl border border-white/80 bg-white/75 text-[#20111a] shadow-[0_10px_28px_rgba(43,16,29,.06)] backdrop-blur-xl'
+          className={`relative mx-auto flex h-16 max-w-7xl items-center justify-between px-3 transition-all duration-300 sm:px-5 ${scrolled
+              ? 'rounded-2xl border border-amber-500/25 bg-[#fffaf7]/95 text-[#20111a] shadow-[0_12px_34px_rgba(43,16,29,.10)] backdrop-blur-xl'
+              : 'rounded-2xl border border-amber-300/40 bg-white/85 text-[#20111a] shadow-[0_10px_28px_rgba(217,119,6,.08)] backdrop-blur-xl'
             }`}
         >
-          <Link href="/" className="flex items-center gap-2.5" aria-label="MyDearPartner home">
-            <SiteLogo alt="MyDearPartner" className="h-9 w-9 object-contain" />
-            <span className="font-display text-base font-extrabold tracking-tight sm:text-lg">
-              MyDear<span className="text-[#b64a68]">Partner</span>
-            </span>
-          </Link>
+          <NavbarDiwaliEffects />
 
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Main navigation">
+          {/* Left End: Deepam + Brand Logo */}
+          <div className="relative z-10 flex items-center gap-1.5 sm:gap-2.5">
+            <NavbarDeepam side="left" />
+            <Link href="/" className="group flex items-center gap-2 sm:gap-2.5" aria-label="MyDearPartner home">
+              <SiteLogo alt="MyDearPartner" className="h-8 w-8 sm:h-9 sm:w-9 object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105" />
+              <div className="flex flex-col">
+                <span className="font-display text-base font-extrabold tracking-tight leading-none sm:text-lg">
+                  MyDear<span className="text-[#b64a68]">Partner</span>
+                </span>
+                <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black tracking-wider uppercase bg-gradient-to-r from-amber-600 via-orange-500 to-rose-600 bg-clip-text text-transparent">
+                  <span className="text-xs leading-none">🪔</span>
+                  <span>Happy Diwali</span>
+                </span>
+              </div>
+            </Link>
+          </div>
+
+          <nav className="relative z-10 hidden items-center gap-1 lg:flex" aria-label="Main navigation">
             {links.map((link) => (
               <Link
                 key={link.href}
@@ -89,7 +103,9 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 sm:flex">
+          {/* Right End: Actions + Right Deepam */}
+          <div className="relative z-10 flex items-center gap-2 sm:gap-2.5">
+            <div className="hidden items-center gap-2 sm:flex">
             {isLoggedIn ? (
               <Link
                 href="/dashboard"
@@ -115,7 +131,7 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <details className="group relative lg:hidden">
+          <details className="group relative z-10 lg:hidden">
             <summary
               className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-xl text-[#8e3d58] hover:bg-[#f8e9ee] [&::-webkit-details-marker]:hidden"
               aria-label="Toggle navigation"
@@ -165,6 +181,9 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
               </div>
             </nav>
           </details>
+
+            <NavbarDeepam side="right" />
+          </div>
         </div>
       </header>
 
