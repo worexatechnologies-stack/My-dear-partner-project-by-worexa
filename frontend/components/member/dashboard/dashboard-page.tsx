@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import SmartImage from '@/components/shared/smart-image';
 import { useState, useEffect, useCallback } from 'react';
@@ -9,7 +9,7 @@ import {
   UserPlus, MapPin, BadgeCheck, CheckCircle2,
   ArrowRight, Check, X, Eye, Lock,
   ShieldCheck, Compass, ChevronRight, Star,
-  Bookmark, Activity, Clock,
+  Bookmark, Activity, Clock, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/legacy/contexts/AuthContext';
 import { getInterests, getConversations, getProfiles, updateInterestStatus } from '@/legacy/services/dataService';
@@ -37,6 +37,27 @@ const fieldLabels: Record<string, string> = {
   work_location: 'Current City',
   photo: 'Profile Photo',
   about: 'About Me',
+};
+
+interface MissingStepAction {
+  label: string;
+  href: string;
+  boost: string;
+}
+
+const fieldActionMap: Record<string, MissingStepAction> = {
+  photo: { label: 'Upload Photos', href: '/profile/photos', boost: '+20%' },
+  about: { label: 'Write About Me', href: '/settings/profile/personal', boost: '+15%' },
+  highest_education: { label: 'Add Education', href: '/settings/profile/career', boost: '+10%' },
+  occupation: { label: 'Add Career Info', href: '/settings/profile/career', boost: '+10%' },
+  annual_income: { label: 'Add Income', href: '/settings/profile/career', boost: '+5%' },
+  work_location: { label: 'Add Location', href: '/settings/profile/career', boost: '+5%' },
+  religion: { label: 'Add Religion & Caste', href: '/settings/profile/personal', boost: '+10%' },
+  mother_tongue: { label: 'Add Mother Tongue', href: '/settings/profile/personal', boost: '+5%' },
+  height: { label: 'Add Height', href: '/settings/profile/personal', boost: '+5%' },
+  marital_status: { label: 'Marital Status', href: '/settings/profile/personal', boost: '+5%' },
+  date_of_birth: { label: 'Birth & Age', href: '/settings/profile/personal', boost: '+5%' },
+  mobile_number: { label: 'Verify Mobile', href: '/settings/profile/personal', boost: '+10%' },
 };
 
 interface ProfileVisitor {
@@ -915,25 +936,57 @@ export default function DashboardPage() {
               </div>
 
               {missingFields.length > 0 && (
-                <div className="relative z-10 mt-5">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2.5 text-center">Missing Details</p>
-                  <div className="flex flex-wrap gap-2 justify-center mb-4">
-                    {missingFields.slice(0, 4).map((field: string) => (
-                      <span key={field} className="px-2.5 py-1 rounded-full bg-white/10 text-white/70 text-[10px] font-semibold border border-white/10">
-                        {fieldLabels[field] || field}
-                      </span>
-                    ))}
-                    {missingFields.length > 4 && (
-                      <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/40 text-[10px] font-semibold border border-white/5">
-                        +{missingFields.length - 4} more
-                      </span>
-                    )}
+                <div className="relative z-10 mt-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Recommended Steps</p>
+                    <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Boost Responses
+                    </span>
                   </div>
+
+                  {/* Step Action Cards */}
+                  <div className="space-y-2">
+                    {missingFields.slice(0, 3).map((field: string) => {
+                      const action = fieldActionMap[field] || {
+                        label: fieldLabels[field] || field,
+                        href: '/settings/profile/personal',
+                        boost: '+5%',
+                      };
+                      return (
+                        <Link
+                          key={field}
+                          to={action.href}
+                          className="group flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                            <span className="text-xs font-bold text-slate-200 group-hover:text-white truncate">
+                              {action.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
+                              {action.boost}
+                            </span>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/40 group-hover:text-white transition-colors" />
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {/* Benefit Tip */}
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-200 leading-snug">
+                    <p className="font-semibold">
+                      💡 Profiles with <strong className="text-white">80%+ completeness</strong> receive <strong>3.5x more interests</strong> and top search visibility.
+                    </p>
+                  </div>
+
                   <Link
                     to="/settings"
-                    className="block w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/10 transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    className="block w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs text-center shadow-lg shadow-rose-950/40 transition-all active:scale-[0.98]"
                   >
-                    Complete Profile â†’
+                    View All Profile Sections →
                   </Link>
                 </div>
               )}

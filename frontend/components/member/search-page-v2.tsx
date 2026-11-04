@@ -800,6 +800,23 @@ export default function SearchPageV2() {
           <button
             type="button"
             onClick={() => {
+              const next = { ...draftFilters, location: draftFilters.location === 'Bengaluru' ? '' : 'Bengaluru' };
+              setDraftFilters(next);
+              updateRoute(next);
+            }}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              appliedFilters.location === 'Bengaluru'
+                ? 'bg-[#0f0f10] text-white border-[#0f0f10]'
+                : 'bg-white text-[#443c40] border-[#efefef] hover:bg-[#f9fafb]'
+            }`}
+          >
+            <MapPin className={`w-3.5 h-3.5 ${appliedFilters.location === 'Bengaluru' ? 'text-white' : 'text-[#262626]'}`} />
+            <span>Bengaluru</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               const next = { ...draftFilters, education: draftFilters.education ? '' : 'B.Tech' };
               setDraftFilters(next);
               updateRoute(next);

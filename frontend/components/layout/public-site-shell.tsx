@@ -238,7 +238,7 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="site-page-enter">{children}</main>
+      <main className="site-page-enter pb-16 sm:pb-0">{children}</main>
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-[#20111a] px-5 py-12 text-white sm:px-8">
@@ -428,6 +428,46 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
           </p>
         </div>
       </footer>
+
+      {/* Mobile Sticky Quick Action & Install Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-2.5 border-t border-white/10 bg-[#1c0c17]/95 px-3 py-2.5 shadow-2xl backdrop-blur-xl sm:hidden">
+        <a
+          href="https://play.google.com/store/apps/details?id=com.mydearpartner&pcampaignid=web_share"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[#e8bd7e]/30 bg-[#e8bd7e]/10 px-3 py-2 text-xs font-bold text-[#e8bd7e] shadow-xs transition-transform active:scale-95"
+          aria-label="Download Official App on Google Play"
+        >
+          <GooglePlayIcon className="h-4 w-4" />
+          <span>App</span>
+        </a>
+
+        {isLoggedIn ? (
+          <Link
+            href="/dashboard"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 py-2 text-center text-xs font-black uppercase tracking-wider text-white shadow-md shadow-rose-950/40 transition-transform active:scale-95"
+          >
+            <span>My Dashboard</span>
+            <span>→</span>
+          </Link>
+        ) : (
+          <div className="flex flex-1 items-center justify-end gap-2">
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3.5 py-2 text-center text-xs font-bold text-slate-200 transition-colors hover:bg-white/10"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 py-2 text-center text-xs font-black uppercase tracking-wider text-white shadow-md shadow-rose-950/40 transition-transform active:scale-95"
+            >
+              <span>Join Free</span>
+              <span className="text-[10px]">✨</span>
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
