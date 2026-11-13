@@ -3,7 +3,7 @@
 import SmartImage from '@/components/shared/smart-image';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams, useMatch, useNavigate } from '@/lib/router-compat';
+import { useSearchParams, useMatch, useNavigate, useLocation } from '@/lib/router-compat';
 import {
   CheckCircle2, Filter, LoaderCircle, MoreHorizontal, RefreshCw, Search, ShieldOff,
   Trash2, UserCheck, UserX, X, ShieldAlert, BadgeInfo, CreditCard, Clock, Check, AlertTriangle,
@@ -50,8 +50,10 @@ const MEMBERSHIP_FILTER_OPTIONS = [
 export default function AdminUsersPage() {
   const { user: currentUser, hasAdminPermission } = useAuth();
   const [searchParams] = useSearchParams();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const isSuper = typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin');
+  const isSuper = currentUser?.account_type === 'SUPER_ADMIN' || currentUser?.is_superuser === true;
+  const isDeletedRoute = pathname.endsWith('/deleted-accounts');
   const basePath = isSuper ? '/super-admin/members' : '/admin/members';
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -59,7 +61,8 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [status, setStatus] = useState(isDeletedRoute ? 'deleted' : searchParams.get('status') || '');
+  const isDeletedView = isDeletedRoute || status === 'deleted';
   const [membershipFilter, setMembershipFilter] = useState(searchParams.get('plan') || searchParams.get('membership') || '');
   const [gender, setGender] = useState(searchParams.get('gender') || '');
   const [verified, setVerified] = useState(searchParams.get('verified') || '');
@@ -80,7 +83,7 @@ export default function AdminUsersPage() {
 
   // Sync state when URL search params change
   useEffect(() => {
-    const paramStatus = searchParams.get('status') || '';
+    const paramStatus = isDeletedView ? 'deleted' : searchParams.get('status') || '';
     const paramPlan = searchParams.get('plan') || searchParams.get('membership') || '';
     const paramSearch = searchParams.get('search') || '';
     const paramPage = Number(searchParams.get('page')) || 1;
@@ -98,7 +101,7 @@ export default function AdminUsersPage() {
     setGender(paramGender);
     setVerified(paramVerified);
     setPeriod(paramPeriod);
-  }, [searchParams]);
+  }, [searchParams, isDeletedView]);
 
   // Detail view
   const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
@@ -218,8 +221,8 @@ export default function AdminUsersPage() {
       {toast && <AdminToast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
 
       <AdminPageHeader
-        title="Members"
-        description="Manage all registered members"
+        title={isDeletedView ? 'Deleted Accounts' : 'Members'}
+        description={isDeletedView ? 'Review accounts that have been deleted and who deleted them.' : 'Manage all registered members'}
         actions={
           <button onClick={load} className="admin-btn flex items-center gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -228,7 +231,7 @@ export default function AdminUsersPage() {
       />
 
       {/* Summary cards */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {!isDeletedView && <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryCard
           icon={Users}
           label="Total Members"
@@ -277,10 +280,10 @@ export default function AdminUsersPage() {
           title="Filter suspended users"
           onClick={() => { setStatus('suspended'); setPage(1); }}
         />
-      </div>
+      </div>}
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {!isDeletedView && <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1" style={{ maxWidth: 320 }}>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -323,10 +326,10 @@ export default function AdminUsersPage() {
         <button onClick={doSearch} className="admin-btn admin-btn-primary flex items-center gap-2">
           <Search className="h-4 w-4" /> Search
         </button>
-      </div>
+      </div>}
 
       {/* Active Filter Chips */}
-      {(status || membershipFilter || gender || verified || period || search) && (
+      {!isDeletedView && (status || membershipFilter || gender || verified || period || search) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-rose-50/60 border border-rose-100 px-3 py-2 text-xs">
           <span className="font-semibold text-rose-900">Active filters:</span>
           {status && (
@@ -384,13 +387,36 @@ export default function AdminUsersPage() {
         </div>
       )}
 
+      {isDeletedView && <div className="mb-4 flex max-w-xl items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input type="text" placeholder="Search deleted accounts by name or email" value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100" />
+        </div>
+        <button onClick={doSearch} className="admin-btn admin-btn-primary flex items-center gap-2"><Search className="h-4 w-4" /> Search</button>
+      </div>}
+
       {/* Table */}
       {loading ? (
         <AdminLoading />
       ) : error ? (
         <AdminErrorState message={error} onRetry={load} />
       ) : users.length === 0 ? (
-        <AdminEmptyState title="No members found" description="Try adjusting your search or filters." />
+        <AdminEmptyState title={isDeletedView ? 'No deleted accounts found' : 'No members found'} description="Try adjusting your search or filters." />
+      ) : isDeletedView ? (
+        <div className="admin-panel overflow-x-auto">
+          <table className="admin-table w-full">
+            <thead><tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+              <th className="pb-3 pr-4">Account</th><th className="pb-3 pr-4">Mobile</th><th className="pb-3 pr-4">Deleted on</th><th className="pb-3 pr-4">Deleted by</th>{isSuper && <th className="pb-3">Action</th>}
+            </tr></thead>
+            <tbody>{users.map(user => <tr key={user.id} className="border-b border-slate-100 text-sm">
+              <td className="py-3 pr-4"><p className="font-medium text-slate-900">{user.full_name || `${user.first_name} ${user.last_name}`}</p><p className="text-xs text-slate-500">{user.email}</p><p className="text-xs font-mono text-slate-400">{user.id}</p></td>
+              <td className="py-3 pr-4 text-slate-600">{user.mobile_number || '—'}</td>
+              <td className="py-3 pr-4 text-slate-600">{formatAdminDate(user.deleted_at) || '—'}</td>
+              <td className="py-3 pr-4 text-slate-600"><p>{user.deleted_by || 'Member'}</p>{user.deleted_by_user_id && <p className="text-xs font-mono text-slate-400">{user.deleted_by_user_id}</p>}</td>
+              {isSuper && <td className="py-3"><button onClick={() => setPendingAction({ user, action: 'restore', label: 'Recover Member Account', description: `Recover ${user.full_name || user.first_name}'s account within the recovery window?`, dangerous: false })} className="admin-btn flex items-center gap-2"><RotateCcw className="h-4 w-4" /> Recover</button></td>}
+            </tr>)}</tbody>
+          </table>
+        </div>
       ) : (
         <div className="admin-panel overflow-x-auto">
           <table className="admin-table w-full">
@@ -511,7 +537,7 @@ export default function AdminUsersPage() {
                       >
                         View
                       </button>
-                      {(hasAdminPermission('members.manage') || isSuper) && (
+                          {!isDeletedView && (hasAdminPermission('members.manage') || isSuper) && (
                         <div className="relative group/actions">
                           <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
                             <MoreHorizontal className="h-4 w-4" />
@@ -531,7 +557,7 @@ export default function AdminUsersPage() {
                                 setGrantMonths(12);
                               }}
                             />
-                            {hasAdminPermission('members.delete') && (
+                            {isSuper && hasAdminPermission('members.delete') && (
                               (user as any).is_deleted || (user as any).deleted_at ? (
                                 <MenuBtn icon={RotateCcw} label="Recover Account" onClick={() => setPendingAction({ user, action: 'restore', label: 'Recover Member Account', description: `Recover ${user.first_name} within the 30-day recovery window?`, dangerous: false })} />
                               ) : (

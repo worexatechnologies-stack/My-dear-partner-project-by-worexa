@@ -32,6 +32,7 @@ type RouteEntry = { component: ComponentType<any>; permission?: string; props?: 
 const routes: Record<string, RouteEntry> = {
   dashboard: { component: Dashboard, permission: 'dashboard.view' },
   members: { component: Members, permission: 'members.view' },
+  'deleted-accounts': { component: Members, permission: 'members.view' },
   profiles: { component: Profiles, permission: 'verification.view_all' },
   'profile-verifications': { component: Profiles, permission: 'verification.view_all' },
   photos: { component: Photos, permission: 'verification.view_all' },

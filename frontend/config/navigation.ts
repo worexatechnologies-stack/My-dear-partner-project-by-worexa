@@ -5,7 +5,7 @@ import {
   ClipboardCheck, FileCheck2, FileImage, FileText,
   Headphones, ListTodo, LockKeyhole, Megaphone,
   ReceiptText, RefreshCcw, Activity, UserCog,
-  ShieldEllipsis, Flag, CircleHelp, MapPinned, FolderOpen, type LucideIcon,
+  ShieldEllipsis, Flag, CircleHelp, MapPinned, FolderOpen, Archive, type LucideIcon,
 } from 'lucide-react';
 import type { AccountType } from '@/lib/auth';
 
@@ -51,7 +51,7 @@ export const adminNavSections = [
   { label: 'Workspace', items: ['/admin/dashboard'] as const },
   { label: 'Operations', items: ['/admin/members', '/admin/profiles', '/admin/photos', '/admin/documents', '/admin/memberships', '/admin/memberships/payments', '/admin/memberships/refunds'] as const },
   { label: 'Support', items: ['/admin/tickets', '/admin/contact-enquiries', '/admin/complaints', '/admin/reported-profiles'] as const },
-  { label: 'Management', items: ['/admin/admin-activity', '/admin/reports', '/admin/audit-logs', '/admin/settings'] as const },
+  { label: 'Management', items: ['/admin/deleted-accounts', '/admin/admin-activity', '/admin/reports', '/admin/audit-logs', '/admin/settings'] as const },
 ] as const;
 
 export const adminNavigation: NavItem[] = [
@@ -67,6 +67,7 @@ export const adminNavigation: NavItem[] = [
   { label: 'Contact Enquiries', icon: MessageSquareMore, href: '/admin/contact-enquiries', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['tickets.view_all'] },
   { label: 'Complaints', icon: Megaphone, href: '/admin/complaints', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['complaints.view_all'] },
   { label: 'Reported Profiles', icon: Flag, href: '/admin/reported-profiles', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['profile_reports.manage'] },
+  { label: 'Deleted Accounts', icon: Archive, href: '/admin/deleted-accounts', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['members.view'] },
   { label: 'Admin Activity', icon: BriefcaseBusiness, href: '/admin/admin-activity', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
   { label: 'Reports', icon: ReceiptText, href: '/admin/reports', allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['reports.view'] },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs', allowedRoles: ['SUPER_ADMIN'], requiredPermissions: ['activity.view_all'] },
@@ -86,6 +87,7 @@ export const superAdminNavigation: NavItem[] = [
   { label: 'Contact Enquiries', icon: MessageSquareMore, href: '/super-admin/contact-enquiries', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Complaints', icon: Megaphone, href: '/super-admin/complaints', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Reported Profiles', icon: Flag, href: '/super-admin/reported-profiles', allowedRoles: ['SUPER_ADMIN'] },
+  { label: 'Deleted Accounts', icon: Archive, href: '/super-admin/deleted-accounts', allowedRoles: ['SUPER_ADMIN'] },
 
   { label: 'Admin Accounts', icon: UserCog, href: '/super-admin/admin-accounts', allowedRoles: ['SUPER_ADMIN'] },
   { label: 'Admin Activity', icon: BriefcaseBusiness, href: '/super-admin/admin-activity', allowedRoles: ['SUPER_ADMIN'] },

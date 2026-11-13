@@ -78,6 +78,10 @@ export interface AdminUser {
   date_joined: string;
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
+  deleted_by?: string;
+  deleted_by_user_id?: string | null;
+  deletion_reason?: string;
   about?: string;
   age?: number;
   city?: string;

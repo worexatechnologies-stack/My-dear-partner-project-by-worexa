@@ -59,7 +59,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'admin_role', 'admin_role_display', 'admin_permissions', 'photo',
             'photos', 'documents', 'completion_percentage', 'missing_fields', 'can_submit',
             'chat_public_key', 'deleted_at', 'is_deleted', 'account_status',
-            'recovery_until', 'deleted_by', 'terms_accepted_at', 'is_hidden',
+            'recovery_until', 'deleted_by', 'deleted_by_user_id', 'terms_accepted_at', 'is_hidden',
         )
 
     def get_is_demo(self, obj):

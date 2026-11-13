@@ -82,6 +82,7 @@ export const adminRoutes: RouteConfig[] = [
   { path: '/admin/contact-enquiries', label: 'Contact Enquiries', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['tickets.view_all'] },
   { path: '/admin/complaints', label: 'Complaints', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['complaints.view_all'] },
   { path: '/admin/reported-profiles', label: 'Reported Profiles', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['profile_reports.manage'] },
+  { path: '/admin/deleted-accounts', label: 'Deleted Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['members.view'] },
   { path: '/admin/admin-accounts', label: 'Admin Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/admin/admin-activity', label: 'Admin Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['staff.activity'] },
   { path: '/admin/reports', label: 'Reports', requiresAuth: true, allowedRoles: ['SUPER_ADMIN', 'ADMIN'], requiredPermissions: ['reports.view'] },
@@ -102,6 +103,7 @@ export const superAdminRoutes: RouteConfig[] = [
   { path: '/super-admin/contact-enquiries', label: 'Contact Enquiries', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/complaints', label: 'Complaints', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/reported-profiles', label: 'Reported Profiles', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
+  { path: '/super-admin/deleted-accounts', label: 'Deleted Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
 
   { path: '/super-admin/admin-accounts', label: 'Admin Accounts', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },
   { path: '/super-admin/admin-activity', label: 'Admin Activity', requiresAuth: true, allowedRoles: ['SUPER_ADMIN'] },

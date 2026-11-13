@@ -1310,6 +1310,16 @@ class AdminUserListView(ScopedAPIView):
         requested_status = request.query_params.get('status')
         if requested_status == 'deleted':
             queryset = Member.objects.filter(deleted_at__isnull=False).select_related('profile', 'preferences')
+            queryset = apply_scope_filter(request.user, queryset, branch_path='branch')
+            if search:
+                try:
+                    import uuid
+                    search_uuid = uuid.UUID(search)
+                    queryset = queryset.filter(id=search_uuid)
+                except ValueError:
+                    queryset = queryset.filter(
+                        Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search)
+                    )
         elif requested_status in ('active', 'ACTIVE'):
             queryset = queryset.filter(is_active=True)
         elif requested_status in ('suspended', 'SUSPENDED'):
@@ -1549,6 +1559,8 @@ class AdminUserActionView(ScopedAPIView):
             document.save(update_fields=('status', 'rejection_reason', 'reviewed_at', 'reviewed_by_id'))
             member.document_status = Member.VerificationStatus.REJECTED
         elif action == 'restore':
+            if str(request.user.account_type) != AccountType.SUPER_ADMIN:
+                raise PermissionDenied('Only a Super Admin can recover deleted member accounts.')
             from apps.accounts.lifecycle import restore_member_account
             try:
                 member = restore_member_account(member=member)
@@ -1556,6 +1568,8 @@ class AdminUserActionView(ScopedAPIView):
                 return bad_request(str(exc))
         elif action in {'activate', 'reactivate'}:
             if member.account_status == Member.AccountStatus.DELETION_PENDING:
+                if str(request.user.account_type) != AccountType.SUPER_ADMIN:
+                    raise PermissionDenied('Only a Super Admin can recover deleted member accounts.')
                 from apps.accounts.lifecycle import restore_member_account
                 try:
                     member = restore_member_account(member=member)
