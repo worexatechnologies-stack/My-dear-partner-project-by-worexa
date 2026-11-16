@@ -60,6 +60,21 @@
   "overrides": {
     "firebase": {
       "undici": "6.29.1"
+    },
+    "@firebase/auth-compat": {
+      "undici": "6.29.1"
+    },
+    "@firebase/auth": {
+      "undici": "6.29.1"
+    },
+    "@firebase/firestore": {
+      "undici": "6.29.1"
+    },
+    "@firebase/functions": {
+      "undici": "6.29.1"
+    },
+    "@firebase/storage": {
+      "undici": "6.29.1"
     }
   }
 }
