@@ -68,13 +68,20 @@
       "undici": "6.29.1"
     },
     "@firebase/firestore": {
-      "undici": "6.29.1"
+      "undici": "6.29.1",
+      "@grpc/grpc-js": "1.14.7"
     },
     "@firebase/functions": {
       "undici": "6.29.1"
     },
     "@firebase/storage": {
       "undici": "6.29.1"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.8"
+    },
+    "glob": {
+      "minimatch": "11.0.8"
     }
   }
 }
