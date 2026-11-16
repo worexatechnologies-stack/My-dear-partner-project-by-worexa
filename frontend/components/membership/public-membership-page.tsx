@@ -182,7 +182,7 @@ export default function PublicMembershipPage() {
               More room for your <em className="font-serif font-normal text-[#bd6970]">love story.</em>
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-stone-600">
-              Choose the support and access that feels right for your journey. Special Diwali festival offers are now active.
+              Choose the support and access that feels right for your journey.
             </p>
           </div>
           <div className="relative mx-auto h-64 w-full max-w-sm overflow-hidden rounded-t-[9rem] bg-[#d8dfd1] shadow-[0_22px_50px_rgba(64,52,43,.14)] sm:h-72">
@@ -209,45 +209,6 @@ export default function PublicMembershipPage() {
               <div>
                 <strong className="block font-bold">Clear and carefully activated</strong>
                 <span className="text-[11px] text-amber-800">Paid membership requests are reviewed by our team.</span>
-              </div>
-            </div>
-          </div>
-
-          {/* DIWALI FESTIVE OFFER BANNER */}
-          <div className="relative mx-auto mb-12 max-w-4xl overflow-hidden rounded-3xl border border-amber-400/50 bg-gradient-to-r from-[#fffbf5] via-[#fff7ee] to-[#fffbf5] p-5 shadow-[0_12px_36px_rgba(217,119,6,0.12)] sm:p-6 transition-all duration-300 hover:shadow-[0_16px_44px_rgba(217,119,6,0.18)]">
-            <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-amber-400/20 blur-2xl" />
-            <div className="pointer-events-none absolute -left-12 -bottom-12 h-36 w-36 rounded-full bg-rose-400/15 blur-2xl" />
-
-            <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-              <div className="flex items-center gap-3.5">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/30 text-2xl animate-pulse">
-                  🪔
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-400/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800">
-                      ✨ Deepavali Festive Offer
-                    </span>
-                    <span className="rounded-full bg-rose-500/15 border border-rose-400/30 px-2.5 py-0.5 text-[10px] font-black text-rose-700">
-                      Save Up to 58%
-                    </span>
-                  </div>
-                  <h3 className="mt-1 text-base sm:text-lg font-black tracking-tight text-[#20111a]">
-                    Special Festive Pricing Active on All Plans
-                  </h3>
-                  <p className="mt-0.5 text-xs text-stone-600">
-                    Verified profiles, direct messaging, and personal matchmaking benefits at exclusive festive rates.
-                  </p>
-                </div>
-              </div>
-
-              <div className="shrink-0 flex flex-col items-center sm:items-end">
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 py-1.5 text-xs font-black text-white shadow-sm shadow-amber-500/30">
-                  🎆 Limited Time Festive Special
-                </span>
-                <span className="mt-1 text-[11px] font-semibold text-stone-500">
-                  Special discounts auto-applied
-                </span>
               </div>
             </div>
           </div>

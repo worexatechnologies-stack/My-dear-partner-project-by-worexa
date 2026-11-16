@@ -59,8 +59,6 @@ import { Menu, ShieldCheck, X, LayoutDashboard, MapPin, Instagram } from 'lucide
 import { usePathname } from 'next/navigation';
 import WelcomeSplash from '@/components/branding/welcome-splash';
 import SiteLogo from '@/components/branding/site-logo';
-import NavbarDiwaliEffects from '@/components/festive/navbar-diwali-effects';
-import NavbarDeepam from '@/components/festive/navbar-deepam';
 
 const links = [
   { href: '/', label: 'Home' },
@@ -120,20 +118,13 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
               : 'rounded-2xl border border-amber-300/40 bg-white/85 text-[#20111a] shadow-[0_10px_28px_rgba(217,119,6,.08)] backdrop-blur-xl'
             }`}
         >
-          <NavbarDiwaliEffects />
-
-          {/* Left End: Deepam + Brand Logo */}
+          {/* Brand Logo */}
           <div className="relative z-10 flex items-center gap-1.5 sm:gap-2.5">
-            <NavbarDeepam side="left" />
             <Link href="/" className="group flex items-center gap-2 sm:gap-2.5" aria-label="MyDearPartner home">
               <SiteLogo alt="MyDearPartner" className="h-8 w-8 sm:h-9 sm:w-9 object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105" />
               <div className="flex flex-col">
                 <span className="font-display text-base font-extrabold tracking-tight leading-none sm:text-lg">
                   MyDear<span className="text-[#b64a68]">Partner</span>
-                </span>
-                <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black tracking-wider uppercase bg-gradient-to-r from-amber-600 via-orange-500 to-rose-600 bg-clip-text text-transparent">
-                  <span className="text-xs leading-none">🪔</span>
-                  <span>Happy Diwali</span>
                 </span>
               </div>
             </Link>
@@ -154,7 +145,7 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          {/* Right End: Actions + Right Deepam */}
+          {/* Right End: Actions */}
           <div className="relative z-10 flex items-center gap-2 sm:gap-2.5">
             <div className="hidden items-center gap-2 sm:flex">
             {isLoggedIn ? (
@@ -233,7 +224,6 @@ export default function PublicSiteShell({ children }: { children: ReactNode }) {
             </nav>
           </details>
 
-            <NavbarDeepam side="right" />
           </div>
         </div>
       </header>
