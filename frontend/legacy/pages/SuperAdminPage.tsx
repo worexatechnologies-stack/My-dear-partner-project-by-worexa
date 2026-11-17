@@ -38,6 +38,7 @@ export default function SuperAdminPage() {
         <Route path="members/:id" element={<AdminUsersPage />} />
         <Route path="profile-verifications" element={<AdminProfileApprovalsPage />} />
         <Route path="photo-verifications" element={<AdminPhotoApprovalsPage />} />
+        <Route path="face-verifications" element={<AdminDocumentVerificationPage mode="face" />} />
         <Route path="document-verifications" element={<AdminDocumentVerificationPage />} />
         
         {/* Memberships & Finance */}

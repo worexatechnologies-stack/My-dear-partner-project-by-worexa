@@ -407,6 +407,7 @@ class MemberPhotoSubmitView(APIView):
     
     def post(self, request):
         from apps.profiles.models import ProfilePhoto
+        from apps.profiles.serializers import ProfilePhotoSerializer
         from apps.core.models import ProfileVerificationRequest
         
         member = request.user
@@ -511,10 +512,19 @@ class AdminVerificationListView(APIView):
     def get(self, request):
         from apps.core.models import ProfileVerificationRequest
         from django.core.paginator import Paginator
+        from django.db.models import Prefetch
 
         # High-performance queryset with indexed filters & prefetching
+        from apps.profiles.models import ProfilePhoto
+
         queryset = ProfileVerificationRequest.objects.select_related(
             'member', 'member__profile', 'reviewed_by_admin', 'reviewed_by_super_admin'
+        ).prefetch_related(
+            Prefetch(
+                'member__profile_photos',
+                queryset=ProfilePhoto.objects.active().without_binary().order_by('display_order', 'created_at'),
+                to_attr='admin_review_photos',
+            )
         ).order_by('-submitted_at')
         
         # Apply filters
@@ -609,6 +619,23 @@ class AdminVerificationListView(APIView):
             has_document = member.document_status == 'approved' or member.documents.filter(status='APPROVED').exists()
             is_ready = has_bio and has_photo and has_document
 
+            review_photos = getattr(member, 'admin_review_photos', [])
+            if item.status in (
+                ProfileVerificationRequest.Status.PENDING_REVIEW,
+                ProfileVerificationRequest.Status.IN_REVIEW,
+            ):
+                review_photos = [photo for photo in review_photos if photo.status == ProfilePhoto.Status.PENDING]
+            elif item.status == ProfileVerificationRequest.Status.APPROVED:
+                review_photos = [photo for photo in review_photos if photo.status == ProfilePhoto.Status.APPROVED]
+            elif item.status == ProfileVerificationRequest.Status.REJECTED:
+                review_photos = [photo for photo in review_photos if photo.status == ProfilePhoto.Status.REJECTED]
+
+            serialized_photos = ProfilePhotoSerializer(
+                review_photos,
+                many=True,
+                context={'request': request},
+            ).data
+
             results.append({
                 'id': str(item.id),
                 'member_id': str(member.id),
@@ -642,6 +669,7 @@ class AdminVerificationListView(APIView):
                 'reviewed_at': item.reviewed_at.isoformat() if item.reviewed_at else None,
                 'reviewed_by': reviewer_name,
                 'rejection_reason': item.rejection_reason,
+                'profile_photos': serialized_photos,
             })
         
         # Return DRF-style pagination that the frontend expects: results + count

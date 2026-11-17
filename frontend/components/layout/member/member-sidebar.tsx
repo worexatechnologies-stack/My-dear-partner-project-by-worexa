@@ -4,7 +4,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Compass, Search, Heart, Bookmark, Eye,
+  Compass, Search, Heart, Bookmark, Eye, Camera,
   MessageCircle, ShieldCheck, Crown,
   Settings, LogOut, Menu, X, User,
   Headphones, PanelLeftClose, PanelLeftOpen,
@@ -36,6 +36,7 @@ const accountNav: NavItemDef[] = [
   { label: 'Shortlist',      icon: Bookmark,    href: '/shortlist' },
   { label: 'Visitors',       icon: Eye,         href: '/visitors' },
   { label: 'Blocked',        icon: ShieldCheck, href: '/blocked' },
+  { label: 'Verification',   icon: Camera,       href: '/verification' },
   { label: 'Membership',     icon: Crown,       href: '/membership' },
   { label: 'Settings',       icon: Settings,    href: '/settings' },
   { label: 'Help & Support', icon: Headphones,  href: '/support' },
@@ -208,6 +209,14 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
   }, [mobileOpen]);
 
   const displayName = user?.full_name || [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Member';
+  const activeNavigationItem = [...mainNav, ...accountNav].find((item) =>
+    pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
+  const currentPageTitle = pathname === '/verification'
+    ? 'Verification'
+    : pathname.startsWith('/settings')
+      ? 'Settings'
+      : activeNavigationItem?.label || pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || 'Account';
 
   /* ─── Sidebar panel content ─── */
 
@@ -219,13 +228,13 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         {/* Logo row */}
         <div
           style={{
-            height: '4.5rem',
+            height: '4rem',
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'space-between',
             padding: isCollapsed ? '0 0.75rem' : '0 1rem 0 1.25rem',
-            borderBottom: '1px solid #f2e8eb',
+            borderBottom: '1px solid #f0e6ea',
           }}
         >
           {(!isCollapsed) && (
@@ -407,13 +416,13 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
   return (
     <div
       className="member-portal"
-      style={{ height: 'calc(100dvh - 2.25rem)', width: '100%', overflow: 'hidden', background: '#faf8f7', display: 'flex', flexDirection: 'column' }}
+      style={{ height: '100dvh', width: '100%', overflow: 'hidden', background: '#faf8f7', display: 'flex', flexDirection: 'column' }}
     >
       {/* Keep the backdrop mounted so both opening and closing feel smooth. */}
       <div
         className={`member-sidebar-backdrop${mobileOpen ? ' is-open' : ''}`}
         onClick={() => setMobileOpen(false)}
-        style={{ top: '2.25rem' }}
+        style={{ top: 0 }}
         aria-hidden
       />
 
@@ -422,7 +431,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         className={`member-desktop-sidebar${collapsed ? ' is-collapsed' : ''}`}
         style={{
           position: 'fixed',
-          top: '2.25rem',
+          top: 0,
           left: 0,
           bottom: 0,
           zIndex: 50,
@@ -441,7 +450,7 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
         className={`member-mobile-drawer${mobileOpen ? ' is-open' : ''}`}
         style={{
           position: 'fixed',
-          top: '2.25rem',
+          top: 0,
           left: 0,
           bottom: 0,
           zIndex: 50,
@@ -521,6 +530,11 @@ export function MemberSidebar({ children }: { children: ReactNode }) {
                   My Dear <em style={{ fontStyle: 'normal', color: '#e11d48' }}>Partner</em>
                 </span>
               </Link>
+            </div>
+
+            <div className="member-header-desktop-context" aria-live="polite">
+              <p className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-400">Member portal</p>
+              <p className="mt-0.5 text-sm font-bold capitalize text-slate-800">{currentPageTitle}</p>
             </div>
           </div>
 

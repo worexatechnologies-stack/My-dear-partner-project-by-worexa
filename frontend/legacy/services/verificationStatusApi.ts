@@ -51,6 +51,15 @@ export interface VerificationStatus {
   membership_pending: boolean;
 }
 
+export interface MemberVerificationDocument {
+  id: string;
+  document_type: string;
+  custom_document_name?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  rejection_reason?: string | null;
+  uploaded_at?: string;
+}
+
 export const verificationStatusApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getVerificationStatus: builder.query<VerificationStatus, void>({
@@ -79,9 +88,32 @@ export const verificationStatusApi = baseApi.injectEndpoints({
       },
       providesTags: ['VerificationStatus'],
     }),
+    getMemberVerificationDocuments: builder.query<MemberVerificationDocument[], void>({
+      query: () => ({
+        url: '/member-auth/me/documents/',
+        method: 'GET',
+      }),
+      transformResponse: (response: any) => {
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.documents)) return response.documents;
+        if (Array.isArray(response?.results)) return response.results;
+        throw new Error('The verification document response was invalid.');
+      },
+      providesTags: ['VerificationStatus'],
+    }),
+    submitMemberVerificationDocument: builder.mutation<unknown, FormData>({
+      query: (body) => ({
+        url: '/member-auth/me/documents/',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['VerificationStatus'],
+    }),
   }),
 });
 
 export const {
   useGetVerificationStatusQuery,
+  useGetMemberVerificationDocumentsQuery,
+  useSubmitMemberVerificationDocumentMutation,
 } = verificationStatusApi;

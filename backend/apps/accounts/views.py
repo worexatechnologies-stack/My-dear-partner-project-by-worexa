@@ -1393,19 +1393,24 @@ class MemberDocumentListCreateView(APIView):
         )
 
         from apps.core.models import ProfileVerificationDocument, ProfileVerificationRequest
+        verification_type = (
+            ProfileVerificationRequest.VerificationType.FACE_VERIFICATION
+            if document.is_face_verification
+            else ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT
+        )
         active_statuses = (
             ProfileVerificationRequest.Status.PENDING_REVIEW,
             ProfileVerificationRequest.Status.IN_REVIEW,
         )
         verification = ProfileVerificationRequest.objects.filter(
             member=request.user,
-            verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+            verification_type=verification_type,
             status__in=active_statuses,
         ).first()
         if verification is None:
             verification = ProfileVerificationRequest.objects.create(
                 member=request.user,
-                verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
+                verification_type=verification_type,
             )
         ProfileVerificationDocument.objects.create(
             verification_request=verification,

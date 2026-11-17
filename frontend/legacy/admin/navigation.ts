@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Activity, BadgeCheck, BriefcaseBusiness, Building2,
+  Activity, BadgeCheck, BriefcaseBusiness, Building2, Camera,
   CircleHelp, ClipboardCheck, Clock3, CreditCard, FileCheck2, FileImage, FileText,
   Flag, Headphones, Image, LayoutDashboard, LifeBuoy, ListTodo,
   LockKeyhole, MapPinned, Megaphone, MessageSquareMore,
@@ -31,6 +31,7 @@ export const adminNavigation: AdminNavItem[] = [
   { path: '/admin/members', label: 'Members', description: 'Search, review, verify and manage members.', icon: Users, section: 'Operations', permissions: ['members.view'], implemented: true },
   { path: '/admin/profile-verifications', label: 'Profile approvals', description: 'Review profiles waiting for approval.', icon: UserRoundCheck, section: 'Operations', permissions: ['verification.view_all'], roles: leadership, implemented: true },
   { path: '/admin/photo-verifications', label: 'Photo approvals', description: 'Approve or reject member photos.', icon: FileImage, section: 'Operations', permissions: ['verification.view_all'], roles: leadership },
+  { path: '/admin/face-verifications', label: 'Live photo verification', shortLabel: 'Live photos', description: 'Review member selfies submitted for face verification.', icon: Camera, section: 'Operations', permissions: ['verification.view_all'], roles: leadership, implemented: true },
   { path: '/admin/documents', label: 'Document Verification', shortLabel: 'Documents', description: 'Review and approve member verification documents.', icon: FileCheck2, section: 'Operations', permissions: ['verification.view_all'], roles: leadership, implemented: true },
   { path: '/admin/memberships', label: 'Memberships', description: 'Review subscriptions and membership health.', icon: BadgeCheck, section: 'Operations', permissions: ['members.view'], roles: leadership, implemented: true },
   { path: '/admin/membership-plans', label: 'Membership Plans', shortLabel: 'Plans', description: 'Configure plan tiers, pricing, and entitlements.', icon: CreditCard, section: 'Operations', permissions: ['memberships.view'], roles: superAdmin, implemented: true },

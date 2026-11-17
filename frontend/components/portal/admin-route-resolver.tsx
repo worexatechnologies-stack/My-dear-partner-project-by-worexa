@@ -37,6 +37,7 @@ const routes: Record<string, RouteEntry> = {
   'profile-verifications': { component: Profiles, permission: 'verification.view_all' },
   photos: { component: Photos, permission: 'verification.view_all' },
   'photo-verifications': { component: Photos, permission: 'verification.view_all' },
+  'face-verifications': { component: Documents, permission: 'verification.view_all', props: { mode: 'face' } },
   documents: { component: Documents, permission: 'verification.view_all' },
   'document-verifications': { component: Documents, permission: 'verification.view_all' },
   memberships: { component: Memberships, permission: 'memberships.view' },

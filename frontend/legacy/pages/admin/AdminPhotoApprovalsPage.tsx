@@ -454,6 +454,7 @@ export default function AdminPhotoApprovalsPage() {
               const photos = v.profile_photos;
               const hasPhotos = photos.length > 0;
               const primaryPhoto = photos.find((p) => p.is_primary) || photos[0];
+              const reviewPhoto = photos.find((p) => p.status === 'pending');
 
               return (
                 <div
@@ -559,29 +560,29 @@ export default function AdminPhotoApprovalsPage() {
 
                     {/* Action buttons */}
                     <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                      {hasPhotos && primaryPhoto ? (
+                      {hasPhotos && reviewPhoto && (canApprove || canReject) ? (
                         <>
-                          <button
+                          {canApprove && <button
                             type="button"
-                            disabled={busyPhotoId === primaryPhoto.id}
-                            onClick={() => handleApprovePhoto(primaryPhoto.id)}
+                            disabled={busyPhotoId === reviewPhoto.id}
+                            onClick={() => handleApprovePhoto(reviewPhoto.id)}
                             className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                             title="Approve this photo"
                           >
-                            {busyPhotoId === primaryPhoto.id ? (
+                            {busyPhotoId === reviewPhoto.id ? (
                               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <Check className="h-3.5 w-3.5" />
                             )}
                             Approve
-                          </button>
+                          </button>}
 
-                          <button
+                          {canReject && <button
                             type="button"
-                            disabled={busyPhotoId === primaryPhoto.id}
+                            disabled={busyPhotoId === reviewPhoto.id}
                             onClick={() =>
                               setRejectModal({
-                                photoId: primaryPhoto.id,
+                                photoId: reviewPhoto.id,
                                 memberName,
                               })
                             }
@@ -590,11 +591,11 @@ export default function AdminPhotoApprovalsPage() {
                           >
                             <X className="h-3.5 w-3.5" />
                             Reject
-                          </button>
+                          </button>}
                         </>
                       ) : null}
 
-                      {canAssign && v.status === 'PENDING' && (
+                      {canAssign && v.status === 'pending_review' && (
                         <button
                           type="button"
                           onClick={() => setAssignTargetId(v.id)}
@@ -632,6 +633,7 @@ export default function AdminPhotoApprovalsPage() {
                   const memberName = v.member?.full_name || 'Unnamed member';
                   const photos = v.profile_photos;
                   const primaryPhoto = photos.find((p) => p.is_primary) || photos[0];
+                  const reviewPhoto = photos.find((p) => p.status === 'pending');
 
                   return (
                     <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
@@ -703,24 +705,24 @@ export default function AdminPhotoApprovalsPage() {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {primaryPhoto && (
+                          {reviewPhoto && (canApprove || canReject) && (
                             <>
-                              <button
+                              {canApprove && <button
                                 type="button"
-                                disabled={busyPhotoId === primaryPhoto.id}
-                                onClick={() => handleApprovePhoto(primaryPhoto.id)}
+                                disabled={busyPhotoId === reviewPhoto.id}
+                                onClick={() => handleApprovePhoto(reviewPhoto.id)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition"
                                 title="Approve photo"
                               >
                                 <Check className="h-3.5 w-3.5" /> Approve
-                              </button>
+                              </button>}
 
-                              <button
+                              {canReject && <button
                                 type="button"
-                                disabled={busyPhotoId === primaryPhoto.id}
+                                disabled={busyPhotoId === reviewPhoto.id}
                                 onClick={() =>
                                   setRejectModal({
-                                    photoId: primaryPhoto.id,
+                                    photoId: reviewPhoto.id,
                                     memberName,
                                   })
                                 }
@@ -728,11 +730,11 @@ export default function AdminPhotoApprovalsPage() {
                                 title="Reject photo"
                               >
                                 <X className="h-3.5 w-3.5" /> Reject
-                              </button>
+                              </button>}
                             </>
                           )}
 
-                          {canAssign && v.status === 'PENDING' && (
+                          {canAssign && v.status === 'pending_review' && (
                             <button
                               type="button"
                               onClick={() => setAssignTargetId(v.id)}
@@ -776,13 +778,13 @@ export default function AdminPhotoApprovalsPage() {
         memberId={lightboxState.memberId}
         onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
         onIndexChange={(newIdx) => setLightboxState((prev) => ({ ...prev, currentIndex: newIdx }))}
-        onApprove={(photoId) => handleApprovePhoto(photoId)}
-        onReject={(photoId) => {
+        onApprove={canApprove ? (photoId) => handleApprovePhoto(photoId) : undefined}
+        onReject={canReject ? (photoId) => {
           setRejectModal({
             photoId,
             memberName: lightboxState.memberName,
           });
-        }}
+        } : undefined}
         isActionBusy={Boolean(busyPhotoId)}
       />
 

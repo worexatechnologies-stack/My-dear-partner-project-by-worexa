@@ -92,7 +92,7 @@ const PRESET_REJECTION_REASONS = [
   'Document appears altered or suspicious',
 ];
 
-export default function AdminDocumentVerificationPage() {
+export default function AdminDocumentVerificationPage({ mode = 'documents' }: { mode?: 'documents' | 'face' }) {
   const { hasAdminPermission, user } = useAuth();
   const isSuper = user?.role === 'SUPER_ADMIN' || user?.account_type === 'SUPER_ADMIN' || (user as any)?.is_super_admin;
   const basePath = isSuper ? '/super-admin' : '/admin';
@@ -102,7 +102,7 @@ export default function AdminDocumentVerificationPage() {
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [status, setStatus] = useState(searchParams.get('status') || 'PENDING');
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [docType, setDocType] = useState(searchParams.get('document_type') || '');
+  const [docType, setDocType] = useState(mode === 'face' ? 'OTHER' : searchParams.get('document_type') || '');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -131,7 +131,12 @@ export default function AdminDocumentVerificationPage() {
       };
       if (status) params.status = status;
       if (search) params.search = search;
-      if (docType) params.document_type = docType;
+      if (mode === 'face') {
+        params.document_type = 'OTHER';
+        params.purpose = 'face_verification';
+      } else if (docType) {
+        params.document_type = docType;
+      }
 
       const data = await fetchApi<{ items: DocumentItem[]; pagination?: { total_items?: number } }>(
         '/admin/documents/',
@@ -144,7 +149,7 @@ export default function AdminDocumentVerificationPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, docType]);
+  }, [page, status, search, docType, mode]);
 
   useEffect(() => {
     load();
@@ -152,16 +157,20 @@ export default function AdminDocumentVerificationPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status, search, docType]);
+  }, [status, search, docType, mode]);
 
   useEffect(() => {
     const next = new URLSearchParams();
     if (status) next.set('status', status);
     if (search) next.set('search', search);
-    if (docType) next.set('document_type', docType);
+    if (mode !== 'face' && docType) next.set('document_type', docType);
     if (page > 1) next.set('page', String(page));
     setSearchParams(next, { replace: true, preventScrollReset: true });
-  }, [status, search, docType, page, setSearchParams]);
+  }, [status, search, docType, page, mode, setSearchParams]);
+
+  useEffect(() => {
+    setDocType(mode === 'face' ? 'OTHER' : searchParams.get('document_type') || '');
+  }, [mode]);
 
   // Client-side quick filter for instantaneous responsiveness
   const filteredDocuments = useMemo(() => {
@@ -188,7 +197,7 @@ export default function AdminDocumentVerificationPage() {
 
       const approvedDoc = documents.find((d) => d.id === docId);
       const name = approvedDoc?.member_name || 'Member';
-      setSuccessToast(`Document for ${name} has been approved.`);
+      setSuccessToast(mode === 'face' ? `Face verification for ${name} has been approved.` : `Document for ${name} has been approved.`);
       setTimeout(() => setSuccessToast(''), 4000);
 
       // Optimistically update document in list
@@ -227,7 +236,7 @@ export default function AdminDocumentVerificationPage() {
 
       const rejectedDoc = documents.find((d) => d.id === docId);
       const name = rejectedDoc?.member_name || 'Member';
-      setSuccessToast(`Document for ${name} has been rejected.`);
+      setSuccessToast(mode === 'face' ? `Face verification for ${name} has been rejected.` : `Document for ${name} has been rejected.`);
       setTimeout(() => setSuccessToast(''), 4000);
 
       // Optimistically update document in list
@@ -298,8 +307,8 @@ export default function AdminDocumentVerificationPage() {
     <>
       <AdminPageHeader
         eyebrow="Trust & Safety"
-        title="Document Verification"
-        description="Review and approve member verification documents with high-clarity zoom."
+        title={mode === 'face' ? 'Live photo verification' : 'Document Verification'}
+        description={mode === 'face' ? 'Review current member selfies separately from profile gallery photos and Government IDs.' : 'Review and approve member verification documents with high-clarity zoom.'}
         actions={
           <button
             type="button"
@@ -335,7 +344,7 @@ export default function AdminDocumentVerificationPage() {
 
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
               <FileCheck2 className="h-4 w-4 text-slate-500" />
-              <span className="text-xs font-semibold text-slate-600">Type:</span>
+              {mode !== 'face' && <><span className="text-xs font-semibold text-slate-600">Type:</span>
               <select
                 value={docType}
                 onChange={(e) => setDocType(e.target.value)}
@@ -348,11 +357,11 @@ export default function AdminDocumentVerificationPage() {
                 <option value="DRIVING_LICENCE">Driving Licence</option>
                 <option value="VOTER_ID">Voter ID</option>
                 <option value="OTHER">Other</option>
-              </select>
+              </select></>}
             </div>
 
             <div className="text-xs font-medium text-slate-500 px-2">
-              <strong className="text-slate-900 font-bold">{count}</strong> documents
+              <strong className="text-slate-900 font-bold">{count}</strong> {mode === 'face' ? 'selfies' : 'documents'}
             </div>
           </div>
 
@@ -768,13 +777,13 @@ export default function AdminDocumentVerificationPage() {
         {/* Empty State */}
         {!loading && filteredDocuments.length === 0 && (
           <AdminEmptyState
-            title="No verification documents found"
+            title={mode === 'face' ? 'No live photo verifications found' : 'No verification documents found'}
             description={
               search
-                ? `No documents match "${search}". Try clearing your search.`
+                ? `No ${mode === 'face' ? 'selfies' : 'documents'} match "${search}". Try clearing your search.`
                 : status
-                ? `No documents with status "${status}".`
-                : 'No documents have been uploaded yet.'
+                ? `No ${mode === 'face' ? 'selfies' : 'documents'} with status "${status}".`
+                : mode === 'face' ? 'No member selfies have been submitted yet.' : 'No documents have been uploaded yet.'
             }
           />
         )}
@@ -811,7 +820,7 @@ export default function AdminDocumentVerificationPage() {
           >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Reject Verification Document</h3>
+                <h3 className="text-base font-bold text-slate-900">{mode === 'face' ? 'Reject Live Photo Verification' : 'Reject Verification Document'}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Member: <strong>{rejectModalDoc.member_name}</strong> ({rejectModalDoc.display_name})
                 </p>
@@ -854,7 +863,7 @@ export default function AdminDocumentVerificationPage() {
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="e.g. The document image is blurred and numbers cannot be read. Please upload a clear color photo."
+                placeholder={mode === 'face' ? 'e.g. Face is not clearly visible. Please submit a clear, current selfie.' : 'e.g. The document image is blurred and numbers cannot be read. Please upload a clear color photo.'}
               rows={4}
               className="w-full p-3 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition"
             />
@@ -873,7 +882,7 @@ export default function AdminDocumentVerificationPage() {
                 disabled={!rejectReason.trim() || busyDocId === rejectModalDoc.id}
                 className="px-5 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 disabled:opacity-50 transition shadow-sm"
               >
-                {busyDocId === rejectModalDoc.id ? 'Rejecting…' : 'Reject Document'}
+                {busyDocId === rejectModalDoc.id ? 'Rejecting…' : mode === 'face' ? 'Reject selfie' : 'Reject Document'}
               </button>
             </div>
           </div>

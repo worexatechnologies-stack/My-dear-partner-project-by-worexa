@@ -44,6 +44,7 @@ export default function AdminPage() {
         {/* Verification Queues */}
         <Route path="profile-verifications" element={guarded('/admin/profile-verifications', <AdminProfileApprovalsPage />)} />
         <Route path="photo-verifications" element={guarded('/admin/photo-verifications', <AdminPhotoApprovalsPage />)} />
+        <Route path="face-verifications" element={guarded('/admin/face-verifications', <AdminDocumentVerificationPage mode="face" />)} />
         <Route path="document-verifications" element={guarded('/admin/document-verifications', <AdminDocumentVerificationPage />)} />
         <Route path="reported-profiles" element={guarded('/admin/reported-profiles', <AdminReportedProfilesPage />)} />
 

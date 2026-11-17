@@ -1069,6 +1069,13 @@ class MemberDocument(models.Model):
         self.reviewed_by_id = value.pk if value else None
 
     @property
+    def is_face_verification(self):
+        return (
+            self.document_type == self.DocumentType.OTHER
+            and self.custom_document_name.strip().casefold() == 'verification selfie'
+        )
+
+    @property
     def display_name(self):
         if self.document_type == self.DocumentType.OTHER and self.custom_document_name:
             return self.custom_document_name

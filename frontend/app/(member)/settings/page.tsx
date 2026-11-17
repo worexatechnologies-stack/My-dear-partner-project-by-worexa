@@ -29,7 +29,7 @@ import { useMembership } from '@/components/member/membership-provider';
 import { ApiError, fetchApi } from '@/legacy/services/apiClient';
 import { useToast } from '@/components/ui';
 
-type SettingsTab = 'security' | 'membership' | 'actions';
+type SettingsTab = 'security' | 'membership' | 'verification' | 'actions';
 
 export default function SettingsPage() {
   const { user, logout, logoutAll, updateUser } = useAuth();
@@ -266,7 +266,40 @@ export default function SettingsPage() {
           <ShieldAlert className="w-3.5 h-3.5" strokeWidth={activeTab === 'actions' ? 2.2 : 1.85} />
           <span>Account Actions</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('verification')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${activeTab === 'verification'
+              ? 'bg-[#e11d48] text-white shadow-sm shadow-rose-500/20'
+              : 'text-slate-600 hover:bg-[#f7f4f5] hover:text-[#0f0f10]'
+            }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" strokeWidth={activeTab === 'verification' ? 2.2 : 1.85} />
+          <span>Verification</span>
+        </button>
       </div>
+
+      {activeTab === 'verification' && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-slate-900">Profile verification</h2>
+                <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500">
+                  Check your verification progress, submit a Government ID, or complete a live selfie check.
+                </p>
+              </div>
+            </div>
+            <Link href="/verification" className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#e11d48] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#be123c] sm:w-auto">
+              Open Verification <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ── Tab 1: Security & Password ── */}
       {activeTab === 'security' && (

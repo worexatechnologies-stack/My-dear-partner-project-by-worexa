@@ -1116,6 +1116,7 @@ class ProfileVerificationRequest(models.Model):
     class VerificationType(models.TextChoices):
         FULL_PROFILE = 'FULL_PROFILE', 'Full profile'
         PROFILE_PHOTO = 'PROFILE_PHOTO', 'Profile photo'
+        FACE_VERIFICATION = 'FACE_VERIFICATION', 'Face verification'
         IDENTITY_DOCUMENT = 'IDENTITY_DOCUMENT', 'Identity document'
         PHONE = 'PHONE', 'Phone'
         EMAIL = 'EMAIL', 'Email'

@@ -37,6 +37,7 @@ class AdminDocumentListView(APIView):
 
         status_filter = request.query_params.get('status')
         doc_type = request.query_params.get('document_type')
+        purpose = request.query_params.get('purpose')
         member_id = request.query_params.get('member_id')
         search = request.query_params.get('search')
 
@@ -44,6 +45,16 @@ class AdminDocumentListView(APIView):
             queryset = queryset.filter(status=status_filter.upper())
         if doc_type:
             queryset = queryset.filter(document_type__iexact=doc_type)
+        if purpose == 'face_verification':
+            queryset = queryset.filter(
+                document_type=MemberDocument.DocumentType.OTHER,
+                custom_document_name__iexact='Verification selfie',
+            )
+        else:
+            queryset = queryset.exclude(
+                document_type=MemberDocument.DocumentType.OTHER,
+                custom_document_name__iexact='Verification selfie',
+            )
         if member_id:
             queryset = queryset.filter(member_id=member_id)
         if search:
@@ -216,34 +227,45 @@ class AdminDocumentApproveView(APIView):
                 doc.admin_comment = admin_comment
             doc.save()
 
-            # Keep the member-level document status in sync. Other document
-            # approval paths (verification queue, core admin actions) set
-            # member.document_status, but this admin-panel path previously
-            # did not, leaving the member's verification centre stuck on
-            # "draft" even after the document was approved.
             member = doc.member
-            member.document_status = Member.VerificationStatus.APPROVED
-            member.document_reviewed_at = timezone.now()
-            member.document_rejection_reason = ''
-            member.save(
-                update_fields=[
-                    'document_status',
-                    'document_reviewed_at',
-                    'document_rejection_reason',
-                    'updated_at',
-                ]
-            )
+            if not doc.is_face_verification:
+                # Keep Government ID status separate from a selfie approval.
+                member.document_status = Member.VerificationStatus.APPROVED
+                member.document_reviewed_at = timezone.now()
+                member.document_rejection_reason = ''
+                member.save(
+                    update_fields=[
+                        'document_status',
+                        'document_reviewed_at',
+                        'document_rejection_reason',
+                        'updated_at',
+                    ]
+                )
 
             try:
                 from apps.core.models import ProfileVerificationRequest
+                reviewer_field = (
+                    {'reviewed_by_admin_id': reviewer.pk}
+                    if reviewer.account_type == AccountType.ADMIN
+                    else {'reviewed_by_super_admin_id': reviewer.pk}
+                )
                 ProfileVerificationRequest.objects.filter(
                     member=member,
-                    verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
-                    status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+                    verification_type=(
+                        ProfileVerificationRequest.VerificationType.FACE_VERIFICATION
+                        if doc.is_face_verification
+                        else ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT
+                    ),
+                    status__in=(
+                        ProfileVerificationRequest.Status.PENDING_REVIEW,
+                        ProfileVerificationRequest.Status.IN_REVIEW,
+                    ),
                 ).update(
                     status=ProfileVerificationRequest.Status.APPROVED,
                     reviewed_at=timezone.now(),
-                    reviewed_by_id=reviewer.pk,
+                    approved_at=timezone.now(),
+                    rejection_reason='',
+                    **reviewer_field,
                 )
             except Exception:
                 pass
@@ -302,32 +324,44 @@ class AdminDocumentRejectView(APIView):
                 doc.admin_comment = admin_comment
             doc.save()
 
-            # Keep the member-level document status in sync (mirrors the
-            # verification-queue reject path).
             member = doc.member
-            member.document_status = Member.VerificationStatus.REJECTED
-            member.document_reviewed_at = timezone.now()
-            member.document_rejection_reason = reason
-            member.save(
-                update_fields=[
-                    'document_status',
-                    'document_reviewed_at',
-                    'document_rejection_reason',
-                    'updated_at',
-                ]
-            )
+            if not doc.is_face_verification:
+                member.document_status = Member.VerificationStatus.REJECTED
+                member.document_reviewed_at = timezone.now()
+                member.document_rejection_reason = reason
+                member.save(
+                    update_fields=[
+                        'document_status',
+                        'document_reviewed_at',
+                        'document_rejection_reason',
+                        'updated_at',
+                    ]
+                )
 
             try:
                 from apps.core.models import ProfileVerificationRequest
+                reviewer_field = (
+                    {'reviewed_by_admin_id': reviewer.pk}
+                    if reviewer.account_type == AccountType.ADMIN
+                    else {'reviewed_by_super_admin_id': reviewer.pk}
+                )
                 ProfileVerificationRequest.objects.filter(
                     member=member,
-                    verification_type=ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT,
-                    status=ProfileVerificationRequest.Status.PENDING_REVIEW,
+                    verification_type=(
+                        ProfileVerificationRequest.VerificationType.FACE_VERIFICATION
+                        if doc.is_face_verification
+                        else ProfileVerificationRequest.VerificationType.IDENTITY_DOCUMENT
+                    ),
+                    status__in=(
+                        ProfileVerificationRequest.Status.PENDING_REVIEW,
+                        ProfileVerificationRequest.Status.IN_REVIEW,
+                    ),
                 ).update(
                     status=ProfileVerificationRequest.Status.REJECTED,
                     rejection_reason=reason,
                     reviewed_at=timezone.now(),
-                    reviewed_by_id=reviewer.pk,
+                    rejected_at=timezone.now(),
+                    **reviewer_field,
                 )
             except Exception:
                 pass
